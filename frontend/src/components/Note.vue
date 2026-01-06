@@ -5,30 +5,40 @@
     draggable="true"
     @dragstart="onDragStart"
     @dragend="onDragEnd"
+    @contextmenu.prevent="onContextMenu"
   >
     <div v-if="!isEditing" class="note-content">
       <h3 class="note-title">{{ title }}</h3>
       <p class="note-text">{{ content }}</p>
-      <div class="note-actions">
-        <button @click="startEdit" class="btn-edit">编辑</button>
-        <button @click="deleteNote" class="btn-delete">删除</button>
-      </div>
     </div>
-    <div v-else class="note-edit">
+    <div v-else class="note-edit" ref="editContainer">
       <input
         v-model="editTitle"
         class="edit-title"
         placeholder="标题"
-        @blur="saveEdit"
         @keyup.enter="saveEdit"
       />
       <textarea
         v-model="editContent"
         class="edit-content"
         placeholder="内容"
-        @blur="saveEdit"
       ></textarea>
       <button @click="saveEdit" class="btn-save">保存</button>
+    </div>
+    <!-- 右键菜单 -->
+    <div
+      v-if="showContextMenu"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    >
+      <div class="context-menu-item" @click="startEdit">
+        <span class="menu-icon">✏️</span>
+        <span>编辑</span>
+      </div>
+      <div class="context-menu-item danger" @click="deleteNote">
+        <span class="menu-icon">🗑️</span>
+        <span>删除</span>
+      </div>
     </div>
   </div>
 </template>
@@ -51,7 +61,10 @@ export default {
       editTitle: this.title,
       editContent: this.content,
       dragOffsetX: 0,
-      dragOffsetY: 0
+      dragOffsetY: 0,
+      showContextMenu: false,
+      contextMenuX: 0,
+      contextMenuY: 0
     };
   },
   methods: {
@@ -60,11 +73,39 @@ export default {
         e.preventDefault();
         return;
       }
+
+      this.showContextMenu = false;
+
       const rect = e.target.getBoundingClientRect();
       this.dragOffsetX = e.clientX - rect.left;
       this.dragOffsetY = e.clientY - rect.top;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('noteId', this.id);
+    },
+
+    setupEditFocusListener() {
+      // 为编辑区域内的元素添加事件监听器
+      this.$nextTick(() => {
+        const editContainer = this.$refs.editContainer;
+        if (editContainer) {
+          const inputs = editContainer.querySelectorAll('input, textarea, button');
+          inputs.forEach(input => {
+            input.addEventListener('blur', this.onEditElementBlur, true);
+          });
+        }
+      });
+    },
+
+    onEditElementBlur(event) {
+      // 使用 setTimeout 确保在所有事件处理完成后检查焦点
+      setTimeout(() => {
+        if (document.activeElement && this.$refs.editContainer) {
+          const isFocusInside = this.$refs.editContainer.contains(document.activeElement);
+          if (!isFocusInside) {
+            this.saveEdit();
+          }
+        }
+      }, 0);
     },
     onDragEnd(e) {
       const wall = document.querySelector('.note-wall');
@@ -75,9 +116,11 @@ export default {
       this.updatePosition(newX, newY);
     },
     startEdit() {
+      this.showContextMenu = false;
       this.isEditing = true;
       this.editTitle = this.title;
       this.editContent = this.content;
+      this.setupEditFocusListener();
     },
     async saveEdit() {
       if (!this.isEditing) return;
@@ -99,12 +142,13 @@ export default {
         });
 
         this.isEditing = false;
+        this.removeEditFocusListener();
       } catch (error) {
         console.error('Failed to update note:', error);
       }
     },
     async deleteNote() {
-      if (!confirm('确定要删除这个便签吗？')) return;
+      this.showContextMenu = false;
 
       try {
         await axios.delete(`/api/notes/${this.id}`);
@@ -135,7 +179,63 @@ export default {
       } catch (error) {
         console.error('Failed to update position:', error);
       }
+    },
+    onContextMenu(event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // 编辑模式下不显示菜单
+      if (this.isEditing) {
+        return;
+      }
+
+      // 计算菜单位置，防止超出屏幕
+      const menuWidth = 150;
+      const menuHeight = 80;
+
+      let x = event.clientX;
+      let y = event.clientY;
+
+      // 防止右边缘溢出
+      if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+      }
+
+      // 防止底部溢出
+      if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 10;
+      }
+
+      this.contextMenuX = x;
+      this.contextMenuY = y;
+      this.showContextMenu = true;
+    },
+    closeContextMenuOnOutsideClick(event) {
+      const noteEl = this.$el;
+      if (this.showContextMenu && !noteEl.contains(event.target)) {
+        this.showContextMenu = false;
+      }
+    },
+
+    removeEditFocusListener() {
+      // 移除编辑区域内的元素事件监听器
+      this.$nextTick(() => {
+        const editContainer = this.$refs.editContainer;
+        if (editContainer) {
+          const inputs = editContainer.querySelectorAll('input, textarea, button');
+          inputs.forEach(input => {
+            input.removeEventListener('blur', this.onEditElementBlur, true);
+          });
+        }
+      });
     }
+  },
+  mounted() {
+    document.addEventListener('click', this.closeContextMenuOnOutsideClick);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
+    this.removeEditFocusListener();
   }
 };
 </script>
@@ -145,7 +245,7 @@ export default {
   position: absolute;
   width: 250px;
   min-height: 150px;
-  background: #fff740;
+  background: #e3f2fd;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -168,7 +268,7 @@ export default {
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 12px;
-  color: #333;
+  color: #1565c0;
 }
 
 .note-text {
@@ -178,40 +278,6 @@ export default {
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
-}
-
-.note-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.note-actions button {
-  flex: 1;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-edit {
-  background: #2196f3;
-  color: white;
-}
-
-.btn-edit:hover {
-  background: #1976d2;
-}
-
-.btn-delete {
-  background: #f44336;
-  color: white;
-}
-
-.btn-delete:hover {
-  background: #d32f2f;
 }
 
 .note-edit {
@@ -254,5 +320,57 @@ export default {
 
 .btn-save:hover {
   background: #45a049;
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  position: fixed;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px 0;
+  z-index: 1000;
+  min-width: 150px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #212121;
+  font-size: 14px;
+}
+
+.context-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.context-menu-item.danger {
+  color: #f44336;
+}
+
+.context-menu-item.danger:hover {
+  background: #ffebee;
+}
+
+.menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
 }
 </style>

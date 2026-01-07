@@ -148,7 +148,7 @@ router.put('/:id', (req, res) => {
 // 删除便签（软删除，移入回收站）
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  const sql = 'UPDATE notes SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?';
+  const sql = "UPDATE notes SET deleted_at = datetime('now', 'localtime') WHERE id = ?";
 
   db.run(sql, id, function(err) {
     if (err) {

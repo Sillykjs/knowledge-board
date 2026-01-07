@@ -114,6 +114,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Clear Recycle Bin Confirmation Modal -->
+    <div v-if="showClearConfirm" class="modal-overlay confirm-modal-overlay">
+      <div class="modal-content">
+        <h3>确认清空回收站</h3>
+        <p class="confirm-message">确定要清空回收站吗？这将永久删除 {{ recycleCount }} 个便签，此操作无法撤销。</p>
+        <div class="modal-buttons">
+          <button @click="cancelClearRecycleBin" class="btn-cancel">取消</button>
+          <button @click="confirmClearRecycleBin" class="btn-delete">确认清空</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -139,7 +151,8 @@ export default {
       recycleNotes: [],
       recycleCount: 0,
       showDeleteConfirm: false,
-      pendingDeleteNoteId: null
+      pendingDeleteNoteId: null,
+      showClearConfirm: false
     };
   },
   mounted() {
@@ -276,10 +289,11 @@ export default {
       this.showDeleteConfirm = false;
       this.pendingDeleteNoteId = null;
     },
-    async clearRecycleBin() {
-      if (!confirm(`确定要清空回收站吗？这将永久删除 ${this.recycleCount} 个便签，此操作无法撤销。`)) {
-        return;
-      }
+    clearRecycleBin() {
+      this.showClearConfirm = true;
+    },
+    async confirmClearRecycleBin() {
+      this.showClearConfirm = false;
 
       try {
         await axios.delete('/api/notes/recycle-bin');
@@ -288,6 +302,9 @@ export default {
       } catch (error) {
         console.error('Failed to clear recycle bin:', error);
       }
+    },
+    cancelClearRecycleBin() {
+      this.showClearConfirm = false;
     },
     formatDeletedTime(deletedAt) {
       const date = new Date(deletedAt);

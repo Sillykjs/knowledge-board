@@ -318,6 +318,7 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 6. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
 7. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
 8. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
+9. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
 
 ## 常见问题排查
 

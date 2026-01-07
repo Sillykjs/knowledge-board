@@ -8,9 +8,9 @@
     @contextmenu.prevent="onContextMenu"
     @mousedown="onMouseDown"
   >
-    <div class="note-content">
+    <div class="note-content" @dblclick="openViewModal">
       <h3 class="note-title">{{ title }}</h3>
-      <p class="note-text">{{ content }}</p>
+      <p class="note-text">{{ truncatedContent }}</p>
     </div>
     <!-- 右键菜单 -->
     <div
@@ -54,6 +54,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 查看模态框 (只读模式) -->
+    <div v-if="showViewModal" class="view-modal">
+      <div class="view-modal-content">
+        <div class="view-header">
+          <h3>查看便签</h3>
+          <button class="close-btn" @click="closeViewModal">×</button>
+        </div>
+        <div class="view-body">
+          <div class="view-title">{{ title }}</div>
+          <div class="view-content">{{ content }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -72,6 +86,7 @@ export default {
   data() {
     return {
       showEditModal: false,
+      showViewModal: false,
       editTitle: this.title,
       editContent: this.content,
       dragOffsetX: 0,
@@ -82,10 +97,24 @@ export default {
       isDraggingEnabled: true
     };
   },
+  computed: {
+    truncatedContent() {
+      if (!this.content) return '';
+      if (this.content.length <= 100) return this.content;
+      return this.content.substring(0, 100) + '...';
+    }
+  },
   methods: {
+    openViewModal() {
+      this.showContextMenu = false;
+      this.showViewModal = true;
+    },
+    closeViewModal() {
+      this.showViewModal = false;
+    },
     onMouseDown() {
-      // 如果编辑模态框打开，则禁用拖拽
-      if (this.showEditModal) {
+      // 如果编辑或查看模态框打开，则禁用拖拽
+      if (this.showEditModal || this.showViewModal) {
         this.isDraggingEnabled = false;
       } else {
         this.isDraggingEnabled = true;
@@ -93,8 +122,8 @@ export default {
     },
 
     onDragStart(e) {
-      // 如果编辑模态框打开或拖拽被禁用，则阻止拖拽
-      if (this.showEditModal || !this.isDraggingEnabled) {
+      // 如果编辑或查看模态框打开或拖拽被禁用，则阻止拖拽
+      if (this.showEditModal || this.showViewModal || !this.isDraggingEnabled) {
         e.preventDefault();
         return;
       }
@@ -518,5 +547,69 @@ export default {
 
 .btn-save:hover {
   background: #45a049;
+}
+
+/* 查看模态框样式 */
+.view-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2001;
+}
+
+.view-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 500px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.2s ease-out;
+}
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.view-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.view-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.view-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1565c0;
+  margin-bottom: 16px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.view-content {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+  word-wrap: break-word;
+  white-space: pre-wrap;
 }
 </style>

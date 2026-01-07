@@ -64,7 +64,7 @@
         </div>
         <div class="view-body">
           <div class="view-title">{{ title }}</div>
-          <div class="view-content">{{ content }}</div>
+          <div class="view-content markdown-body" v-html="renderedContent"></div>
         </div>
       </div>
     </div>
@@ -73,6 +73,16 @@
 
 <script>
 import axios from 'axios';
+import MarkdownIt from 'markdown-it';
+import DOMPurify from 'dompurify';
+
+// 初始化 markdown-it 实例
+const md = new MarkdownIt({
+  html: false,        // 禁用 HTML 标签（安全考虑）
+  linkify: true,      // 自动转换 URL 为链接
+  typographer: true,  // 启用美化排版
+  breaks: true,       // 转换换行符为 <br>
+});
 
 export default {
   name: 'Note',
@@ -102,6 +112,28 @@ export default {
       if (!this.content) return '';
       if (this.content.length <= 100) return this.content;
       return this.content.substring(0, 100) + '...';
+    },
+    // 渲染 Markdown 内容
+    renderedContent() {
+      if (!this.content) return '';
+      try {
+        // 1. 使用 markdown-it 解析 markdown
+        const renderedMarkdown = md.render(this.content);
+        // 2. 使用 DOMPurify 净化 HTML（防止 XSS）
+        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
+          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
+                         'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+          ALLOWED_ATTR: ['href', 'title', 'class', 'target'],
+          ALLOW_DATA_ATTR: false
+        });
+        return cleanHtml;
+      } catch (error) {
+        console.error('Markdown rendering error:', error);
+        // 出错时返回纯文本
+        return this.content;
+      }
     }
   },
   methods: {
@@ -611,5 +643,168 @@ export default {
   line-height: 1.6;
   word-wrap: break-word;
   white-space: pre-wrap;
+}
+
+/* Markdown 样式 */
+.markdown-body {
+  line-height: 1.8;
+}
+
+/* 标题样式 */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #333;
+}
+
+.markdown-body h1 {
+  font-size: 2em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h3 {
+  font-size: 1.25em;
+}
+
+/* 段落样式 */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+/* 列表样式 */
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 2em;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-body li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.markdown-body li > p {
+  margin-top: 16px;
+}
+
+/* 代码块样式 */
+.markdown-body code {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(27, 31, 35, 0.05);
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.markdown-body pre {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background-color: transparent;
+  font-size: 100%;
+}
+
+/* 引用样式 */
+.markdown-body blockquote {
+  padding: 0 1em;
+  color: #6a737d;
+  border-left: 0.25em solid #dfe2e5;
+  margin: 0 0 16px 0;
+}
+
+.markdown-body blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* 水平线样式 */
+.markdown-body hr {
+  height: 0.25em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: #e1e4e8;
+  border: 0;
+}
+
+/* 链接样式 */
+.markdown-body a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+/* 表格样式 */
+.markdown-body table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+  padding: 6px 13px;
+  border: 1px solid #dfe2e5;
+}
+
+.markdown-body table th {
+  font-weight: 600;
+  background-color: #f6f8fa;
+}
+
+.markdown-body table tr {
+  background-color: #fff;
+  border-top: 1px solid #c6cbd1;
+}
+
+.markdown-body table tr:nth-child(2n) {
+  background-color: #f6f8fa;
+}
+
+/* 强调样式 */
+.markdown-body strong {
+  font-weight: 600;
+  color: #24292e;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+/* 删除线样式 */
+.markdown-body s {
+  text-decoration: line-through;
+  color: #6a737d;
 }
 </style>

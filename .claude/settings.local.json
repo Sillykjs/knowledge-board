@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(sqlite3:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebSearch",
+      "Bash(npm install:*)"
     ]
   }
 }

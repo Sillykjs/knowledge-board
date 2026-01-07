@@ -102,6 +102,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteConfirm" class="modal-overlay confirm-modal-overlay">
+      <div class="modal-content">
+        <h3>确认永久删除</h3>
+        <p class="confirm-message">确定要永久删除此便签吗？此操作无法撤销。</p>
+        <div class="modal-buttons">
+          <button @click="cancelPermanentDelete" class="btn-cancel">取消</button>
+          <button @click="confirmPermanentDelete" class="btn-delete">确认删除</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -125,7 +137,9 @@ export default {
       isEditingTitle: false,
       showRecycleBin: false,
       recycleNotes: [],
-      recycleCount: 0
+      recycleCount: 0,
+      showDeleteConfirm: false,
+      pendingDeleteNoteId: null
     };
   },
   mounted() {
@@ -239,10 +253,16 @@ export default {
         console.error('Failed to restore note:', error);
       }
     },
-    async permanentDelete(noteId) {
-      if (!confirm('确定要永久删除此便签吗？此操作无法撤销。')) {
-        return;
-      }
+    permanentDelete(noteId) {
+      this.pendingDeleteNoteId = noteId;
+      this.showDeleteConfirm = true;
+    },
+    async confirmPermanentDelete() {
+      const noteId = this.pendingDeleteNoteId;
+      this.showDeleteConfirm = false;
+      this.pendingDeleteNoteId = null;
+
+      if (!noteId) return;
 
       try {
         await axios.delete(`/api/notes/recycle-bin/${noteId}`);
@@ -251,6 +271,10 @@ export default {
       } catch (error) {
         console.error('Failed to permanently delete note:', error);
       }
+    },
+    cancelPermanentDelete() {
+      this.showDeleteConfirm = false;
+      this.pendingDeleteNoteId = null;
     },
     async clearRecycleBin() {
       if (!confirm(`确定要清空回收站吗？这将永久删除 ${this.recycleCount} 个便签，此操作无法撤销。`)) {
@@ -460,6 +484,31 @@ export default {
 
 .btn-save:hover {
   background-color: #45a049;
+}
+
+.confirm-message {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 15px 0;
+}
+
+.btn-delete {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #d32f2f;
+}
+
+.confirm-modal-overlay {
+  z-index: 2001;
 }
 
 /* Recycle bin styles */

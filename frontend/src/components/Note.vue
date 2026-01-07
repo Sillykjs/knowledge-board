@@ -59,11 +59,10 @@
     <div v-if="showViewModal" class="view-modal">
       <div class="view-modal-content">
         <div class="view-header">
-          <h3>查看便签</h3>
+          <div class="view-title">{{ title }}</div>
           <button class="close-btn" @click="closeViewModal">×</button>
         </div>
         <div class="view-body">
-          <div class="view-title">{{ title }}</div>
           <div class="view-content markdown-body" v-html="renderedContent"></div>
         </div>
       </div>
@@ -628,10 +627,10 @@ export default {
 }
 
 .view-title {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: bold;
   color: #1565c0;
-  margin-bottom: 16px;
+  margin-bottom: 0px;
   line-height: 1.5;
   word-wrap: break-word;
   white-space: pre-wrap;

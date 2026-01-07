@@ -453,7 +453,7 @@ export default {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 500px;
+  width: 800px;
   height: 400px;
   max-width: 90vw;
   max-height: 80vh;
@@ -599,7 +599,7 @@ export default {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 500px;
+  width: 800px;
   max-width: 90vw;
   max-height: 80vh;
   display: flex;
@@ -640,14 +640,21 @@ export default {
 .view-content {
   font-size: 14px;
   color: #555;
-  line-height: 1.6;
   word-wrap: break-word;
-  white-space: pre-wrap;
 }
 
-/* Markdown 样式 */
+/* 非 markdown 模式时的样式 */
+.view-content:not(.markdown-body) {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+</style>
+
+<style>
+/* Markdown 样式 - 非scoped以支持v-html渲染 */
 .markdown-body {
-  line-height: 1.8;
+  line-height: 1.4;
+  font-size: 14px;
 }
 
 /* 标题样式 */
@@ -657,8 +664,8 @@ export default {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  margin-top: 24px;
-  margin-bottom: 16px;
+  margin-top: 12px;
+  margin-bottom: 6px;
   font-weight: 600;
   line-height: 1.25;
   color: #333;
@@ -667,13 +674,13 @@ export default {
 .markdown-body h1 {
   font-size: 2em;
   border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.3em;
+  padding-bottom: 0.2em;
 }
 
 .markdown-body h2 {
   font-size: 1.5em;
   border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.3em;
+  padding-bottom: 0.2em;
 }
 
 .markdown-body h3 {
@@ -683,7 +690,7 @@ export default {
 /* 段落样式 */
 .markdown-body p {
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
 }
 
 /* 列表样式 */
@@ -691,16 +698,17 @@ export default {
 .markdown-body ol {
   padding-left: 2em;
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .markdown-body li {
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .markdown-body li > p {
-  margin-top: 16px;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* 代码块样式 */
@@ -714,13 +722,14 @@ export default {
 }
 
 .markdown-body pre {
-  padding: 16px;
+  padding: 12px;
   overflow: auto;
   font-size: 85%;
   line-height: 1.45;
   background-color: #f6f8fa;
   border-radius: 6px;
-  margin-bottom: 16px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 
 .markdown-body pre code {
@@ -734,7 +743,7 @@ export default {
   padding: 0 1em;
   color: #6a737d;
   border-left: 0.25em solid #dfe2e5;
-  margin: 0 0 16px 0;
+  margin: 6px 0;
 }
 
 .markdown-body blockquote > :first-child {
@@ -749,7 +758,7 @@ export default {
 .markdown-body hr {
   height: 0.25em;
   padding: 0;
-  margin: 24px 0;
+  margin: 12px 0;
   background-color: #e1e4e8;
   border: 0;
 }
@@ -768,7 +777,8 @@ export default {
 .markdown-body table {
   border-spacing: 0;
   border-collapse: collapse;
-  margin-bottom: 16px;
+  margin-top: 6px;
+  margin-bottom: 6px;
   width: 100%;
 }
 

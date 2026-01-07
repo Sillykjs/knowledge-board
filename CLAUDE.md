@@ -162,6 +162,7 @@ ChatBranch2/
 - 显示便签标题和内容
 - 右键菜单支持编辑和删除操作
 - 模态框编辑（点击编辑后弹出）
+- 查看模态框（双击打开，支持 Markdown 渲染）
 - 实现拖拽功能(使用HTML5 Drag & Drop)
 - 拖拽结束后更新位置到后端
 
@@ -186,6 +187,69 @@ ChatBranch2/
 - `dragstart`: 记录拖拽偏移量
 - `dragover`: 允许放置
 - `dragend`: 计算新位置并更新到后端
+
+### Markdown 渲染实现
+查看便签模态框支持 Markdown 渲染，实现位于 `Note.vue`:
+
+**依赖库:**
+- `markdown-it`: 解析 Markdown 语法为 HTML
+- `dompurify`: 净化 HTML 防止 XSS 攻击
+
+**实现细节:**
+1. **初始化**: 在 `<script>` 顶部初始化 markdown-it 实例（第 80-85 行）
+   - `html: false`: 禁止 HTML 标签（安全）
+   - `linkify: true`: 自动转换 URL 为链接
+   - `breaks: true`: 转换换行符为 `<br>`
+
+2. **计算属性**: `renderedContent()` 方法（第 117-137 行）
+   - 使用 `md.render()` 解析 Markdown
+   - 使用 `DOMPurify.sanitize()` 净化 HTML
+   - 仅允许安全的标签和属性
+   - 错误时回退到纯文本
+
+3. **模板渲染**: 使用 `v-html="renderedContent"`（第 67 行）
+   - 元素同时有 `view-content` 和 `markdown-body` 两个 class
+
+4. **样式实现（重要）**:
+   - **使用两个 style 块**（第 304 行和第 653 行）
+   - `<style scoped>`: 组件特定样式
+   - `<style>`: Markdown 样式（非 scoped，必须！）
+
+**关键实现要点:**
+
+**为什么需要非 scoped 样式？**
+- Vue 的 scoped 样式会给元素添加唯一的 `data-v-xxx` 属性
+- 通过 `v-html` 动态插入的 HTML 内容**没有**这些 data 属性
+- 因此 scoped 样式无法应用到 Markdown 渲染的 HTML 上
+- 必须将 `.markdown-body` 相关样式放在非 scoped 的 style 块中
+
+**避免样式冲突:**
+```css
+/* 默认样式 - 同时应用于 markdown 和纯文本 */
+.view-content {
+  font-size: 14px;
+  color: #555;
+  word-wrap: break-word;
+}
+
+/* 仅在非 markdown 模式下应用 */
+.view-content:not(.markdown-body) {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Markdown 专用样式（非 scoped 块） */
+.markdown-body {
+  line-height: 1.4;
+  font-size: 14px;
+  /* 紧凑间距：标题 12px/6px，段落 6px，其他元素 6px */
+}
+```
+
+**安全措施:**
+- 禁止在 Markdown 中使用 HTML 标签（`html: false`）
+- DOMPurify 白名单机制限制可用的 HTML 标签和属性
+- 错误处理防止渲染失败导致崩溃
 
 ### 位置计算
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。
@@ -233,6 +297,8 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 - `axios`: HTTP客户端
 - `vite`: 构建工具和开发服务器
 - `@vitejs/plugin-vue`: Vue 3插件
+- `markdown-it`: Markdown 解析器（用于查看便签模态框）
+- `dompurify`: HTML 净化库（防止 XSS 攻击）
 
 ## 前端配置
 
@@ -249,6 +315,9 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 3. **路由顺序**: 添加新路由时，具体路径（如 `/recycle-bin`）必须在参数化路径（如 `/:id`）之前定义
 4. **软删除**: 删除操作是软删除，不会真正从数据库删除记录，只在回收站中永久删除时才执行真正的DELETE操作
 5. **模态框实现**: 项目使用自定义模态框进行确认操作（如永久删除、清空回收站），不要使用浏览器原生的 `confirm()` 或 `alert()`
+6. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
+7. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
+8. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
 
 ## 常见问题排查
 
@@ -263,3 +332,11 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 
 ### 拖拽不工作
 检查是否在编辑模态框打开时尝试拖拽。编辑模态框打开时拖拽会被禁用。
+
+### v-html 渲染的内容样式不生效
+如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
+1. **检查 scoped 样式**: 相关样式是否在 `<style scoped>` 块中？如果是，移到非 scoped 的 `<style>` 块
+2. **检查样式冲突**: 是否有其他 class 的样式覆盖？使用浏览器开发者工具检查实际应用的样式
+3. **使用条件选择器**: 如 `.class-a:not(.class-b)` 来避免多个 class 时的样式冲突
+4. **增加样式优先级**: 使用更具体的选择器或 `!important`（谨慎使用）
+5. **硬刷新浏览器**: 使用 `Ctrl+Shift+R` 清除缓存并刷新

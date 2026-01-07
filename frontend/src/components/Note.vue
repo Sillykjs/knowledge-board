@@ -6,24 +6,11 @@
     @dragstart="onDragStart"
     @dragend="onDragEnd"
     @contextmenu.prevent="onContextMenu"
+    @mousedown="onMouseDown"
   >
-    <div v-if="!isEditing" class="note-content">
+    <div class="note-content">
       <h3 class="note-title">{{ title }}</h3>
       <p class="note-text">{{ content }}</p>
-    </div>
-    <div v-else class="note-edit" ref="editContainer">
-      <input
-        v-model="editTitle"
-        class="edit-title"
-        placeholder="标题"
-        @keyup.enter="saveEdit"
-      />
-      <textarea
-        v-model="editContent"
-        class="edit-content"
-        placeholder="内容"
-      ></textarea>
-      <button @click="saveEdit" class="btn-save">保存</button>
     </div>
     <!-- 右键菜单 -->
     <div
@@ -38,6 +25,33 @@
       <div class="context-menu-item danger" @click="deleteNote">
         <span class="menu-icon">🗑️</span>
         <span>删除</span>
+      </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div v-if="showEditModal" class="edit-modal" @click="closeModalOutside">
+      <div class="edit-modal-content" @click.stop>
+        <div class="edit-header">
+          <h3>编辑笔记</h3>
+          <button class="close-btn" @click="cancelEdit">×</button>
+        </div>
+        <div class="edit-body">
+          <input
+            v-model="editTitle"
+            class="edit-title"
+            placeholder="标题"
+            @keyup.enter="handleEnterKey"
+          />
+          <textarea
+            v-model="editContent"
+            class="edit-content"
+            placeholder="内容"
+          ></textarea>
+        </div>
+        <div class="edit-footer">
+          <button @click="cancelEdit" class="btn-cancel">取消</button>
+          <button @click="saveEdit" class="btn-save">保存</button>
+        </div>
       </div>
     </div>
   </div>
@@ -57,19 +71,30 @@ export default {
   },
   data() {
     return {
-      isEditing: false,
+      showEditModal: false,
       editTitle: this.title,
       editContent: this.content,
       dragOffsetX: 0,
       dragOffsetY: 0,
       showContextMenu: false,
       contextMenuX: 0,
-      contextMenuY: 0
+      contextMenuY: 0,
+      isDraggingEnabled: true
     };
   },
   methods: {
+    onMouseDown() {
+      // 如果编辑模态框打开，则禁用拖拽
+      if (this.showEditModal) {
+        this.isDraggingEnabled = false;
+      } else {
+        this.isDraggingEnabled = true;
+      }
+    },
+
     onDragStart(e) {
-      if (this.isEditing) {
+      // 如果编辑模态框打开或拖拽被禁用，则阻止拖拽
+      if (this.showEditModal || !this.isDraggingEnabled) {
         e.preventDefault();
         return;
       }
@@ -83,30 +108,6 @@ export default {
       e.dataTransfer.setData('noteId', this.id);
     },
 
-    setupEditFocusListener() {
-      // 为编辑区域内的元素添加事件监听器
-      this.$nextTick(() => {
-        const editContainer = this.$refs.editContainer;
-        if (editContainer) {
-          const inputs = editContainer.querySelectorAll('input, textarea, button');
-          inputs.forEach(input => {
-            input.addEventListener('blur', this.onEditElementBlur, true);
-          });
-        }
-      });
-    },
-
-    onEditElementBlur(event) {
-      // 使用 setTimeout 确保在所有事件处理完成后检查焦点
-      setTimeout(() => {
-        if (document.activeElement && this.$refs.editContainer) {
-          const isFocusInside = this.$refs.editContainer.contains(document.activeElement);
-          if (!isFocusInside) {
-            this.saveEdit();
-          }
-        }
-      }, 0);
-    },
     onDragEnd(e) {
       const wall = document.querySelector('.note-wall');
       const wallRect = wall.getBoundingClientRect();
@@ -117,13 +118,12 @@ export default {
     },
     startEdit() {
       this.showContextMenu = false;
-      this.isEditing = true;
+      this.showEditModal = true;
       this.editTitle = this.title;
       this.editContent = this.content;
-      this.setupEditFocusListener();
     },
     async saveEdit() {
-      if (!this.isEditing) return;
+      if (!this.showEditModal) return;
 
       try {
         await axios.put(`/api/notes/${this.id}`, {
@@ -141,10 +141,30 @@ export default {
           position_y: this.position_y
         });
 
-        this.isEditing = false;
-        this.removeEditFocusListener();
+        this.showEditModal = false;
       } catch (error) {
         console.error('Failed to update note:', error);
+      }
+    },
+
+    cancelEdit() {
+      this.showEditModal = false;
+    },
+
+    closeModalOutside(event) {
+      // 点击模态框外部时关闭模态框
+      if (event.target === event.currentTarget) {
+        this.showEditModal = false;
+      }
+    },
+
+    handleEnterKey(event) {
+      // 在标题输入框中按 Enter 键时，焦点移到内容输入框
+      if (event.target.classList.contains('edit-title')) {
+        event.preventDefault();
+        this.$nextTick(() => {
+          document.querySelector('.edit-content').focus();
+        });
       }
     },
     async deleteNote() {
@@ -217,25 +237,12 @@ export default {
       }
     },
 
-    removeEditFocusListener() {
-      // 移除编辑区域内的元素事件监听器
-      this.$nextTick(() => {
-        const editContainer = this.$refs.editContainer;
-        if (editContainer) {
-          const inputs = editContainer.querySelectorAll('input, textarea, button');
-          inputs.forEach(input => {
-            input.removeEventListener('blur', this.onEditElementBlur, true);
-          });
-        }
-      });
-    }
   },
   mounted() {
     document.addEventListener('click', this.closeContextMenuOnOutsideClick);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
-    this.removeEditFocusListener();
   }
 };
 </script>
@@ -372,5 +379,151 @@ export default {
   font-size: 16px;
   width: 20px;
   text-align: center;
+}
+
+/* 编辑模态框样式 */
+.edit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.edit-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 500px;
+  height: 400px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.2s ease-out;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.edit-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.edit-body {
+  padding: 16px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.edit-title {
+  padding: 10px;
+  border: 2px solid #2196f3;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  outline: none;
+}
+
+.edit-title:focus {
+  border-color: #0d47a1;
+}
+
+.edit-content {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid #2196f3;
+  border-radius: 4px;
+  font-size: 14px;
+  resize: none; /* 禁用调整大小，使用flex自动填充空间 */
+  min-height: 200px;
+  outline: none;
+  font-family: inherit;
+  overflow-y: auto;
+}
+
+.edit-content:focus {
+  border-color: #0d47a1;
+}
+
+.edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+}
+
+.btn-cancel, .btn-save {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-cancel {
+  background: #f5f5f5;
+  color: #555;
+}
+
+.btn-cancel:hover {
+  background: #e0e0e0;
+}
+
+.btn-save {
+  background: #4caf50;
+  color: white;
+}
+
+.btn-save:hover {
+  background: #45a049;
 }
 </style>

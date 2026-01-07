@@ -158,23 +158,26 @@ export default {
   mounted() {
     this.loadNotes();
     this.loadRecycleNotes();
-    // Load saved title and remark from localStorage if they exist
-    const savedTitle = localStorage.getItem('noteWallTitle');
-    const savedRemark = localStorage.getItem('noteWallRemark');
-
-    if (savedTitle) {
-      this.title = savedTitle;
-    }
-
-    if (savedRemark) {
-      this.remark = savedRemark;
-    }
-
-    // Initialize temp variables with current values
-    this.tempTitle = this.title;
-    this.tempRemark = this.remark;
+    this.loadWallConfig();
   },
   methods: {
+    async loadWallConfig() {
+      try {
+        const response = await axios.get('/api/notes/config');
+        this.title = response.data.title;
+        this.remark = response.data.remark;
+        // Initialize temp variables with current values
+        this.tempTitle = this.title;
+        this.tempRemark = this.remark;
+      } catch (error) {
+        console.error('Failed to load wall config:', error);
+        // 如果加载失败，使用默认值
+        this.title = '便签墙';
+        this.remark = '这是便签墙的备注信息';
+        this.tempTitle = this.title;
+        this.tempRemark = this.remark;
+      }
+    },
     async loadNotes() {
       try {
         const response = await axios.get('/api/notes');
@@ -223,15 +226,22 @@ export default {
       this.tempRemark = this.remark;
       this.isEditingTitle = true;
     },
-    saveTitleAndRemark() {
-      // Update the actual title and remark with temporary values
-      this.title = this.tempTitle;
-      this.remark = this.tempRemark;
+    async saveTitleAndRemark() {
+      try {
+        // 调用后端 API 保存配置
+        await axios.put('/api/notes/config', {
+          title: this.tempTitle,
+          remark: this.tempRemark
+        });
 
-      // Save the title and remark to local storage or a backend if needed
-      localStorage.setItem('noteWallTitle', this.title);
-      localStorage.setItem('noteWallRemark', this.remark);
-      this.isEditingTitle = false;
+        // 更新实际的标题和备注
+        this.title = this.tempTitle;
+        this.remark = this.tempRemark;
+        this.isEditingTitle = false;
+      } catch (error) {
+        console.error('Failed to save wall config:', error);
+        alert('保存失败，请重试');
+      }
     },
     cancelEdit() {
       // Reset temp values to current saved values

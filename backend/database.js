@@ -50,6 +50,37 @@ function initDb() {
       });
     }
   });
+
+  // 创建便签墙配置表
+  const createConfigTableSQL = `
+    CREATE TABLE IF NOT EXISTS wall_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      title TEXT NOT NULL DEFAULT '便签墙',
+      remark TEXT NOT NULL DEFAULT '这是便签墙的备注信息',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  db.run(createConfigTableSQL, (err) => {
+    if (err) {
+      console.error('Error creating wall_config table:', err.message);
+    } else {
+      console.log('Wall config table ready');
+
+      // 插入默认配置（如果不存在）
+      const insertDefaultConfig = `
+        INSERT OR IGNORE INTO wall_config (id, title, remark)
+        VALUES (1, '便签墙', '这是便签墙的备注信息')
+      `;
+      db.run(insertDefaultConfig, (err) => {
+        if (err) {
+          console.error('Error inserting default config:', err.message);
+        } else {
+          console.log('Default wall config initialized');
+        }
+      });
+    }
+  });
 }
 
 module.exports = db;

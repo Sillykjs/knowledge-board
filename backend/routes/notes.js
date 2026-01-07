@@ -2,6 +2,56 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
+// ============ 便签墙配置相关路由 ============
+
+// 获取便签墙配置
+router.get('/config', (req, res) => {
+  const sql = 'SELECT title, remark FROM wall_config WHERE id = 1';
+  db.get(sql, [], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!row) {
+      // 如果配置不存在，返回默认值
+      res.json({ title: '便签墙', remark: '这是便签墙的备注信息' });
+      return;
+    }
+    res.json({ title: row.title, remark: row.remark });
+  });
+});
+
+// 更新便签墙配置
+router.put('/config', (req, res) => {
+  const { title, remark } = req.body;
+
+  if (!title || !remark) {
+    res.status(400).json({ error: 'Title and remark are required' });
+    return;
+  }
+
+  const sql = `
+    UPDATE wall_config
+    SET title = ?, remark = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `;
+  const params = [title, remark];
+
+  db.run(sql, params, function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({
+      message: 'Wall config updated',
+      title,
+      remark
+    });
+  });
+});
+
+// ============ 便签相关路由 ============
+
 // 获取所有便签（只返回未删除的）
 router.get('/', (req, res) => {
   const sql = 'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY created_at DESC';

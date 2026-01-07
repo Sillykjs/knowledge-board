@@ -4,7 +4,9 @@
       "Bash(sqlite3:*)",
       "Bash(curl:*)",
       "WebSearch",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm start)",
+      "Bash(timeout:*)"
     ]
   }
 }

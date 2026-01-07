@@ -56,8 +56,8 @@
     </div>
 
     <!-- 查看模态框 (只读模式) -->
-    <div v-if="showViewModal" class="view-modal">
-      <div class="view-modal-content">
+    <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
+      <div class="view-modal-content" @click.stop>
         <div class="view-header">
           <div class="view-title">{{ title }}</div>
           <button class="close-btn" @click="closeViewModal">×</button>

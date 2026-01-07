@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。
+便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。支持便签墙标题和备注的自定义配置，以及 Markdown 渲染。
 
 ## 技术栈
 
@@ -14,6 +14,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **拖拽**: 原生 HTML5 Drag & Drop API
 
 ## 开发命令
+
+### VS Code 调试
+项目包含 VS Code 调试配置 (`.vscode/launch.json`)，可以直接使用调试功能：
+- **启动后端 (Backend)**: 使用 nodemon 自动重启，支持断点调试
+- **启动前端 (Frontend)**: 启动 Vite 开发服务器，自动打开浏览器
+- **启动全部 (Full Stack)**: 同时启动前后端（推荐）
 
 ### 后端启动
 ```bash
@@ -86,6 +92,12 @@ ChatBranch2/
 - `updated_at`: 更新时间
 - `deleted_at`: 删除时间（软删除标记，NULL表示未删除）
 
+**wall_config表结构:**
+- `id`: 主键，固定为1（单例表）
+- `title`: 便签墙标题
+- `remark`: 便签墙备注/描述
+- `updated_at`: 更新时间
+
 ### 软删除机制
 - **软删除**: 删除便签时设置 `deleted_at = CURRENT_TIMESTAMP`，数据仍在数据库中
 - **恢复**: 恢复便签时设置 `deleted_at = NULL`
@@ -94,6 +106,10 @@ ChatBranch2/
 数据库文件位于 `backend/notes.db`
 
 ### API接口
+
+**便签墙配置:**
+- `GET /api/notes/config` - 获取便签墙标题和备注
+- `PUT /api/notes/config` - 更新便签墙标题和备注
 
 **便签基本操作:**
 - `GET /api/notes` - 获取所有未删除的便签
@@ -107,7 +123,12 @@ ChatBranch2/
 - `DELETE /api/notes/recycle-bin/:id` - 永久删除单个便签
 - `DELETE /api/notes/recycle-bin` - 清空回收站（永久删除所有）
 
-**路由顺序注意事项**: 在 `backend/routes/notes.js` 中，回收站相关的路由必须在 `/:id` 路由之前定义，否则会被错误匹配。具体路由按照从具体到通用的顺序排列。
+**路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
+1. 具体路径（如 `/config`, `/recycle-bin`）
+2. 嵌套路径（如 `/recycle-bin/restore/:id`）
+3. 参数化路径（如 `/:id`）
+
+Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义。
 
 ## 前端架构
 
@@ -157,12 +178,14 @@ ChatBranch2/
 - 提供大型白板背景
 - 渲染浮动添加按钮和回收站按钮
 - 垃圾桶按钮显示回收站便签数量徽章
+- 管理便签墙配置（标题和备注），双击标题可编辑
+- 模态框支持点击外部关闭（使用 `@click.stop` 阻止内容区域冒泡）
 
 **Note.vue** (单个便签)
 - 显示便签标题和内容
 - 右键菜单支持编辑和删除操作
-- 模态框编辑（点击编辑后弹出）
-- 查看模态框（双击打开，支持 Markdown 渲染）
+- 编辑模态框（点击编辑后弹出）
+- 查看模态框（双击打开，支持 Markdown 渲染，支持点击外部关闭）
 - 实现拖拽功能(使用HTML5 Drag & Drop)
 - 拖拽结束后更新位置到后端
 
@@ -182,11 +205,35 @@ ChatBranch2/
 
 这种模式确保模态框只在用户明确确认后才执行操作，避免使用浏览器原生的 `confirm()` 对话框。
 
+### 点击外部关闭模态框
+项目中的模态框支持点击外部区域关闭（如查看模态框、回收站模态框），实现方式：
+```html
+<!-- 外层遮罩添加点击事件 -->
+<div class="modal-overlay" @click="closeModal">
+  <!-- 内层内容阻止事件冒泡 -->
+  <div class="modal-content" @click.stop>
+    <!-- 内容 -->
+  </div>
+</div>
+```
+- 外层遮罩：`@click="closeModal"` - 点击半透明背景时关闭
+- 内层内容：`@click.stop` - 阻止点击事件冒泡，点击内容区域不关闭
+
 ### 拖拽实现
 使用原生HTML5 Drag & Drop API:
 - `dragstart`: 记录拖拽偏移量
-- `dragover`: 允许放置
+- `dragover`: 允许放置（在 NoteWall 容器上）
 - `dragend`: 计算新位置并更新到后端
+
+拖拽时自动禁用：当编辑或查看模态框打开时，拖拽功能会被禁用以防止冲突。
+
+### 便签墙配置功能
+便签墙支持自定义标题和备注，实现位于 `NoteWall.vue`：
+- **标题显示**: 页面顶部显示大标题，鼠标悬停显示备注
+- **编辑功能**: 双击标题打开编辑模态框，可修改标题和备注
+- **数据持久化**: 配置保存在 `wall_config` 表中（单例表，id=1）
+- **API接口**: `GET/PUT /api/notes/config`
+- **加载时机**: 组件 mounted 时自动加载配置
 
 ### Markdown 渲染实现
 查看便签模态框支持 Markdown 渲染，实现位于 `Note.vue`:
@@ -258,6 +305,7 @@ ChatBranch2/
 
 数据库迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中：
 - 创建表时包含 `deleted_at` 字段
+- 创建 `wall_config` 单例表，并插入默认配置（id=1）
 - 启动时检测字段是否存在（使用 `PRAGMA table_info`），不存在则使用 `ALTER TABLE` 添加
 - 数据库文件在backend目录下首次运行时自动创建
 - 如果后端已在运行且数据库已创建，需要重启后端以触发迁移
@@ -312,13 +360,15 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 
 1. **后端热加载**: 使用 `npm start` 时没有热加载，代码修改后必须手动重启。使用 `npm run dev`（nodemon）会自动重启，但数据库迁移逻辑不会重新执行。
 2. **数据库位置**: SQLite数据库文件 `notes.db` 在backend目录下首次运行时自动创建
-3. **路由顺序**: 添加新路由时，具体路径（如 `/recycle-bin`）必须在参数化路径（如 `/:id`）之前定义
+3. **路由顺序**: 添加新路由时，具体路径（如 `/config`, `/recycle-bin`）必须在参数化路径（如 `/:id`）之前定义
 4. **软删除**: 删除操作是软删除，不会真正从数据库删除记录，只在回收站中永久删除时才执行真正的DELETE操作
 5. **模态框实现**: 项目使用自定义模态框进行确认操作（如永久删除、清空回收站），不要使用浏览器原生的 `confirm()` 或 `alert()`
 6. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
-7. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
-8. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
-9. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
+7. **点击外部关闭模态框**: 查看模态框和回收站模态框支持点击外部区域关闭，使用 `@click` 和 `@click.stop` 实现事件处理
+8. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
+9. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
+10. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
+11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
 
 ## 常见问题排查
 
@@ -332,7 +382,7 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 确保前端Vite开发服务器正在运行（npm run dev），它通过proxy处理API请求。不要直接在前端代码中使用完整的 `http://localhost:3001` URL。
 
 ### 拖拽不工作
-检查是否在编辑模态框打开时尝试拖拽。编辑模态框打开时拖拽会被禁用。
+检查是否在编辑或查看模态框打开时尝试拖拽。模态框打开时拖拽会被自动禁用以防止冲突。
 
 ### v-html 渲染的内容样式不生效
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
@@ -341,3 +391,47 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 3. **使用条件选择器**: 如 `.class-a:not(.class-b)` 来避免多个 class 时的样式冲突
 4. **增加样式优先级**: 使用更具体的选择器或 `!important`（谨慎使用）
 5. **硬刷新浏览器**: 使用 `Ctrl+Shift+R` 清除缓存并刷新
+
+## 扩展项目指南
+
+### 添加新的数据库字段
+1. 在 `backend/database.js` 的 `initDb()` 函数中添加迁移逻辑（参考 `deleted_at` 字段的迁移方式）
+2. 更新 `backend/routes/notes.js` 中的相关路由以处理新字段
+3. 更新前端组件以支持新字段的显示和编辑
+
+### 添加新的 API 路由
+1. 在 `backend/routes/notes.js` 中添加新路由
+2. **关键**: 将具体路径放在参数化路径（如 `/:id`）之前
+3. 在前端组件中通过 axios 调用新路由
+4. 更新 API 接口文档（上述 API 接口部分）
+
+### 添加新的模态框
+遵循项目的模态框模式：
+1. **控制变量**: 添加 `showXxxModal` 布尔变量
+2. **触发方法**: 设置控制变量为 `true`
+3. **确认方法**: 执行操作并关闭模态框
+4. **取消方法**: 仅关闭模态框
+5. **点击外部关闭**: 使用 `@click` 和 `@click.stop` 实现
+
+示例：
+```html
+<div v-if="showXxxModal" class="modal-overlay" @click="cancelXxx">
+  <div class="modal-content" @click.stop>
+    <!-- 内容 -->
+    <button @click="cancelXxx">取消</button>
+    <button @click="confirmXxx">确认</button>
+  </div>
+</div>
+```
+
+### 修改 Markdown 渲染样式
+1. 在 `Note.vue` 的非 scoped `<style>` 块中修改 `.markdown-body` 样式
+2. 如需添加新的 Markdown 元素样式，在同一个非 scoped 块中添加
+3. 确保 DOMPurify 的 `ALLOWED_TAGS` 包含新元素（如果需要）
+
+### 调试技巧
+1. 使用 VS Code 的调试配置（`.vscode/launch.json`）进行断点调试
+2. 前端：在组件方法中添加 `debugger` 语句或使用 Vue DevTools
+3. 后端：使用 `console.log()` 或 VS Code 的 Node.js 调试器
+4. 数据库：使用 `sqlite3 notes.db` 命令行工具查询数据
+5. 网络请求：使用浏览器开发者工具的 Network 面板查看 API 请求

@@ -17,6 +17,10 @@ The Note Wall application is a full-stack web application that allows users to c
 - Real-time editing of note titles and content
 - Responsive grid background for positioning reference
 - Confirmation dialogs for destructive actions
+- Soft deletion mechanism with a recycle bin
+- Markdown rendering support for note content
+- Customizable wall title and remark
+- Right-click context menus for note operations
 
 ## Project Structure
 
@@ -25,7 +29,7 @@ The Note Wall application is a full-stack web application that allows users to c
 │   ├── server.js           # Main server file
 │   ├── database.js         # SQLite database configuration
 │   ├── routes/
-│   │   └── notes.js        # Notes API routes
+│   │   └── notes.js        # Notes API routes (with recycle bin functionality)
 │   └── package.json        # Backend dependencies
 └── frontend/               # Vue 3 frontend
     ├── src/
@@ -43,16 +47,28 @@ The Note Wall application is a full-stack web application that allows users to c
 
 The backend provides the following RESTful API endpoints:
 
-- `GET /api/notes` - Retrieve all notes
+### Note Operations
+- `GET /api/notes` - Retrieve all active notes (not soft-deleted)
 - `POST /api/notes` - Create a new note
 - `PUT /api/notes/:id` - Update an existing note
-- `DELETE /api/notes/:id` - Delete a note
+- `DELETE /api/notes/:id` - Soft delete a note (moves to recycle bin)
+
+### Recycle Bin Operations
+- `GET /api/notes/recycle-bin` - Retrieve all soft-deleted notes
+- `POST /api/notes/recycle-bin/restore/:id` - Restore a note from recycle bin
+- `DELETE /api/notes/recycle-bin/:id` - Permanently delete a note from recycle bin
+- `DELETE /api/notes/recycle-bin` - Empty the entire recycle bin
+
+### Wall Configuration
+- `GET /api/notes/config` - Get wall title and remark
+- `PUT /api/notes/config` - Update wall title and remark
 - `GET /api/health` - Health check endpoint
 
 ## Database Schema
 
-The application uses SQLite with a single `notes` table:
+The application uses SQLite with two tables:
 
+### Notes Table
 ```sql
 CREATE TABLE notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +77,17 @@ CREATE TABLE notes (
   position_x INTEGER NOT NULL DEFAULT 0,
   position_y INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME DEFAULT NULL  -- Used for soft deletion
+);
+```
+
+### Wall Config Table
+```sql
+CREATE TABLE wall_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  title TEXT NOT NULL DEFAULT '便签墙',
+  remark TEXT NOT NULL DEFAULT '这是便签墙的备注信息',
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -133,11 +160,13 @@ The application will be accessible at `http://localhost:5173`.
 ## Development Conventions
 
 ### Frontend
-- Vue 3 with Composition API (though using Options API in current implementation)
+- Vue 3 with Options API
 - Component-based architecture
 - Axios for API communication
-- CSS with scoped styles
+- CSS with scoped styles (except for markdown styles which are global)
 - Responsive design with grid background
+- Markdown-it for parsing markdown content
+- DOMPurify for sanitizing HTML content
 
 ### Backend
 - Express.js for routing
@@ -145,6 +174,7 @@ The application will be accessible at `http://localhost:5173`.
 - RESTful API design
 - Error handling with appropriate HTTP status codes
 - Input validation for required fields
+- Soft deletion mechanism for notes
 
 ### Code Style
 - JavaScript ES6+ syntax
@@ -152,6 +182,39 @@ The application will be accessible at `http://localhost:5173`.
 - Descriptive variable and function names
 - Proper error handling and logging
 - API responses follow consistent JSON structure
+
+### Soft Deletion Mechanism
+- Notes are not permanently deleted immediately
+- Instead, they are marked with a `deleted_at` timestamp
+- A recycle bin feature allows users to view and restore deleted notes
+- Only when explicitly requested are notes permanently removed from the database
+
+### Markdown Rendering
+- Notes support Markdown syntax for rich text formatting
+- Markdown is rendered only in the read-only view modal (opened with double-click)
+- Editing is done in plain text format
+- HTML output is sanitized using DOMPurify to prevent XSS attacks
+
+## Key Implementation Details
+
+### Drag and Drop
+- Native HTML5 Drag & Drop API is used for moving notes
+- Position updates are sent to the backend when dragging ends
+- Dragging is disabled when modals are open
+
+### Context Menus
+- Right-click on notes opens a context menu with edit/delete options
+- Menu positions are calculated to stay within viewport boundaries
+
+### Modals
+- Separate modals for editing and viewing notes
+- Confirmation modals for destructive actions (permanent deletion, emptying recycle bin)
+- Clicking outside modals closes them appropriately
+
+### Data Flow
+- NoteWall component manages the state of all notes
+- Child Note components emit events when updates occur
+- Parent component handles API calls and state updates
 
 ## Testing
 
@@ -174,3 +237,5 @@ For production deployment:
 - The database file `notes.db` is stored in the backend directory
 - The Vite proxy configuration automatically forwards API requests from the frontend to the backend
 - Drag-and-drop functionality is implemented using native HTML5 drag events
+- The application implements a soft deletion mechanism with a recycle bin feature
+- Markdown content is rendered safely using markdown-it and DOMPurify

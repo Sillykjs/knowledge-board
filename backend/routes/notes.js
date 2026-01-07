@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-// 获取所有便签
+// 获取所有便签（只返回未删除的）
 router.get('/', (req, res) => {
-  const sql = 'SELECT * FROM notes ORDER BY created_at DESC';
+  const sql = 'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY created_at DESC';
   db.all(sql, [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -47,6 +47,79 @@ router.post('/', (req, res) => {
   });
 });
 
+// ============ 回收站相关路由（必须在 /:id 之前定义）============
+
+// 获取回收站中的便签列表
+router.get('/recycle-bin', (req, res) => {
+  const sql = `
+    SELECT * FROM notes
+    WHERE deleted_at IS NOT NULL
+    ORDER BY deleted_at DESC
+  `;
+
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ notes: rows });
+  });
+});
+
+// 从回收站恢复便签
+router.post('/recycle-bin/restore/:id', (req, res) => {
+  const { id } = req.params;
+  const sql = 'UPDATE notes SET deleted_at = NULL WHERE id = ?';
+
+  db.run(sql, id, function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Note not found in recycle bin' });
+      return;
+    }
+    res.json({ message: 'Note restored successfully' });
+  });
+});
+
+// 从回收站永久删除单个便签
+router.delete('/recycle-bin/:id', (req, res) => {
+  const { id } = req.params;
+  const sql = 'DELETE FROM notes WHERE id = ? AND deleted_at IS NOT NULL';
+
+  db.run(sql, id, function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Note not found in recycle bin' });
+      return;
+    }
+    res.json({ message: 'Note permanently deleted' });
+  });
+});
+
+// 清空回收站（永久删除所有已删除便签）
+router.delete('/recycle-bin', (req, res) => {
+  const sql = 'DELETE FROM notes WHERE deleted_at IS NOT NULL';
+
+  db.run(sql, [], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({
+      message: 'Recycle bin emptied',
+      count: this.changes
+    });
+  });
+});
+
+// ============ 通用便签路由 ============
+
 // 更新便签
 router.put('/:id', (req, res) => {
   const { title, content, position_x, position_y } = req.body;
@@ -72,10 +145,10 @@ router.put('/:id', (req, res) => {
   });
 });
 
-// 删除便签
+// 删除便签（软删除，移入回收站）
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  const sql = 'DELETE FROM notes WHERE id = ?';
+  const sql = 'UPDATE notes SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?';
 
   db.run(sql, id, function(err) {
     if (err) {
@@ -86,7 +159,7 @@ router.delete('/:id', (req, res) => {
       res.status(404).json({ error: 'Note not found' });
       return;
     }
-    res.json({ message: 'Note deleted' });
+    res.json({ message: 'Note moved to recycle bin' });
   });
 });
 

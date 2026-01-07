@@ -22,7 +22,8 @@ function initDb() {
       position_x INTEGER NOT NULL DEFAULT 0,
       position_y INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_at DATETIME DEFAULT NULL
     )
   `;
 
@@ -31,6 +32,22 @@ function initDb() {
       console.error('Error creating table:', err.message);
     } else {
       console.log('Notes table ready');
+
+      // 检查并添加 deleted_at 字段（用于已存在的数据库）
+      db.all("PRAGMA table_info(notes)", [], (err, columns) => {
+        if (!err) {
+          const hasDeletedAt = columns.some(col => col.name === 'deleted_at');
+          if (!hasDeletedAt) {
+            db.run("ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL", (err) => {
+              if (err) {
+                console.error('Migration failed:', err.message);
+              } else {
+                console.log('Migration completed: added deleted_at column');
+              }
+            });
+          }
+        }
+      });
     }
   });
 }

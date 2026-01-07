@@ -37,6 +37,53 @@
       <span class="plus-icon">+</span>
     </button>
 
+    <button class="recycle-button" @click="openRecycleBin">
+      <span class="recycle-icon">🗑️</span>
+      <span v-if="recycleCount > 0" class="recycle-count">{{ recycleCount }}</span>
+    </button>
+
+    <!-- Recycle Bin Modal -->
+    <div v-if="showRecycleBin" class="recycle-modal" @click="closeRecycleModalOutside">
+      <div class="recycle-modal-content" @click.stop>
+        <div class="recycle-header">
+          <h3>回收站</h3>
+          <button class="close-btn" @click="closeRecycleBin">×</button>
+        </div>
+
+        <div class="recycle-body">
+          <div v-if="recycleNotes.length === 0" class="empty-recycle">
+            <div class="empty-icon">🗑️</div>
+            <p>回收站为空</p>
+          </div>
+
+          <div v-else class="recycle-list">
+            <div
+              v-for="note in recycleNotes"
+              :key="note.id"
+              class="recycle-item"
+            >
+              <div class="recycle-item-content">
+                <h4 class="recycle-item-title">{{ note.title }}</h4>
+                <p class="recycle-item-text">{{ note.content }}</p>
+                <p class="recycle-item-time">删除于 {{ formatDeletedTime(note.deleted_at) }}</p>
+              </div>
+              <div class="recycle-item-actions">
+                <button @click="restoreNote(note.id)" class="btn-restore">↩️ 恢复</button>
+                <button @click="permanentDelete(note.id)" class="btn-permanent-delete">🗑️ 永久删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recycle-footer">
+          <button v-if="recycleNotes.length > 0" @click="clearRecycleBin" class="btn-clear-all">
+            清空回收站
+          </button>
+          <button @click="closeRecycleBin" class="btn-close">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Edit Title Modal -->
     <div v-if="isEditingTitle" class="modal-overlay">
       <div class="modal-content">
@@ -75,11 +122,15 @@ export default {
       tempTitle: '',
       tempRemark: '',
       showTooltip: false,
-      isEditingTitle: false
+      isEditingTitle: false,
+      showRecycleBin: false,
+      recycleNotes: [],
+      recycleCount: 0
     };
   },
   mounted() {
     this.loadNotes();
+    this.loadRecycleNotes();
     // Load saved title and remark from localStorage if they exist
     const savedTitle = localStorage.getItem('noteWallTitle');
     const savedRemark = localStorage.getItem('noteWallRemark');
@@ -134,6 +185,7 @@ export default {
     },
     onNoteDelete(noteId) {
       this.notes = this.notes.filter(n => n.id !== noteId);
+      this.loadRecycleNotes();
     },
     onDrop(e) {
       e.preventDefault();
@@ -159,6 +211,85 @@ export default {
       this.tempTitle = this.title;
       this.tempRemark = this.remark;
       this.isEditingTitle = false;
+    },
+    // Recycle bin methods
+    async openRecycleBin() {
+      this.showRecycleBin = true;
+      await this.loadRecycleNotes();
+    },
+    closeRecycleBin() {
+      this.showRecycleBin = false;
+    },
+    async loadRecycleNotes() {
+      try {
+        const response = await axios.get('/api/notes/recycle-bin');
+        this.recycleNotes = response.data.notes;
+        this.recycleCount = this.recycleNotes.length;
+      } catch (error) {
+        console.error('Failed to load recycle bin:', error);
+      }
+    },
+    async restoreNote(noteId) {
+      try {
+        await axios.post(`/api/notes/recycle-bin/restore/${noteId}`);
+        this.recycleNotes = this.recycleNotes.filter(n => n.id !== noteId);
+        this.recycleCount = this.recycleNotes.length;
+        await this.loadNotes();
+      } catch (error) {
+        console.error('Failed to restore note:', error);
+      }
+    },
+    async permanentDelete(noteId) {
+      if (!confirm('确定要永久删除此便签吗？此操作无法撤销。')) {
+        return;
+      }
+
+      try {
+        await axios.delete(`/api/notes/recycle-bin/${noteId}`);
+        this.recycleNotes = this.recycleNotes.filter(n => n.id !== noteId);
+        this.recycleCount = this.recycleNotes.length;
+      } catch (error) {
+        console.error('Failed to permanently delete note:', error);
+      }
+    },
+    async clearRecycleBin() {
+      if (!confirm(`确定要清空回收站吗？这将永久删除 ${this.recycleCount} 个便签，此操作无法撤销。`)) {
+        return;
+      }
+
+      try {
+        await axios.delete('/api/notes/recycle-bin');
+        this.recycleNotes = [];
+        this.recycleCount = 0;
+      } catch (error) {
+        console.error('Failed to clear recycle bin:', error);
+      }
+    },
+    formatDeletedTime(deletedAt) {
+      const date = new Date(deletedAt);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return '刚刚';
+      if (diffMins < 60) return `${diffMins} 分钟前`;
+      if (diffHours < 24) return `${diffHours} 小时前`;
+      if (diffDays < 7) return `${diffDays} 天前`;
+
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    },
+    closeRecycleModalOutside(event) {
+      if (event.target === event.currentTarget) {
+        this.closeRecycleBin();
+      }
     }
   }
 };
@@ -329,5 +460,262 @@ export default {
 
 .btn-save:hover {
   background-color: #45a049;
+}
+
+/* Recycle bin styles */
+.recycle-button {
+  position: fixed;
+  bottom: 40px;
+  left: 40px;
+  width: 60px;
+  height: 60px;
+  background: #ff9800;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  z-index: 1000;
+}
+
+.recycle-button:hover {
+  background: #fb8c00;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.recycle-button:active {
+  transform: scale(0.95);
+}
+
+.recycle-icon {
+  font-size: 28px;
+}
+
+.recycle-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #f44336;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+.recycle-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.recycle-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 700px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.2s ease-out;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.recycle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.recycle-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.recycle-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty-recycle {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.recycle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recycle-item {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #eee;
+  transition: all 0.2s;
+}
+
+.recycle-item:hover {
+  background: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.recycle-item-content {
+  flex: 1;
+  margin-right: 16px;
+}
+
+.recycle-item-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.recycle-item-text {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recycle-item-time {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
+.recycle-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-restore {
+  padding: 8px 16px;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-restore:hover {
+  background: #45a049;
+}
+
+.btn-permanent-delete {
+  padding: 8px 16px;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-permanent-delete:hover {
+  background: #d32f2f;
+}
+
+.recycle-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+}
+
+.btn-clear-all {
+  padding: 8px 20px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-clear-all:hover {
+  background: #fb8c00;
+}
+
+.btn-close {
+  padding: 8px 20px;
+  background: #f5f5f5;
+  color: #555;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-close:hover {
+  background: #e0e0e0;
 }
 </style>

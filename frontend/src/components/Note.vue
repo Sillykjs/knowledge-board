@@ -29,8 +29,8 @@
     </div>
 
     <!-- 编辑模态框 -->
-    <div v-if="showEditModal" class="edit-modal" @click="closeModalOutside">
-      <div class="edit-modal-content" @click.stop>
+    <div v-if="showEditModal" class="edit-modal">
+      <div class="edit-modal-content">
         <div class="edit-header">
           <h3>编辑笔记</h3>
           <button class="close-btn" @click="cancelEdit">×</button>
@@ -149,13 +149,6 @@ export default {
 
     cancelEdit() {
       this.showEditModal = false;
-    },
-
-    closeModalOutside(event) {
-      // 点击模态框外部时关闭模态框
-      if (event.target === event.currentTarget) {
-        this.showEditModal = false;
-      }
     },
 
     handleEnterKey(event) {

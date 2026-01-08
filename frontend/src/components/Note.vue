@@ -129,9 +129,7 @@ export default {
   },
   computed: {
     truncatedContent() {
-      if (!this.content) return '';
-      if (this.content.length <= 100) return this.content;
-      return this.content.substring(0, 100) + '...';
+      return this.content || '';
     },
     // 渲染 Markdown 内容
     renderedContent() {
@@ -355,7 +353,7 @@ export default {
 .note {
   position: absolute;
   width: 250px;
-  min-height: 150px;
+  height: 180px;
   background: #e3f2fd;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -363,6 +361,7 @@ export default {
   cursor: move;
   user-select: none;
   transition: box-shadow 0.2s;
+  overflow: hidden;
 }
 
 .note:hover {
@@ -430,6 +429,8 @@ export default {
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow: hidden;
+  max-height: 84px;
 }
 
 .note-edit {

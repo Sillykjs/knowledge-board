@@ -32,61 +32,67 @@
       <div class="point-inner"></div>
     </div>
 
-    <!-- 右键菜单 -->
-    <div
-      v-if="showContextMenu"
-      class="context-menu"
-      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
-    >
-      <div class="context-menu-item" @click="startEdit">
-        <span class="menu-icon">✏️</span>
-        <span>编辑</span>
+    <!-- 右键菜单 - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
+    <Teleport to="body">
+      <div
+        v-if="showContextMenu"
+        class="context-menu"
+        :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+      >
+        <div class="context-menu-item" @click="startEdit">
+          <span class="menu-icon">✏️</span>
+          <span>编辑</span>
+        </div>
+        <div class="context-menu-item danger" @click="deleteNote">
+          <span class="menu-icon">🗑️</span>
+          <span>删除</span>
+        </div>
       </div>
-      <div class="context-menu-item danger" @click="deleteNote">
-        <span class="menu-icon">🗑️</span>
-        <span>删除</span>
-      </div>
-    </div>
+    </Teleport>
 
-    <!-- 编辑模态框 -->
-    <div v-if="showEditModal" class="edit-modal">
-      <div class="edit-modal-content">
-        <div class="edit-header">
-          <h3>编辑笔记</h3>
-          <button class="close-btn" @click="cancelEdit">×</button>
-        </div>
-        <div class="edit-body">
-          <input
-            v-model="editTitle"
-            class="edit-title"
-            placeholder="标题"
-            @keyup.enter="handleEnterKey"
-          />
-          <textarea
-            v-model="editContent"
-            class="edit-content"
-            placeholder="内容"
-          ></textarea>
-        </div>
-        <div class="edit-footer">
-          <button @click="cancelEdit" class="btn-cancel">取消</button>
-          <button @click="saveEdit" class="btn-save">保存</button>
+    <!-- 编辑模态框 - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
+    <Teleport to="body">
+      <div v-if="showEditModal" class="edit-modal">
+        <div class="edit-modal-content">
+          <div class="edit-header">
+            <h3>编辑笔记</h3>
+            <button class="close-btn" @click="cancelEdit">×</button>
+          </div>
+          <div class="edit-body">
+            <input
+              v-model="editTitle"
+              class="edit-title"
+              placeholder="标题"
+              @keyup.enter="handleEnterKey"
+            />
+            <textarea
+              v-model="editContent"
+              class="edit-content"
+              placeholder="内容"
+            ></textarea>
+          </div>
+          <div class="edit-footer">
+            <button @click="cancelEdit" class="btn-cancel">取消</button>
+            <button @click="saveEdit" class="btn-save">保存</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
-    <!-- 查看模态框 (只读模式) -->
-    <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
-      <div class="view-modal-content" @click.stop>
-        <div class="view-header">
-          <div class="view-title">{{ title }}</div>
-          <button class="close-btn" @click="closeViewModal">×</button>
-        </div>
-        <div class="view-body">
-          <div class="view-content markdown-body" v-html="renderedContent"></div>
+    <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
+    <Teleport to="body">
+      <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
+        <div class="view-modal-content" @click.stop>
+          <div class="view-header">
+            <div class="view-title">{{ title }}</div>
+            <button class="close-btn" @click="closeViewModal">×</button>
+          </div>
+          <div class="view-body">
+            <div class="view-content markdown-body" v-html="renderedContent"></div>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 

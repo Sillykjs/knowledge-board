@@ -265,7 +265,10 @@ export default {
     onNoteUpdate(updatedNote) {
       const index = this.notes.findIndex(n => n.id === updatedNote.id);
       if (index !== -1) {
-        this.notes[index] = updatedNote;
+        // 使用 Vue 3 的响应式方式更新数组
+        this.notes.splice(index, 1, { ...updatedNote });
+        // 强制连接线重新计算（通过重新触发响应式更新）
+        this.$forceUpdate();
       }
     },
     onNoteDelete(noteId) {
@@ -421,14 +424,33 @@ export default {
       this.isDraggingConnection = true;
       this.dragStartNoteId = noteId;
 
-      // 计算引出点位置（便签下中心）
-      const note = this.notes.find(n => n.id === noteId);
-      if (!note) return;
+      // 优先使用事件目标获取连接点的实际位置（最准确）
+      const connectionPointEl = event.target.closest('.connection-point');
+      if (connectionPointEl) {
+        const wallRect = this.$el.getBoundingClientRect();
+        const pointRect = connectionPointEl.getBoundingClientRect();
 
-      this.dragStartPoint = {
-        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
-        y: note.position_y + 150   // 便签高度（150px）
-      };
+        this.dragStartPoint = {
+          x: pointRect.left + pointRect.width / 2 - wallRect.left,
+          y: pointRect.top + pointRect.height / 2 - wallRect.top
+        };
+      } else {
+        // 回退方案：获取便签实际高度并计算位置
+        const note = this.notes.find(n => n.id === noteId);
+        if (!note) return;
+
+        const noteElement = document.querySelector(`.note[data-note-id="${noteId}"]`);
+        let noteHeight = 150; // 默认最小高度
+
+        if (noteElement) {
+          noteHeight = noteElement.offsetHeight;
+        }
+
+        this.dragStartPoint = {
+          x: note.position_x + 125,  // 便签宽度一半（250px / 2）
+          y: note.position_y + noteHeight + 8  // 便签实际高度 + 连接点偏移8px
+        };
+      }
 
       this.currentMousePos = { ...this.dragStartPoint };
 
@@ -466,7 +488,7 @@ export default {
         }
       }
 
-      // 重置状态
+      // 重置状态（Note组件会通过自己的mouseup监听器重置isConnecting状态）
       this.isDraggingConnection = false;
       this.dragStartNoteId = null;
       this.dragStartPoint = null;
@@ -523,25 +545,33 @@ export default {
       }
     },
 
-    // 计算连接起点
+    // 计算连接起点（引出点：便签底部下8px，水平居中）
     getConnectionStartPoint(connection) {
       const note = this.notes.find(n => n.id === connection.source_note_id);
       if (!note) return { x: 0, y: 0 };
 
+      // 尝试获取便签元素的实际高度
+      const noteElement = document.querySelector(`.note[data-note-id="${connection.source_note_id}"]`);
+      let noteHeight = 150; // 默认最小高度
+
+      if (noteElement) {
+        noteHeight = noteElement.offsetHeight;
+      }
+
       return {
-        x: note.position_x + 125,  // 便签下中心
-        y: note.position_y + 150
+        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
+        y: note.position_y + noteHeight + 8  // 便签实际高度 + 连接点偏移8px
       };
     },
 
-    // 计算连接终点
+    // 计算连接终点（引入点：便签顶部上8px，水平居中）
     getConnectionEndPoint(connection) {
       const note = this.notes.find(n => n.id === connection.target_note_id);
       if (!note) return { x: 0, y: 0 };
 
       return {
-        x: note.position_x + 125,  // 便签上中心
-        y: note.position_y
+        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
+        y: note.position_y - 8     // 负偏移8px（在便签顶部上方）
       };
     },
 

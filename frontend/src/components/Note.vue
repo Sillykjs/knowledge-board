@@ -1,6 +1,7 @@
 <template>
   <div
     class="note"
+    :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
     draggable="true"
     @dragstart="onDragStart"
@@ -122,7 +123,8 @@ export default {
       showContextMenu: false,
       contextMenuX: 0,
       contextMenuY: 0,
-      isDraggingEnabled: true
+      isDraggingEnabled: true,
+      isConnecting: false  // 是否正在创建连接
     };
   },
   computed: {
@@ -157,6 +159,9 @@ export default {
   methods: {
     // 引出点鼠标按下事件
     onOutputPointMouseDown(event) {
+      this.isConnecting = true;  // 标记正在连接
+      // 添加全局 mouseup 监听器，用于重置连接状态
+      document.addEventListener('mouseup', this.resetConnectingState);
       this.$emit('connection-start', {
         noteId: this.id,
         type: 'output',
@@ -166,11 +171,20 @@ export default {
 
     // 引入点鼠标按下事件
     onInputPointMouseDown(event) {
+      this.isConnecting = true;  // 标记正在连接
+      // 添加全局 mouseup 监听器，用于重置连接状态
+      document.addEventListener('mouseup', this.resetConnectingState);
       this.$emit('connection-start', {
         noteId: this.id,
         type: 'input',
         event
       });
+    },
+
+    // 重置连接状态
+    resetConnectingState() {
+      this.isConnecting = false;
+      document.removeEventListener('mouseup', this.resetConnectingState);
     },
 
     openViewModal() {
@@ -190,8 +204,8 @@ export default {
     },
 
     onDragStart(e) {
-      // 如果编辑或查看模态框打开或拖拽被禁用，则阻止拖拽
-      if (this.showEditModal || this.showViewModal || !this.isDraggingEnabled) {
+      // 如果编辑或查看模态框打开、拖拽被禁用、或正在创建连接，则阻止拖拽
+      if (this.showEditModal || this.showViewModal || !this.isDraggingEnabled || this.isConnecting) {
         e.preventDefault();
         return;
       }

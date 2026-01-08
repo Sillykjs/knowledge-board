@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。支持便签墙标题和备注的自定义配置，以及 Markdown 渲染。
+便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。支持便签墙标题和备注的自定义配置、Markdown 渲染，以及便签间的可视化连接功能。
 
 ## 技术栈
 
@@ -352,6 +352,20 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 - **查询优化**: 在 `source_note_id` 和 `target_note_id` 字段上建立了索引
 - **软删除过滤**: 获取连接时会自动过滤掉已删除便签的连接
 
+前端实现便签间的可视化连接：
+- **SVG 连线层**: 在 NoteWall 组件中使用 SVG 绘制连接线和箭头
+- **连接点**: 每个便签顶部（引入点）和底部（引出点）各有一个连接点
+- **拖拽创建**: 从引出点拖拽到引入点可创建新连接
+- **动态高度计算**: 连接点位置会根据便签的实际高度动态调整（通过 `offsetHeight` 获取）
+- **连接选择**: 点击连接线可选中，按 Delete 键删除
+- **拖拽冲突处理**: 创建连接时会禁用便签拖拽（通过 `isConnecting` 状态标志）
+
+**关键实现细节**:
+1. Note.vue:4 - 便签元素添加 `data-note-id` 属性用于 DOM 查询
+2. NoteWall.vue:549-567 - `getConnectionStartPoint` 和 `getConnectionEndPoint` 方法动态获取便签高度
+3. NoteWall.vue:425-433 - 拖拽开始时优先使用 DOM API 获取连接点精确位置
+4. Note.vue:126 - `isConnecting` 状态标志防止连接操作触发便签拖拽
+
 ## 依赖说明
 
 ### 后端依赖
@@ -446,6 +460,19 @@ SELECT * FROM note_connections;
 ### 拖拽不工作
 检查是否在编辑或查看模态框打开时尝试拖拽。模态框打开时拖拽会被自动禁用以防止冲突。
 
+### 连接线位置不正确
+如果连接线的起点或终点没有对准连接点：
+1. **便签高度变化**: 当便签内容增加时高度会增长，连接线位置会自动调整（通过 `offsetHeight` 动态获取）
+2. **强制刷新**: 修改便签内容后，如果连接线位置未更新，尝试刷新页面或重新加载
+3. **检查 data-note-id**: 确保每个便签元素都有正确的 `data-note-id` 属性
+4. **浏览器缓存**: 使用 `Ctrl+Shift+R` 硬刷新浏览器清除缓存
+
+### 连接操作触发便签移动
+如果在连接点上拖拽时触发了便签的移动，检查：
+1. Note.vue:126 - 确保 `isConnecting` 状态标志被正确设置
+2. Note.vue:197 - 确保 `onDragStart` 中检查了 `isConnecting` 标志
+3. 事件冒泡：连接点事件使用 `@mousedown.stop` 阻止冒泡
+
 ### v-html 渲染的内容样式不生效
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
 1. **检查 scoped 样式**: 相关样式是否在 `<style scoped>` 块中？如果是，移到非 scoped 的 `<style>` 块
@@ -491,6 +518,47 @@ SELECT * FROM note_connections;
 1. 在 `Note.vue` 的非 scoped `<style>` 块中修改 `.markdown-body` 样式
 2. 如需添加新的 Markdown 元素样式，在同一个非 scoped 块中添加
 3. 确保 DOMPurify 的 `ALLOWED_TAGS` 包含新元素（如果需要）
+
+### 实现类似的可视化连接功能
+如果需要在项目中添加类似的元素间连接功能（如节点编辑器、流程图等），参考以下实现模式：
+
+**1. 数据结构设计**:
+```javascript
+// 连接表包含源节点ID、目标节点ID和外键约束
+FOREIGN KEY (source_note_id) REFERENCES notes(id) ON DELETE CASCADE
+FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE CASCADE
+UNIQUE(source_note_id, target_note_id)
+```
+
+**2. 前端渲染层**:
+- 使用 SVG 或 Canvas 作为连接线层，设置 `pointer-events: none` 允许点击穿透
+- 连接线使用 `pointer-events: stroke` 只在线条上响应点击
+- 连接层放在元素下方（`z-index: 1`），元素在上方（`z-index: 10`）
+
+**3. 动态位置计算**:
+```javascript
+// 给每个元素添加唯一标识，方便 DOM 查询
+:data-element-id="id"
+
+// 动态获取元素实际尺寸
+const element = document.querySelector(`[data-element-id="${id}"]`);
+const height = element.offsetHeight;
+
+// 计算连接点位置（考虑元素的动态尺寸）
+const x = elementX + width / 2;  // 水平居中
+const y = elementY + height + offset;  // 垂直位置基于实际高度
+```
+
+**4. 拖拽创建连接**:
+- 使用全局 `mousemove` 和 `mouseup` 事件监听器
+- 拖拽开始时获取连接点精确位置（使用 `getBoundingClientRect()`）
+- 使用 `document.elementFromPoint()` 检测释放目标
+- 通过状态标志（如 `isConnecting`）防止冲突操作
+
+**5. 冲突处理**:
+- 在拖拽开始时设置状态标志，禁用其他交互
+- 在事件处理函数中检查状态标志
+- 在 `mouseup` 时重置状态并移除事件监听器
 
 ### 调试技巧
 1. 使用 VS Code 的调试配置（`.vscode/launch.json`）进行断点调试

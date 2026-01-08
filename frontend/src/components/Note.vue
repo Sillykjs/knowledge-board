@@ -220,10 +220,15 @@ export default {
     onDragEnd(e) {
       const wall = document.querySelector('.note-wall');
       const wallRect = wall.getBoundingClientRect();
-      const newX = e.clientX - wallRect.left - this.dragOffsetX;
-      const newY = e.clientY - wallRect.top - this.dragOffsetY;
 
-      this.updatePosition(newX, newY);
+      // 屏幕坐标
+      const screenX = e.clientX - wallRect.left - this.dragOffsetX;
+      const screenY = e.clientY - wallRect.top - this.dragOffsetY;
+
+      // 通过父组件转换为世界坐标
+      const worldPos = this.$parent.screenToWorld(screenX, screenY);
+
+      this.updatePosition(worldPos.x, worldPos.y);
     },
     startEdit() {
       this.showContextMenu = false;

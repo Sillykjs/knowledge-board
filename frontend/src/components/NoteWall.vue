@@ -3,69 +3,77 @@
     class="note-wall"
     @dragover.prevent
     @drop="onDrop"
+    @mousedown="onWallMouseDown"
+    @mousemove="onWallMouseMove"
+    @mouseup="onWallMouseUp"
+    @mouseleave="onWallMouseUp"
+    @wheel.prevent="onWheel"
   >
-    <!-- SVG连线层（在便签下方） -->
-    <svg class="connections-layer" :style="layerStyle">
-      <!-- 已建立的连接 -->
-      <line
-        v-for="connection in connections"
-        :key="connection.id"
-        :x1="getConnectionStartPoint(connection).x"
-        :y1="getConnectionStartPoint(connection).y"
-        :x2="getConnectionEndPoint(connection).x"
-        :y2="getConnectionEndPoint(connection).y"
-        :class="['connection-line', { selected: selectedConnectionId === connection.id }]"
-        @click="selectConnection(connection.id)"
-      />
-      <!-- 箭头 -->
-      <polygon
-        v-for="connection in connections"
-        :key="'arrow-' + connection.id"
-        :points="getArrowheadPoints(connection)"
-        class="connection-arrowhead"
-        :class="{ selected: selectedConnectionId === connection.id }"
-        @click="selectConnection(connection.id)"
-      />
-      <!-- 拖拽中的临时连线 -->
-      <line
-        v-if="isDraggingConnection && currentMousePos"
-        :x1="dragStartPoint.x"
-        :y1="dragStartPoint.y"
-        :x2="currentMousePos.x"
-        :y2="currentMousePos.y"
-        class="temp-connection-line"
-      />
-    </svg>
+    <!-- 白板内容变换层 -->
+    <div class="wall-content" :style="wallTransformStyle">
+      <!-- SVG连线层（在便签下方） -->
+      <svg class="connections-layer" :style="layerStyle">
+        <!-- 已建立的连接 -->
+        <line
+          v-for="connection in connections"
+          :key="connection.id"
+          :x1="getConnectionStartPoint(connection).x"
+          :y1="getConnectionStartPoint(connection).y"
+          :x2="getConnectionEndPoint(connection).x"
+          :y2="getConnectionEndPoint(connection).y"
+          :class="['connection-line', { selected: selectedConnectionId === connection.id }]"
+          @click="selectConnection(connection.id)"
+        />
+        <!-- 箭头 -->
+        <polygon
+          v-for="connection in connections"
+          :key="'arrow-' + connection.id"
+          :points="getArrowheadPoints(connection)"
+          class="connection-arrowhead"
+          :class="{ selected: selectedConnectionId === connection.id }"
+          @click="selectConnection(connection.id)"
+        />
+        <!-- 拖拽中的临时连线 -->
+        <line
+          v-if="isDraggingConnection && currentMousePos"
+          :x1="dragStartPoint.x"
+          :y1="dragStartPoint.y"
+          :x2="currentMousePos.x"
+          :y2="currentMousePos.y"
+          class="temp-connection-line"
+        />
+      </svg>
 
-    <div class="title-container">
-      <h1
-        class="wall-title"
-        @dblclick="openEditModal"
-        @mouseenter="showTooltip = true"
-        @mouseleave="showTooltip = false"
-      >
-        {{ title }}
-        <div
-          v-if="showTooltip"
-          class="tooltip"
+      <div class="title-container">
+        <h1
+          class="wall-title"
+          @dblclick="openEditModal"
+          @mouseenter="showTooltip = true"
+          @mouseleave="showTooltip = false"
         >
-          {{ remark }}
-        </div>
-      </h1>
-    </div>
+          {{ title }}
+          <div
+            v-if="showTooltip"
+            class="tooltip"
+          >
+            {{ remark }}
+          </div>
+        </h1>
+      </div>
 
-    <Note
-      v-for="note in notes"
-      :key="note.id"
-      :id="note.id"
-      :title="note.title"
-      :content="note.content"
-      :position_x="note.position_x"
-      :position_y="note.position_y"
-      @update="onNoteUpdate"
-      @delete="onNoteDelete"
-      @connection-start="onConnectionStart"
-    />
+      <Note
+        v-for="note in notes"
+        :key="note.id"
+        :id="note.id"
+        :title="note.title"
+        :content="note.content"
+        :position_x="note.position_x"
+        :position_y="note.position_y"
+        @update="onNoteUpdate"
+        @delete="onNoteDelete"
+        @connection-start="onConnectionStart"
+      />
+    </div>
 
     <button class="add-button" @click="addNote">
       <span class="plus-icon">+</span>
@@ -75,6 +83,20 @@
       <span class="recycle-icon">🗑️</span>
       <span v-if="recycleCount > 0" class="recycle-count">{{ recycleCount }}</span>
     </button>
+
+    <!-- 缩放控制按钮组 -->
+    <div class="zoom-controls">
+      <button class="zoom-btn" @click="zoomIn" title="放大">
+        <span>+</span>
+      </button>
+      <button class="zoom-btn" @click="zoomOut" title="缩小">
+        <span>-</span>
+      </button>
+      <button class="zoom-btn reset" @click="resetView" title="重置视图">
+        <span>⟲</span>
+      </button>
+      <div class="zoom-level">{{ Math.round(viewport.scale * 100) }}%</div>
+    </div>
 
     <!-- Recycle Bin Modal -->
     <div v-if="showRecycleBin" class="recycle-modal" @click="closeRecycleModalOutside">
@@ -193,6 +215,21 @@ export default {
       dragStartPoint: null,         // 拖拽起始点坐标 {x, y}
       currentMousePos: null,        // 当前鼠标坐标
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
+      // 白板视口状态
+      viewport: {
+        scale: 1,           // 缩放比例 (0.25 ~ 3.0)
+        translateX: 0,      // 平移X（像素）
+        translateY: 0,      // 平移Y（像素）
+        isDragging: false,  // 是否正在拖拽白板
+        lastMouseX: 0,      // 上次鼠标X位置
+        lastMouseY: 0       // 上次鼠标Y位置
+      },
+      // 缩放限制
+      zoomLimits: {
+        min: 0.25,
+        max: 3.0,
+        step: 0.1
+      }
     };
   },
   mounted() {
@@ -213,9 +250,113 @@ export default {
         width: '100%',
         height: '100%'
       };
+    },
+    // 白板变换样式
+    wallTransformStyle() {
+      return {
+        transform: `translate(${this.viewport.translateX}px, ${this.viewport.translateY}px) scale(${this.viewport.scale})`,
+        transformOrigin: '0 0'  // 从左上角开始变换
+      };
     }
   },
   methods: {
+    // 坐标转换方法
+    // 屏幕坐标转世界坐标
+    screenToWorld(screenX, screenY) {
+      return {
+        x: (screenX - this.viewport.translateX) / this.viewport.scale,
+        y: (screenY - this.viewport.translateY) / this.viewport.scale
+      };
+    },
+    // 世界坐标转屏幕坐标
+    worldToScreen(worldX, worldY) {
+      return {
+        x: worldX * this.viewport.scale + this.viewport.translateX,
+        y: worldY * this.viewport.scale + this.viewport.translateY
+      };
+    },
+    // 白板拖拽方法
+    // 白板鼠标按下事件
+    onWallMouseDown(event) {
+      // 只响应中键（button === 1）
+      if (event.button === 1) {
+        event.preventDefault();
+        // 确保不是点击在便签或连接点上
+        if (event.target.closest('.note') || event.target.closest('.connection-point')) {
+          return;
+        }
+        this.viewport.isDragging = true;
+        this.viewport.lastMouseX = event.clientX;
+        this.viewport.lastMouseY = event.clientY;
+      }
+    },
+    // 白板鼠标移动事件
+    onWallMouseMove(event) {
+      if (!this.viewport.isDragging) return;
+
+      const deltaX = event.clientX - this.viewport.lastMouseX;
+      const deltaY = event.clientY - this.viewport.lastMouseY;
+
+      this.viewport.translateX += deltaX;
+      this.viewport.translateY += deltaY;
+      this.viewport.lastMouseX = event.clientX;
+      this.viewport.lastMouseY = event.clientY;
+    },
+    // 白板鼠标抬起事件
+    onWallMouseUp(event) {
+      if (this.viewport.isDragging) {
+        this.viewport.isDragging = false;
+      }
+    },
+    // 滚轮缩放方法
+    // 滚轮事件处理
+    onWheel(event) {
+      // 以鼠标位置为中心缩放
+      this.zoomAtPoint(event.clientX, event.clientY, event.deltaY);
+    },
+    // 在指定点进行缩放
+    zoomAtPoint(screenX, screenY, delta) {
+      // 归一化 delta 值（通常每个滚动刻度是 100，我们将其映射到合理范围）
+      // 向上滚动 delta < 0，向下滚动 delta > 0
+      const direction = delta > 0 ? -1 : 1;
+      const zoomFactor = direction * this.zoomLimits.step;
+
+      const newScale = Math.min(
+        this.zoomLimits.max,
+        Math.max(this.zoomLimits.min, this.viewport.scale + zoomFactor)
+      );
+
+      if (newScale === this.viewport.scale) return;
+
+      // 计算缩放前的世界坐标
+      const worldX = (screenX - this.viewport.translateX) / this.viewport.scale;
+      const worldY = (screenY - this.viewport.translateY) / this.viewport.scale;
+
+      // 应用新缩放
+      this.viewport.scale = newScale;
+
+      // 调整平移量，保持缩放点位置不变
+      this.viewport.translateX = screenX - worldX * this.viewport.scale;
+      this.viewport.translateY = screenY - worldY * this.viewport.scale;
+    },
+    // 放大按钮
+    zoomIn() {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      this.zoomAtPoint(centerX, centerY, -100);
+    },
+    // 缩小按钮
+    zoomOut() {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      this.zoomAtPoint(centerX, centerY, 100);
+    },
+    // 重置视图
+    resetView() {
+      this.viewport.scale = 1;
+      this.viewport.translateX = 0;
+      this.viewport.translateY = 0;
+    },
     async loadWallConfig() {
       try {
         const response = await axios.get('/api/notes/config');
@@ -430,10 +571,12 @@ export default {
         const wallRect = this.$el.getBoundingClientRect();
         const pointRect = connectionPointEl.getBoundingClientRect();
 
-        this.dragStartPoint = {
-          x: pointRect.left + pointRect.width / 2 - wallRect.left,
-          y: pointRect.top + pointRect.height / 2 - wallRect.top
-        };
+        // 屏幕坐标
+        const screenX = pointRect.left + pointRect.width / 2 - wallRect.left;
+        const screenY = pointRect.top + pointRect.height / 2 - wallRect.top;
+
+        // 转换为世界坐标
+        this.dragStartPoint = this.screenToWorld(screenX, screenY);
       } else {
         // 回退方案：获取便签实际高度并计算位置
         const note = this.notes.find(n => n.id === noteId);
@@ -443,7 +586,8 @@ export default {
         let noteHeight = 150; // 默认最小高度
 
         if (noteElement) {
-          noteHeight = noteElement.offsetHeight;
+          // 除以 scale 获取实际高度
+          noteHeight = noteElement.offsetHeight / this.viewport.scale;
         }
 
         this.dragStartPoint = {
@@ -464,10 +608,11 @@ export default {
       if (!this.isDraggingConnection) return;
 
       const wallRect = this.$el.getBoundingClientRect();
-      this.currentMousePos = {
-        x: event.clientX - wallRect.left,
-        y: event.clientY - wallRect.top
-      };
+
+      // 转换鼠标坐标为世界坐标
+      const screenX = event.clientX - wallRect.left;
+      const screenY = event.clientY - wallRect.top;
+      this.currentMousePos = this.screenToWorld(screenX, screenY);
     },
 
     // 结束连线拖拽
@@ -555,7 +700,8 @@ export default {
       let noteHeight = 150; // 默认最小高度
 
       if (noteElement) {
-        noteHeight = noteElement.offsetHeight;
+        // 除以 scale 获取实际高度
+        noteHeight = noteElement.offsetHeight / this.viewport.scale;
       }
 
       return {
@@ -609,7 +755,23 @@ export default {
     linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
-  overflow: auto;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.note-wall:active {
+  cursor: grabbing;
+}
+
+/* 白板内容层（应用变换） */
+.wall-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  will-change: transform;
 }
 
 /* 连接线层样式 */
@@ -696,6 +858,58 @@ export default {
   color: white;
   font-weight: bold;
   line-height: 1;
+}
+
+/* 缩放控制按钮组 */
+.zoom-controls {
+  position: fixed;
+  bottom: 40px;
+  right: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  z-index: 1000;
+  background: white;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  background: #4caf50;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: #45a049;
+  transform: scale(1.1);
+}
+
+.zoom-btn.reset {
+  background: #2196f3;
+}
+
+.zoom-btn.reset:hover {
+  background: #1976d2;
+}
+
+.zoom-level {
+  font-size: 12px;
+  font-weight: bold;
+  color: #555;
+  margin-top: 4px;
 }
 
 .title-container {

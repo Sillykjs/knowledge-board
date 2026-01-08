@@ -8,10 +8,29 @@
     @contextmenu.prevent="onContextMenu"
     @mousedown="onMouseDown"
   >
+    <!-- 引入点（上中心） -->
+    <div
+      class="connection-point input-point"
+      @mousedown.stop="onInputPointMouseDown"
+      title="引入连接"
+    >
+      <div class="point-inner"></div>
+    </div>
+
     <div class="note-content" @dblclick="openViewModal">
       <h3 class="note-title">{{ title }}</h3>
       <p class="note-text">{{ truncatedContent }}</p>
     </div>
+
+    <!-- 引出点（下中心） -->
+    <div
+      class="connection-point output-point"
+      @mousedown.stop="onOutputPointMouseDown"
+      title="引出连接"
+    >
+      <div class="point-inner"></div>
+    </div>
+
     <!-- 右键菜单 -->
     <div
       v-if="showContextMenu"
@@ -136,6 +155,24 @@ export default {
     }
   },
   methods: {
+    // 引出点鼠标按下事件
+    onOutputPointMouseDown(event) {
+      this.$emit('connection-start', {
+        noteId: this.id,
+        type: 'output',
+        event
+      });
+    },
+
+    // 引入点鼠标按下事件
+    onInputPointMouseDown(event) {
+      this.$emit('connection-start', {
+        noteId: this.id,
+        type: 'input',
+        event
+      });
+    },
+
     openViewModal() {
       this.showContextMenu = false;
       this.showViewModal = true;
@@ -316,6 +353,47 @@ export default {
 
 .note:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* 连接点样式 */
+.connection-point {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #2196f3;
+  cursor: crosshair;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.connection-point:hover {
+  transform: scale(1.3);
+  background: #2196f3;
+  box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
+}
+
+.point-inner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2196f3;
+}
+
+.input-point {
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.output-point {
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .note-content {

@@ -98,6 +98,14 @@ ChatBranch2/
 - `remark`: 便签墙备注/描述
 - `updated_at`: 更新时间
 
+**note_connections表结构:**
+- `id`: 主键，自增
+- `source_note_id`: 源便签ID（外键）
+- `target_note_id`: 目标便签ID（外键）
+- `created_at`: 创建时间
+- 外键约束：级联删除（当便签被删除时，相关连接也会被删除）
+- 唯一约束：`(source_note_id, target_note_id)` 组合必须唯一
+
 ### 软删除机制
 - **软删除**: 删除便签时设置 `deleted_at = CURRENT_TIMESTAMP`，数据仍在数据库中
 - **恢复**: 恢复便签时设置 `deleted_at = NULL`
@@ -110,6 +118,11 @@ ChatBranch2/
 **便签墙配置:**
 - `GET /api/notes/config` - 获取便签墙标题和备注
 - `PUT /api/notes/config` - 更新便签墙标题和备注
+
+**便签连接操作:**
+- `GET /api/notes/connections` - 获取所有便签连接关系
+- `POST /api/notes/connections` - 创建便签之间的连接
+- `DELETE /api/notes/connections/:connectionId` - 删除指定连接
 
 **便签基本操作:**
 - `GET /api/notes` - 获取所有未删除的便签
@@ -124,8 +137,8 @@ ChatBranch2/
 - `DELETE /api/notes/recycle-bin` - 清空回收站（永久删除所有）
 
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
-1. 具体路径（如 `/config`, `/recycle-bin`）
-2. 嵌套路径（如 `/recycle-bin/restore/:id`）
+1. 具体路径（如 `/config`, `/recycle-bin`, `/connections`）
+2. 嵌套路径（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
 3. 参数化路径（如 `/:id`）
 
 Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义。
@@ -325,11 +338,19 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 
 ### 路由设计模式
 路由文件 `backend/routes/notes.js` 遵循以下顺序：
-1. 具体路径路由（如 `/recycle-bin`）
-2. 嵌套路径路由（如 `/recycle-bin/restore/:id`）
-3. 参数化路径路由（如 `/:id`）
+1. **具体路径路由**（如 `/config`, `/recycle-bin`, `/connections`）
+2. **嵌套路径路由**（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
+3. **参数化路径路由**（如 `/:id`）
 
 **关键**: Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义，否则会被错误匹配。
+
+### 便签连接功能
+后端实现了便签之间的连接关系管理：
+- **连接表**: `note_connections` 表存储便签之间的关系
+- **级联删除**: 当便签被删除时，相关的连接会自动删除（外键约束）
+- **唯一约束**: 同一对便签之间只能存在一个连接
+- **查询优化**: 在 `source_note_id` 和 `target_note_id` 字段上建立了索引
+- **软删除过滤**: 获取连接时会自动过滤掉已删除便签的连接
 
 ## 依赖说明
 
@@ -360,7 +381,7 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 
 1. **后端热加载**: 使用 `npm start` 时没有热加载，代码修改后必须手动重启。使用 `npm run dev`（nodemon）会自动重启，但数据库迁移逻辑不会重新执行。
 2. **数据库位置**: SQLite数据库文件 `notes.db` 在backend目录下首次运行时自动创建
-3. **路由顺序**: 添加新路由时，具体路径（如 `/config`, `/recycle-bin`）必须在参数化路径（如 `/:id`）之前定义
+3. **路由顺序**: 添加新路由时，具体路径（如 `/config`, `/recycle-bin`, `/connections`）必须在参数化路径（如 `/:id`）之前定义
 4. **软删除**: 删除操作是软删除，不会真正从数据库删除记录，只在回收站中永久删除时才执行真正的DELETE操作
 5. **模态框实现**: 项目使用自定义模态框进行确认操作（如永久删除、清空回收站），不要使用浏览器原生的 `confirm()` 或 `alert()`
 6. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
@@ -369,6 +390,47 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 9. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
 10. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
 11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
+
+## 数据库管理
+
+### 数据库文件位置
+- SQLite数据库文件位于 `backend/notes.db`
+- 数据库文件已添加到 `.gitignore`，不会被提交到版本控制
+- 每个开发者需要在本地首次运行后端时自动创建数据库
+
+### 数据库迁移机制
+项目使用自动迁移机制：
+- 启动后端时自动检查并创建表
+- 使用 `PRAGMA table_info` 检查字段是否存在
+- 如果字段不存在，使用 `ALTER TABLE` 添加新字段
+- 迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中
+
+### 查询数据库
+使用 SQLite 命令行工具查询数据库：
+```bash
+cd backend
+sqlite3 notes.db
+
+# 查看所有表
+.tables
+
+# 查看表结构
+.schema notes
+.schema wall_config
+.schema note_connections
+
+# 查询所有便签
+SELECT * FROM notes WHERE deleted_at IS NULL;
+
+# 查询回收站
+SELECT * FROM notes WHERE deleted_at IS NOT NULL;
+
+# 查询所有连接
+SELECT * FROM note_connections;
+
+# 退出
+.quit
+```
 
 ## 常见问题排查
 
@@ -402,8 +464,9 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 ### 添加新的 API 路由
 1. 在 `backend/routes/notes.js` 中添加新路由
 2. **关键**: 将具体路径放在参数化路径（如 `/:id`）之前
-3. 在前端组件中通过 axios 调用新路由
-4. 更新 API 接口文档（上述 API 接口部分）
+3. 如果需要数据库支持，在 `backend/database.js` 的 `initDb()` 中添加表创建和迁移逻辑
+4. 在前端组件中通过 axios 调用新路由
+5. 更新 API 接口文档（上述 API 接口部分）
 
 ### 添加新的模态框
 遵循项目的模态框模式：
@@ -435,3 +498,25 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 3. 后端：使用 `console.log()` 或 VS Code 的 Node.js 调试器
 4. 数据库：使用 `sqlite3 notes.db` 命令行工具查询数据
 5. 网络请求：使用浏览器开发者工具的 Network 面板查看 API 请求
+
+### 测试便签连接功能
+后端已实现便签连接API，可以通过以下方式测试：
+
+**创建连接:**
+```bash
+curl -X POST http://localhost:3001/api/notes/connections \
+  -H "Content-Type: application/json" \
+  -d '{"source_note_id": 1, "target_note_id": 2}'
+```
+
+**获取所有连接:**
+```bash
+curl http://localhost:3001/api/notes/connections
+```
+
+**删除连接:**
+```bash
+curl -X DELETE http://localhost:3001/api/notes/connections/1
+```
+
+前端可以通过调用这些API来实现便签之间的连接可视化（例如使用SVG或Canvas绘制连接线）。

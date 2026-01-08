@@ -81,6 +81,41 @@ function initDb() {
       });
     }
   });
+
+  // 创建便签连接表
+  const createConnectionsTableSQL = `
+    CREATE TABLE IF NOT EXISTS note_connections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_note_id INTEGER NOT NULL,
+      target_note_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (source_note_id) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE CASCADE,
+      UNIQUE(source_note_id, target_note_id)
+    )
+  `;
+
+  db.run(createConnectionsTableSQL, (err) => {
+    if (err) {
+      console.error('Error creating note_connections table:', err.message);
+    } else {
+      console.log('Note connections table ready');
+
+      // 创建索引以优化查询性能
+      const createIndexSQL = `
+        CREATE INDEX IF NOT EXISTS idx_connections_source ON note_connections(source_note_id);
+        CREATE INDEX IF NOT EXISTS idx_connections_target ON note_connections(target_note_id);
+      `;
+
+      db.run(createIndexSQL, (err) => {
+        if (err) {
+          console.error('Error creating indexes:', err.message);
+        } else {
+          console.log('Note connections indexes ready');
+        }
+      });
+    }
+  });
 }
 
 module.exports = db;

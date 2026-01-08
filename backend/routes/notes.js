@@ -50,6 +50,86 @@ router.put('/config', (req, res) => {
   });
 });
 
+// ============ 连接相关路由（必须在 /:id 之前定义）============
+
+// 获取所有连接关系
+router.get('/connections', (req, res) => {
+  const sql = `
+    SELECT nc.id, nc.source_note_id, nc.target_note_id, nc.created_at
+    FROM note_connections nc
+    INNER JOIN notes source_note ON nc.source_note_id = source_note.id
+    INNER JOIN notes target_note ON nc.target_note_id = target_note.id
+    WHERE source_note.deleted_at IS NULL AND target_note.deleted_at IS NULL
+    ORDER BY nc.created_at DESC
+  `;
+
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ connections: rows });
+  });
+});
+
+// 创建新连接
+router.post('/connections', (req, res) => {
+  const { source_note_id, target_note_id } = req.body;
+
+  if (!source_note_id || !target_note_id) {
+    res.status(400).json({ error: 'source_note_id and target_note_id are required' });
+    return;
+  }
+
+  if (source_note_id === target_note_id) {
+    res.status(400).json({ error: 'Cannot connect a note to itself' });
+    return;
+  }
+
+  const sql = `
+    INSERT INTO note_connections (source_note_id, target_note_id)
+    VALUES (?, ?)
+  `;
+
+  db.run(sql, [source_note_id, target_note_id], function(err) {
+    if (err) {
+      if (err.message.includes('UNIQUE')) {
+        res.status(400).json({ error: 'Connection already exists' });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+      return;
+    }
+
+    res.status(201).json({
+      message: 'Connection created',
+      connection: {
+        id: this.lastID,
+        source_note_id,
+        target_note_id
+      }
+    });
+  });
+});
+
+// 删除连接（通过连接ID）
+router.delete('/connections/:connectionId', (req, res) => {
+  const { connectionId } = req.params;
+  const sql = 'DELETE FROM note_connections WHERE id = ?';
+
+  db.run(sql, connectionId, function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Connection not found' });
+      return;
+    }
+    res.json({ message: 'Connection deleted' });
+  });
+});
+
 // ============ 便签相关路由 ============
 
 // 获取所有便签（只返回未删除的）

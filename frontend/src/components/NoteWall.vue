@@ -4,6 +4,39 @@
     @dragover.prevent
     @drop="onDrop"
   >
+    <!-- SVG连线层（在便签下方） -->
+    <svg class="connections-layer" :style="layerStyle">
+      <!-- 已建立的连接 -->
+      <line
+        v-for="connection in connections"
+        :key="connection.id"
+        :x1="getConnectionStartPoint(connection).x"
+        :y1="getConnectionStartPoint(connection).y"
+        :x2="getConnectionEndPoint(connection).x"
+        :y2="getConnectionEndPoint(connection).y"
+        :class="['connection-line', { selected: selectedConnectionId === connection.id }]"
+        @click="selectConnection(connection.id)"
+      />
+      <!-- 箭头 -->
+      <polygon
+        v-for="connection in connections"
+        :key="'arrow-' + connection.id"
+        :points="getArrowheadPoints(connection)"
+        class="connection-arrowhead"
+        :class="{ selected: selectedConnectionId === connection.id }"
+        @click="selectConnection(connection.id)"
+      />
+      <!-- 拖拽中的临时连线 -->
+      <line
+        v-if="isDraggingConnection && currentMousePos"
+        :x1="dragStartPoint.x"
+        :y1="dragStartPoint.y"
+        :x2="currentMousePos.x"
+        :y2="currentMousePos.y"
+        class="temp-connection-line"
+      />
+    </svg>
+
     <div class="title-container">
       <h1
         class="wall-title"
@@ -31,6 +64,7 @@
       :position_y="note.position_y"
       @update="onNoteUpdate"
       @delete="onNoteDelete"
+      @connection-start="onConnectionStart"
     />
 
     <button class="add-button" @click="addNote">
@@ -152,13 +186,34 @@ export default {
       recycleCount: 0,
       showDeleteConfirm: false,
       pendingDeleteNoteId: null,
-      showClearConfirm: false
+      showClearConfirm: false,
+      connections: [],              // 所有连接关系
+      isDraggingConnection: false,  // 是否正在拖拽连线
+      dragStartNoteId: null,        // 拖拽起始便签ID
+      dragStartPoint: null,         // 拖拽起始点坐标 {x, y}
+      currentMousePos: null,        // 当前鼠标坐标
+      selectedConnectionId: null,   // 选中的连接ID（用于删除）
     };
   },
   mounted() {
     this.loadNotes();
     this.loadRecycleNotes();
     this.loadWallConfig();
+    this.loadConnections();
+
+    // 添加键盘事件监听
+    document.addEventListener('keydown', this.onKeyDown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeyDown);
+  },
+  computed: {
+    layerStyle() {
+      return {
+        width: '100%',
+        height: '100%'
+      };
+    }
   },
   methods: {
     async loadWallConfig() {
@@ -216,6 +271,7 @@ export default {
     onNoteDelete(noteId) {
       this.notes = this.notes.filter(n => n.id !== noteId);
       this.loadRecycleNotes();
+      this.loadConnections();  // 后端会自动删除相关连接
     },
     onDrop(e) {
       e.preventDefault();
@@ -341,6 +397,173 @@ export default {
       if (event.target === event.currentTarget) {
         this.closeRecycleBin();
       }
+    },
+
+    // ========== 连接相关方法 ==========
+
+    // 加载所有连接
+    async loadConnections() {
+      try {
+        const response = await axios.get('/api/notes/connections');
+        this.connections = response.data.connections;
+      } catch (error) {
+        console.error('Failed to load connections:', error);
+      }
+    },
+
+    // 开始连接拖拽
+    onConnectionStart(payload) {
+      const { noteId, type, event } = payload;
+
+      // 只允许从引出点开始拖拽
+      if (type !== 'output') return;
+
+      this.isDraggingConnection = true;
+      this.dragStartNoteId = noteId;
+
+      // 计算引出点位置（便签下中心）
+      const note = this.notes.find(n => n.id === noteId);
+      if (!note) return;
+
+      this.dragStartPoint = {
+        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
+        y: note.position_y + 150   // 便签高度（150px）
+      };
+
+      this.currentMousePos = { ...this.dragStartPoint };
+
+      // 添加全局事件监听
+      document.addEventListener('mousemove', this.onConnectionDrag);
+      document.addEventListener('mouseup', this.onConnectionDragEnd);
+    },
+
+    // 连线拖拽中
+    onConnectionDrag(event) {
+      if (!this.isDraggingConnection) return;
+
+      const wallRect = this.$el.getBoundingClientRect();
+      this.currentMousePos = {
+        x: event.clientX - wallRect.left,
+        y: event.clientY - wallRect.top
+      };
+    },
+
+    // 结束连线拖拽
+    async onConnectionDragEnd(event) {
+      if (!this.isDraggingConnection) return;
+
+      // 检查是否释放到引入点上
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const inputPoint = target?.closest('.input-point');
+
+      if (inputPoint) {
+        // 找到对应的便签组件
+        const noteElement = inputPoint.closest('.note');
+        const targetNoteId = noteElement?.__vueParentComponent?.props?.id;
+
+        if (targetNoteId && targetNoteId !== this.dragStartNoteId) {
+          await this.createConnection(this.dragStartNoteId, targetNoteId);
+        }
+      }
+
+      // 重置状态
+      this.isDraggingConnection = false;
+      this.dragStartNoteId = null;
+      this.dragStartPoint = null;
+      this.currentMousePos = null;
+
+      // 移除事件监听
+      document.removeEventListener('mousemove', this.onConnectionDrag);
+      document.removeEventListener('mouseup', this.onConnectionDragEnd);
+    },
+
+    // 创建连接
+    async createConnection(sourceId, targetId) {
+      try {
+        await axios.post('/api/notes/connections', {
+          source_note_id: sourceId,
+          target_note_id: targetId
+        });
+
+        await this.loadConnections();
+      } catch (error) {
+        console.error('Failed to create connection:', error);
+        if (error.response?.data?.error) {
+          alert(error.response.data.error);
+        }
+      }
+    },
+
+    // 选中连接
+    selectConnection(connectionId) {
+      this.selectedConnectionId = connectionId;
+    },
+
+    // 删除选中的连接
+    async deleteSelectedConnection() {
+      if (!this.selectedConnectionId) return;
+
+      try {
+        await axios.delete(`/api/notes/connections/${this.selectedConnectionId}`);
+        this.connections = this.connections.filter(
+          c => c.id !== this.selectedConnectionId
+        );
+        this.selectedConnectionId = null;
+      } catch (error) {
+        console.error('Failed to delete connection:', error);
+      }
+    },
+
+    // 键盘事件处理（Delete键删除连接）
+    onKeyDown(event) {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (this.selectedConnectionId) {
+          this.deleteSelectedConnection();
+        }
+      }
+    },
+
+    // 计算连接起点
+    getConnectionStartPoint(connection) {
+      const note = this.notes.find(n => n.id === connection.source_note_id);
+      if (!note) return { x: 0, y: 0 };
+
+      return {
+        x: note.position_x + 125,  // 便签下中心
+        y: note.position_y + 150
+      };
+    },
+
+    // 计算连接终点
+    getConnectionEndPoint(connection) {
+      const note = this.notes.find(n => n.id === connection.target_note_id);
+      if (!note) return { x: 0, y: 0 };
+
+      return {
+        x: note.position_x + 125,  // 便签上中心
+        y: note.position_y
+      };
+    },
+
+    // 计算箭头顶点
+    getArrowheadPoints(connection) {
+      const endPoint = this.getConnectionEndPoint(connection);
+      const startPoint = this.getConnectionStartPoint(connection);
+
+      const arrowSize = 10;
+      const angle = Math.PI / 6; // 30度
+
+      // 计算直线角度
+      const deltaX = endPoint.x - startPoint.x;
+      const deltaY = endPoint.y - startPoint.y;
+      const lineAngle = Math.atan2(deltaY, deltaX);
+
+      // 计算箭头三个顶点
+      const p1 = `${endPoint.x},${endPoint.y}`;
+      const p2 = `${endPoint.x - arrowSize * Math.cos(lineAngle - angle)},${endPoint.y - arrowSize * Math.sin(lineAngle - angle)}`;
+      const p3 = `${endPoint.x - arrowSize * Math.cos(lineAngle + angle)},${endPoint.y - arrowSize * Math.sin(lineAngle + angle)}`;
+
+      return `${p1} ${p2} ${p3}`;
     }
   }
 };
@@ -357,6 +580,57 @@ export default {
     linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
   overflow: auto;
+}
+
+/* 连接线层样式 */
+.connections-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;  /* 允许点击穿透到便签 */
+  z-index: 1;  /* 在便签下方 */
+}
+
+.connection-line {
+  stroke: #2196f3;
+  stroke-width: 2;
+  pointer-events: stroke;  /* 只在线条上响应点击 */
+  cursor: pointer;
+  transition: stroke-width 0.2s;
+}
+
+.connection-line:hover {
+  stroke-width: 3;
+  stroke: #1976d2;
+}
+
+.connection-line.selected {
+  stroke: #ff9800;
+  stroke-width: 3;
+}
+
+.connection-arrowhead {
+  fill: #2196f3;
+  pointer-events: stroke;
+  cursor: pointer;
+  transition: fill 0.2s;
+}
+
+.connection-arrowhead:hover {
+  fill: #1976d2;
+}
+
+.connection-arrowhead.selected {
+  fill: #ff9800;
+}
+
+.temp-connection-line {
+  stroke: #2196f3;
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;  /* 虚线效果 */
+  opacity: 0.6;
 }
 
 .add-button {

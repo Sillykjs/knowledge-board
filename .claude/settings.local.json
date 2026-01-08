@@ -6,7 +6,11 @@
       "WebSearch",
       "Bash(npm install:*)",
       "Bash(npm start)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 55680 -Force\")"
     ]
   }
 }

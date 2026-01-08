@@ -228,11 +228,8 @@ export default {
       // 通过父组件转换为世界坐标
       const worldPos = this.$parent.screenToWorld(screenX, screenY);
 
-      // 边界限制：x, y 必须 >= 0
-      const clampedX = Math.max(0, worldPos.x);
-      const clampedY = Math.max(0, worldPos.y);
-
-      this.updatePosition(clampedX, clampedY);
+      // 直接使用世界坐标，允许负值（无限白板）
+      this.updatePosition(worldPos.x, worldPos.y);
     },
     startEdit() {
       this.showContextMenu = false;
@@ -290,22 +287,20 @@ export default {
     },
     async updatePosition(x, y) {
       try {
-        const newX = Math.max(0, x);
-        const newY = Math.max(0, y);
-
+        // 直接使用传入的坐标，允许负值（无限白板）
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,
           content: this.content,
-          position_x: newX,
-          position_y: newY
+          position_x: x,
+          position_y: y
         });
 
         this.$emit('update', {
           id: this.id,
           title: this.title,
           content: this.content,
-          position_x: newX,
-          position_y: newY
+          position_x: x,
+          position_y: y
         });
       } catch (error) {
         console.error('Failed to update position:', error);

@@ -803,6 +803,8 @@ export default {
   height: 100%;
   pointer-events: none;
   z-index: 0;
+  /* 隐藏边界线 */
+  /* display: none; */
 }
 
 .boundary-line {

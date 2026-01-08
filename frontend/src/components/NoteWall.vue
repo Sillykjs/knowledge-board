@@ -591,8 +591,9 @@ export default {
         let noteHeight = 150; // 默认最小高度
 
         if (noteElement) {
-          // 除以 scale 获取实际高度
-          noteHeight = noteElement.offsetHeight / this.viewport.scale;
+          // offsetHeight 返回布局尺寸（不包括 CSS transform）
+          // 直接使用即可，不需要除以 scale
+          noteHeight = noteElement.offsetHeight;
         }
 
         this.dragStartPoint = {
@@ -705,8 +706,9 @@ export default {
       let noteHeight = 150; // 默认最小高度
 
       if (noteElement) {
-        // 除以 scale 获取实际高度
-        noteHeight = noteElement.offsetHeight / this.viewport.scale;
+        // offsetHeight 返回布局尺寸（不包括 CSS transform）
+        // 直接使用即可，不需要除以 scale
+        noteHeight = noteElement.offsetHeight;
       }
 
       return {

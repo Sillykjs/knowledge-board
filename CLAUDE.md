@@ -188,10 +188,12 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 管理所有便签和回收站的状态
 - 处理便签的添加、更新、删除
 - 处理回收站的打开、关闭、恢复、永久删除
-- 提供大型白板背景
+- 提供大型白板背景，支持缩放和平移操作
 - 渲染浮动添加按钮和回收站按钮
 - 垃圾桶按钮显示回收站便签数量徽章
 - 管理便签墙配置（标题和备注），双击标题可编辑
+- 标题固定在顶部，不受白板缩放平移影响
+- 缩放控制按钮组：放大、缩小、重置视图，显示当前缩放比例
 - 模态框支持点击外部关闭（使用 `@click.stop` 阻止内容区域冒泡）
 
 **Note.vue** (单个便签)
@@ -314,6 +316,47 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ### 位置计算
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。
 
+### 白板缩放和平移功能
+便签墙支持缩放和平移操作，实现位于 `NoteWall.vue`：
+
+**视图状态管理:**
+- `viewport.scale`: 缩放比例（范围 0.25 ~ 3.0，默认 1.0）
+- `viewport.translateX`: X轴平移偏移量
+- `viewport.translateY`: Y轴平移偏移量
+- `zoomLimits`: 定义缩放限制（min: 0.25, max: 3.0, step: 0.1）
+
+**实现方式:**
+1. **CSS Transform**: 使用 `transform: translate() scale()` 应用缩放和平移
+   - 变换原点固定为左上角（`transformOrigin: '0 0'`）
+   - `.wall-content` 容器承载变换，标题和按钮在容器外不受影响
+
+2. **坐标转换系统**:
+   - `screenToWorld()`: 屏幕坐标 → 白板世界坐标（除以 scale 再减去偏移）
+   - `worldToScreen()`: 白板世界坐标 → 屏幕坐标（乘以 scale 再加上偏移）
+   - 所有拖拽和连接操作都通过坐标转换确保位置准确
+
+3. **缩放操作**:
+   - **鼠标滚轮**: `onWheel()` 事件，调用 `zoomAtPoint()` 实现以鼠标位置为中心的缩放
+   - **缩放按钮**: 右下角控制面板提供放大(+)/缩小(-)/重置(⟲)按钮
+   - **缩放算法**: 先计算缩放前鼠标指向的世界坐标，缩放后调整平移偏移使该点保持在鼠标下
+
+4. **平移操作**:
+   - **鼠标拖拽**: `onWallMouseDown/Move/Up` 事件处理
+   - 通过 `isPanning` 状态标志区分平移和便签拖拽
+   - 按住空白处拖拽可平移白板
+
+**关键实现细节**:
+1. NoteWall.vue:6 - 监听 `@wheel.prevent` 禁用默认滚动
+2. NoteWall.vue:258-259 - `wallTransformStyle` 计算属性生成 CSS transform
+3. NoteWall.vue:323-346 - `zoomAtPoint()` 方法实现以鼠标为中心的缩放
+4. NoteWall.vue:12-28 - 标题容器独立于 `.wall-content`，不受变换影响
+5. 便签高度计算需要除以 scale：`noteElement.offsetHeight / this.viewport.scale`
+
+**交互冲突处理**:
+- 平移操作 (`isPanning`) 和便签拖拽互斥，通过事件目标判断
+- 连接操作 (`isConnecting`) 会禁用便签拖拽
+- 缩放操作通过滚轮独立触发，不影响拖拽
+
 ## 数据库迁移
 
 数据库迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中：
@@ -353,10 +396,10 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 - **软删除过滤**: 获取连接时会自动过滤掉已删除便签的连接
 
 前端实现便签间的可视化连接：
-- **SVG 连线层**: 在 NoteWall 组件中使用 SVG 绘制连接线和箭头
+- **SVG 连线层**: 在 NoteWall 组件中使用 SVG 绘制连接线和箭头，位于 `.wall-content` 内随白板缩放平移
 - **连接点**: 每个便签顶部（引入点）和底部（引出点）各有一个连接点
 - **拖拽创建**: 从引出点拖拽到引入点可创建新连接
-- **动态高度计算**: 连接点位置会根据便签的实际高度动态调整（通过 `offsetHeight` 获取）
+- **动态高度计算**: 连接点位置会根据便签的实际高度动态调整（通过 `offsetHeight / scale` 获取）
 - **连接选择**: 点击连接线可选中，按 Delete 键删除
 - **拖拽冲突处理**: 创建连接时会禁用便签拖拽（通过 `isConnecting` 状态标志）
 
@@ -365,6 +408,7 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 2. NoteWall.vue:549-567 - `getConnectionStartPoint` 和 `getConnectionEndPoint` 方法动态获取便签高度
 3. NoteWall.vue:425-433 - 拖拽开始时优先使用 DOM API 获取连接点精确位置
 4. Note.vue:126 - `isConnecting` 状态标志防止连接操作触发便签拖拽
+5. **坐标转换**: 连接点计算需要考虑缩放比例，使用 `offsetHeight / scale` 获取真实高度
 
 ## 依赖说明
 
@@ -404,6 +448,8 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 9. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
 10. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
 11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
+12. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
+13. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
 
 ## 数据库管理
 
@@ -462,16 +508,31 @@ SELECT * FROM note_connections;
 
 ### 连接线位置不正确
 如果连接线的起点或终点没有对准连接点：
-1. **便签高度变化**: 当便签内容增加时高度会增长，连接线位置会自动调整（通过 `offsetHeight` 动态获取）
-2. **强制刷新**: 修改便签内容后，如果连接线位置未更新，尝试刷新页面或重新加载
-3. **检查 data-note-id**: 确保每个便签元素都有正确的 `data-note-id` 属性
-4. **浏览器缓存**: 使用 `Ctrl+Shift+R` 硬刷新浏览器清除缓存
+1. **便签高度变化**: 当便签内容增加时高度会增长，连接线位置会自动调整（通过 `offsetHeight / scale` 动态获取）
+2. **缩放影响**: 如果白板被缩放，连接线计算需要考虑缩放比例。检查是否正确使用了 `offsetHeight / viewport.scale`
+3. **强制刷新**: 修改便签内容后，如果连接线位置未更新，尝试刷新页面或重新加载
+4. **检查 data-note-id**: 确保每个便签元素都有正确的 `data-note-id` 属性
+5. **浏览器缓存**: 使用 `Ctrl+Shift+R` 硬刷新浏览器清除缓存
 
 ### 连接操作触发便签移动
 如果在连接点上拖拽时触发了便签的移动，检查：
 1. Note.vue:126 - 确保 `isConnecting` 状态标志被正确设置
 2. Note.vue:197 - 确保 `onDragStart` 中检查了 `isConnecting` 标志
 3. 事件冒泡：连接点事件使用 `@mousedown.stop` 阻止冒泡
+
+### 缩放或平移后便签位置错误
+如果白板缩放或平移后，便签位置显示不正确：
+1. **坐标转换**: 确保所有位置相关操作都使用了 `screenToWorld()` 和 `worldToScreen()` 方法
+2. **拖拽计算**: 检查便签拖拽时的位置计算是否考虑了当前缩放比例 `viewport.scale`
+3. **新便签位置**: 创建新便签时，确保网格布局计算使用的是世界坐标系
+4. **CSS transform**: 检查 `.wall-content` 的 transform 样式是否正确应用
+
+### 缩放控制不工作
+如果缩放功能无法使用：
+1. **事件监听**: 检查 NoteWall.vue:10 的 `@wheel.prevent` 事件是否正确绑定
+2. **缩放限制**: 确认缩放值在 0.25 ~ 3.0 范围内
+3. **CSS 性能**: 检查 `.wall-content` 是否有 `will-change: transform` 属性以优化性能
+4. **浏览器兼容**: 确保浏览器支持 CSS transform 和 wheel 事件
 
 ### v-html 渲染的内容样式不生效
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
@@ -540,14 +601,19 @@ UNIQUE(source_note_id, target_note_id)
 // 给每个元素添加唯一标识，方便 DOM 查询
 :data-element-id="id"
 
-// 动态获取元素实际尺寸
+// 动态获取元素实际尺寸（注意：需要除以缩放比例）
 const element = document.querySelector(`[data-element-id="${id}"]`);
-const height = element.offsetHeight;
+const height = element.offsetHeight / viewport.scale;  // 考虑缩放
 
 // 计算连接点位置（考虑元素的动态尺寸）
 const x = elementX + width / 2;  // 水平居中
 const y = elementY + height + offset;  // 垂直位置基于实际高度
 ```
+
+**缩放和平移支持（重要）**:
+- 如果容器支持缩放和平移，所有位置计算都必须使用坐标转换方法
+- DOM 获取的尺寸（`offsetHeight`/`offsetWidth`）是屏幕空间值，需除以 `scale` 得到世界坐标值
+- 连接线层应该在变换容器内部，随缩放平移一起变换
 
 **4. 拖拽创建连接**:
 - 使用全局 `mousemove` 和 `mouseup` 事件监听器

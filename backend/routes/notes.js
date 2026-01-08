@@ -278,18 +278,38 @@ router.put('/:id', (req, res) => {
 // 删除便签（软删除，移入回收站）
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
-  const sql = "UPDATE notes SET deleted_at = datetime('now', 'localtime') WHERE id = ?";
 
-  db.run(sql, id, function(err) {
+  // 先删除与该便签相关的所有连接关系
+  const deleteConnectionsSql = `
+    DELETE FROM note_connections
+    WHERE source_note_id = ? OR target_note_id = ?
+  `;
+
+  db.run(deleteConnectionsSql, [id, id], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Note not found' });
-      return;
-    }
-    res.json({ message: 'Note moved to recycle bin' });
+
+    const connectionsDeleted = this.changes;
+
+    // 然后软删除便签
+    const deleteNoteSql = "UPDATE notes SET deleted_at = datetime('now', 'localtime') WHERE id = ?";
+
+    db.run(deleteNoteSql, id, function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Note not found' });
+        return;
+      }
+      res.json({
+        message: 'Note moved to recycle bin',
+        connectionsDeleted: connectionsDeleted
+      });
+    });
   });
 });
 

@@ -372,6 +372,11 @@ export default {
   user-select: none;
   transition: box-shadow 0.2s;
   overflow: hidden;
+  /* 优化缩放时的文字渲染质量 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .note:hover {

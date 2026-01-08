@@ -792,6 +792,13 @@ export default {
   height: 100%;
   pointer-events: auto;
   will-change: transform;
+  /* 启用 GPU 加速和优化渲染质量 */
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 确保缩放时文字清晰 */
+  image-rendering: -webkit-optimize-contrast;
 }
 
 /* 原点十字准星样式 */

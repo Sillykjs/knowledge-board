@@ -22,14 +22,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `backend/database.js`: 数据库初始化和迁移
 - `backend/routes/notes.js`: API 路由（注意路由顺序）
 - `frontend/src/components/NoteWall.vue`: 便签墙容器（缩放、平移、连接）
-- `frontend/src/components/Note.vue`: 单个便签组件（拖拽、编辑、Markdown）
+- `frontend/src/components/Note.vue`: 单个便签组件（拖拽、编辑、Markdown、Teleport）
 - `frontend/vite.config.js`: Vite 配置（API proxy）
 
 **重要概念:**
 - 软删除机制: `deleted_at` 字段标记删除状态
 - 路由顺序: Express 按定义顺序匹配，具体路径必须在参数化路径之前
 - 坐标系统: 白板支持缩放平移，所有位置操作需使用坐标转换
-- v-html 样式: 动态内容的样式必须放在非 scoped 块中
+- v-html 样式: 动态内容的样式必须放在非 scoped 的 `<style>` 块中
+- Teleport: 模态框使用 Teleport 传送到 body，避免受白板缩放平移影响
+- 文字渲染优化: 使用 GPU 加速和字体平滑属性确保缩放时文字清晰
 
 ## 项目概述
 
@@ -230,6 +232,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 右键菜单支持编辑和删除操作
 - 编辑模态框（点击编辑后弹出）
 - 查看模态框（双击打开，支持 Markdown 渲染，支持点击外部关闭）
+- **所有模态框使用 Teleport 传送到 body**：避免受白板缩放平移影响
 - 实现拖拽功能(使用HTML5 Drag & Drop)
 - 拖拽结束后更新位置到后端
 
@@ -270,6 +273,28 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - `dragend`: 计算新位置并更新到后端
 
 拖拽时自动禁用：当编辑或查看模态框打开时，拖拽功能会被禁用以防止冲突。
+
+### Teleport 使用（重要）
+项目中所有模态框（右键菜单、编辑模态框、查看模态框）都使用 Vue 3 的 Teleport 功能传送到 `body`：
+
+**为什么需要 Teleport？**
+- 白板使用 `transform: scale()` 进行缩放，子元素会继承缩放变换
+- 如果模态框放在 `.wall-content` 内，会随白板缩放而变形、模糊或位置错误
+- Teleport 将模态框传送到 `body`，完全脱离白板的变换影响
+
+**实现方式：**
+```html
+<Teleport to="body">
+  <div v-if="showModal" class="modal-overlay">
+    <!-- 模态框内容 -->
+  </div>
+</Teleport>
+```
+
+**关键要点：**
+- 所有 Note.vue 中的模态框都使用 Teleport 包装
+- 模态框样式使用 `position: fixed`，相对于视口定位
+- 这样无论白板如何缩放平移，模态框都保持正常显示
 
 ### 便签墙配置功能
 便签墙支持自定义标题和备注，实现位于 `NoteWall.vue`：
@@ -388,6 +413,26 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 连接操作 (`isConnecting`) 会禁用便签拖拽
 - 缩放操作通过滚轮独立触发，不影响拖拽
 
+**文字渲染优化（重要）**:
+为解决缩放时文字模糊的问题，使用了以下 CSS 优化：
+
+在 `.wall-content` 和 `.note` 样式中添加：
+```css
+/* 启用 GPU 加速和优化渲染质量 */
+transform-style: preserve-3d;
+backface-visibility: hidden;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+```
+
+**为什么需要这些优化？**
+- `transform-style: preserve-3d`: 启用 3D 变换上下文，强制使用 GPU 渲染
+- `backface-visibility: hidden`: 隐藏元素背面，进一步优化 GPU 渲染
+- `-webkit-font-smoothing: antialiased`: 启用次像素抗锯齿，使文字边缘更平滑
+- `-moz-osx-font-smoothing: grayscale`: 在 macOS Firefox 上改善字体渲染
+
+这些属性确保白板缩放时，便签中的文字保持清晰锐利，不会出现锯齿或模糊。
+
 ## 数据库迁移
 
 数据库迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中：
@@ -483,6 +528,8 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
 12. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
 13. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
+14. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
+15. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
 
 ## 数据库管理
 
@@ -581,6 +628,24 @@ SELECT * FROM note_connections;
 3. **CSS 性能**: 检查 `.wall-content` 是否有 `will-change: transform` 属性以优化性能
 4. **浏览器兼容**: 确保浏览器支持 CSS transform 和 wheel 事件
 
+### 缩放时文字模糊
+如果白板放大后便签中的文字变模糊：
+1. **检查渲染优化属性**: 确认 `.wall-content` 和 `.note` 样式中包含以下属性：
+   - `transform-style: preserve-3d`
+   - `backface-visibility: hidden`
+   - `-webkit-font-smoothing: antialiased`
+   - `-moz-osx-font-smoothing: grayscale`
+2. **硬刷新浏览器**: 使用 `Ctrl+Shift+R`（Windows/Linux）或 `Cmd+Shift+R`（Mac）清除缓存
+3. **浏览器 GPU 加速**: 确保浏览器启用了硬件加速（通常在设置中）
+4. **检查样式优先级**: 使用开发者工具确认优化属性没有被其他样式覆盖
+
+### 模态框显示异常（变形、模糊、位置错误）
+如果模态框在白板缩放或平移后显示异常：
+1. **检查 Teleport**: 确认所有模态框都使用 `<Teleport to="body">` 传送到 body
+2. **检查定位**: 模态框应该使用 `position: fixed` 而不是 `absolute`
+3. **检查父元素**: 确保模态框不在 `.wall-content` 内部
+4. **参考现有实现**: 查看 Note.vue 中右键菜单、编辑模态框、查看模态框的实现
+
 ### v-html 渲染的内容样式不生效
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
 1. **检查 scoped 样式**: 相关样式是否在 `<style scoped>` 块中？如果是，移到非 scoped 的 `<style>` 块
@@ -617,17 +682,26 @@ SELECT * FROM note_connections;
 3. **确认方法**: 执行操作并关闭模态框
 4. **取消方法**: 仅关闭模态框
 5. **点击外部关闭**: 使用 `@click` 和 `@click.stop` 实现
+6. **使用 Teleport（重要）**: 如果在 Note.vue 中添加模态框，必须使用 `<Teleport to="body">` 传送到 body
 
 示例：
 ```html
-<div v-if="showXxxModal" class="modal-overlay" @click="cancelXxx">
-  <div class="modal-content" @click.stop>
-    <!-- 内容 -->
-    <button @click="cancelXxx">取消</button>
-    <button @click="confirmXxx">确认</button>
+<!-- 在 Note.vue 中添加模态框 -->
+<Teleport to="body">
+  <div v-if="showXxxModal" class="modal-overlay" @click="cancelXxx">
+    <div class="modal-content" @click.stop>
+      <!-- 内容 -->
+      <button @click="cancelXxx">取消</button>
+      <button @click="confirmXxx">确认</button>
+    </div>
   </div>
-</div>
+</Teleport>
 ```
+
+**为什么必须使用 Teleport？**
+- 白板使用 `transform: scale()` 进行缩放
+- 如果模态框在 `.wall-content` 内，会继承缩放变换导致显示异常
+- Teleport 将模态框传送到 body，完全脱离白板变换影响
 
 ### 修改 Markdown 渲染样式
 1. 在 `Note.vue` 的非 scoped `<style>` 块中修改 `.markdown-body` 样式

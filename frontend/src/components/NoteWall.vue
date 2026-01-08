@@ -29,11 +29,11 @@
 
     <!-- 白板内容变换层 -->
     <div class="wall-content" :style="wallTransformStyle">
-      <!-- 白板边界线（x=0 和 y=0） -->
-      <div class="boundary-lines">
-        <div class="boundary-line boundary-top"></div>
-        <div class="boundary-line boundary-left"></div>
-        <div class="boundary-corner">0,0</div>
+      <!-- 原点十字准星 -->
+      <div class="origin-crosshair">
+        <div class="crosshair-line crosshair-horizontal"></div>
+        <div class="crosshair-line crosshair-vertical"></div>
+        <div class="crosshair-center"></div>
       </div>
 
       <!-- SVG连线层（在便签下方） -->
@@ -794,51 +794,44 @@ export default {
   will-change: transform;
 }
 
-/* 白板边界线样式 */
-.boundary-lines {
+/* 原点十字准星样式 */
+.origin-crosshair {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
   z-index: 0;
-  /* 隐藏边界线 */
-  /* display: none; */
 }
 
-.boundary-line {
+.crosshair-line {
   position: absolute;
-  background: #ff5722;
-  opacity: 0.6;
+  background: #2196f3;
+  opacity: 0.5;
 }
 
-.boundary-top {
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
+.crosshair-horizontal {
+  top: 0px;
+  left: -100px;
+  width: 200px;
+  height: 2px;
 }
 
-.boundary-left {
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
+.crosshair-vertical {
+  top: -100px;
+  left: 0px;
+  width: 2px;
+  height: 200px;
 }
 
-.boundary-corner {
+.crosshair-center {
   position: absolute;
-  top: 5px;
-  left: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #ff5722;
-  opacity: 0.8;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 2px 6px;
-  border-radius: 3px;
-  pointer-events: none;
+  top: -5px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  background: #2196f3;
+  border-radius: 50%;
+  opacity: 0.7;
 }
 
 /* 连接线层样式 */

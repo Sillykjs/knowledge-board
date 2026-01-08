@@ -9,6 +9,24 @@
     @mouseleave="onWallMouseUp"
     @wheel.prevent="onWheel"
   >
+    <!-- 固定标题（在白板外部，不受缩放平移影响） -->
+    <div class="title-container">
+      <h1
+        class="wall-title"
+        @dblclick="openEditModal"
+        @mouseenter="showTooltip = true"
+        @mouseleave="showTooltip = false"
+      >
+        {{ title }}
+        <div
+          v-if="showTooltip"
+          class="tooltip"
+        >
+          {{ remark }}
+        </div>
+      </h1>
+    </div>
+
     <!-- 白板内容变换层 -->
     <div class="wall-content" :style="wallTransformStyle">
       <!-- SVG连线层（在便签下方） -->
@@ -43,23 +61,6 @@
           class="temp-connection-line"
         />
       </svg>
-
-      <div class="title-container">
-        <h1
-          class="wall-title"
-          @dblclick="openEditModal"
-          @mouseenter="showTooltip = true"
-          @mouseleave="showTooltip = false"
-        >
-          {{ title }}
-          <div
-            v-if="showTooltip"
-            class="tooltip"
-          >
-            {{ remark }}
-          </div>
-        </h1>
-      </div>
 
       <Note
         v-for="note in notes"
@@ -278,13 +279,17 @@ export default {
     // 白板拖拽方法
     // 白板鼠标按下事件
     onWallMouseDown(event) {
-      // 只响应中键（button === 1）
-      if (event.button === 1) {
-        event.preventDefault();
+      // 响应左键（button === 0）和中键（button === 1）
+      if (event.button === 0 || event.button === 1) {
         // 确保不是点击在便签或连接点上
         if (event.target.closest('.note') || event.target.closest('.connection-point')) {
           return;
         }
+
+        // 如果是左键，阻止默认行为并启动白板拖拽
+        // 如果是中键，preventDefault() 防止滚动
+        event.preventDefault();
+
         this.viewport.isDragging = true;
         this.viewport.lastMouseX = event.clientX;
         this.viewport.lastMouseY = event.clientY;
@@ -863,8 +868,8 @@ export default {
 /* 缩放控制按钮组 */
 .zoom-controls {
   position: fixed;
-  bottom: 40px;
-  right: 120px;
+  bottom: 120px;
+  right: 40px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -912,11 +917,14 @@ export default {
   margin-top: 4px;
 }
 
+/* 固定标题容器 */
 .title-container {
-  text-align: center;
-  padding: 20px 0;
-  margin-bottom: 20px;
-  position: relative;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  pointer-events: none;
 }
 
 .wall-title {
@@ -926,6 +934,7 @@ export default {
   cursor: pointer;
   position: relative;
   display: inline-block;
+  pointer-events: auto;
 }
 
 .tooltip {
@@ -940,9 +949,10 @@ export default {
   font-size: 1rem;
   min-width: 200px;
   text-align: center;
-  z-index: 1001;
+  z-index: 1002;
   margin-top: 5px;
   opacity: 0.9;
+  pointer-events: none;
 }
 
 .tooltip::before {

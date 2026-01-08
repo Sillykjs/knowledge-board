@@ -2,6 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 快速参考
+
+**核心命令:**
+- 启动全部（推荐）: 在 VS Code 中使用 "启动全部 (Full Stack)" 调试配置
+- 启动后端: `cd backend && npm run dev` (使用 nodemon 自动重启)
+- 启动前端: `cd frontend && npm run dev` (Vite 开发服务器)
+- 构建前端: `cd frontend && npm run build`
+
+**常见任务:**
+- 添加新路由: 在 `backend/routes/notes.js` 中添加，具体路径必须在参数化路径之前
+- 添加数据库字段: 在 `backend/database.js` 的 `initDb()` 中添加迁移逻辑
+- 添加模态框: 遵循"控制变量→触发方法→确认方法→取消方法"模式
+- 修复样式问题: `v-html` 渲染的内容样式必须放在非 scoped 的 `<style>` 块中
+- 调试位置问题: 使用 `screenToWorld()` 和 `worldToScreen()` 坐标转换方法
+
+**关键文件:**
+- `backend/server.js`: Express 服务器入口
+- `backend/database.js`: 数据库初始化和迁移
+- `backend/routes/notes.js`: API 路由（注意路由顺序）
+- `frontend/src/components/NoteWall.vue`: 便签墙容器（缩放、平移、连接）
+- `frontend/src/components/Note.vue`: 单个便签组件（拖拽、编辑、Markdown）
+- `frontend/vite.config.js`: Vite 配置（API proxy）
+
+**重要概念:**
+- 软删除机制: `deleted_at` 字段标记删除状态
+- 路由顺序: Express 按定义顺序匹配，具体路径必须在参数化路径之前
+- 坐标系统: 白板支持缩放平移，所有位置操作需使用坐标转换
+- v-html 样式: 动态内容的样式必须放在非 scoped 块中
+
 ## 项目概述
 
 便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。支持便签墙标题和备注的自定义配置、Markdown 渲染，以及便签间的可视化连接功能。
@@ -258,22 +287,22 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - `dompurify`: 净化 HTML 防止 XSS 攻击
 
 **实现细节:**
-1. **初始化**: 在 `<script>` 顶部初始化 markdown-it 实例（第 80-85 行）
+1. **初始化**: 在 `<script>` 顶部初始化 markdown-it 实例
    - `html: false`: 禁止 HTML 标签（安全）
    - `linkify: true`: 自动转换 URL 为链接
    - `breaks: true`: 转换换行符为 `<br>`
 
-2. **计算属性**: `renderedContent()` 方法（第 117-137 行）
+2. **计算属性**: `renderedContent()` 方法
    - 使用 `md.render()` 解析 Markdown
    - 使用 `DOMPurify.sanitize()` 净化 HTML
    - 仅允许安全的标签和属性
    - 错误时回退到纯文本
 
-3. **模板渲染**: 使用 `v-html="renderedContent"`（第 67 行）
+3. **模板渲染**: 使用 `v-html="renderedContent"`
    - 元素同时有 `view-content` 和 `markdown-body` 两个 class
 
 4. **样式实现（重要）**:
-   - **使用两个 style 块**（第 304 行和第 653 行）
+   - **使用两个 style 块**
    - `<style scoped>`: 组件特定样式
    - `<style>`: Markdown 样式（非 scoped，必须！）
 
@@ -346,11 +375,13 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
    - 按住空白处拖拽可平移白板
 
 **关键实现细节**:
-1. NoteWall.vue:6 - 监听 `@wheel.prevent` 禁用默认滚动
-2. NoteWall.vue:258-259 - `wallTransformStyle` 计算属性生成 CSS transform
-3. NoteWall.vue:323-346 - `zoomAtPoint()` 方法实现以鼠标为中心的缩放
-4. NoteWall.vue:12-28 - 标题容器独立于 `.wall-content`，不受变换影响
+1. NoteWall.vue - 监听 `@wheel.prevent` 禁用默认滚动
+2. NoteWall.vue - `wallTransformStyle` 计算属性生成 CSS transform
+3. NoteWall.vue - `zoomAtPoint()` 方法实现以鼠标为中心的缩放
+4. NoteWall.vue - 标题容器独立于 `.wall-content`，不受变换影响
 5. 便签高度计算需要除以 scale：`noteElement.offsetHeight / this.viewport.scale`
+
+**注意**: 具体行号可能随代码更新而变化，建议使用编辑器的搜索功能查找相关代码。
 
 **交互冲突处理**:
 - 平移操作 (`isPanning`) 和便签拖拽互斥，通过事件目标判断
@@ -405,10 +436,12 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 
 **关键实现细节**:
 1. Note.vue:4 - 便签元素添加 `data-note-id` 属性用于 DOM 查询
-2. NoteWall.vue:549-567 - `getConnectionStartPoint` 和 `getConnectionEndPoint` 方法动态获取便签高度
-3. NoteWall.vue:425-433 - 拖拽开始时优先使用 DOM API 获取连接点精确位置
-4. Note.vue:126 - `isConnecting` 状态标志防止连接操作触发便签拖拽
+2. NoteWall.vue - `getConnectionStartPoint` 和 `getConnectionEndPoint` 方法动态获取便签高度
+3. NoteWall.vue - 拖拽开始时优先使用 DOM API 获取连接点精确位置
+4. Note.vue:206 - `onDragStart` 中检查 `isConnecting` 标志防止连接操作触发便签拖拽
 5. **坐标转换**: 连接点计算需要考虑缩放比例，使用 `offsetHeight / scale` 获取真实高度
+
+**注意**: 具体行号可能随代码更新而变化，建议使用编辑器的搜索功能查找相关代码。
 
 ## 依赖说明
 
@@ -500,8 +533,22 @@ SELECT * FROM note_connections;
 ### 数据库字段不存在
 如果看到 "no such column: deleted_at" 错误，重启后端服务器以触发数据库迁移。
 
+### 数据库锁定错误
+如果看到 "database is locked" 错误：
+1. 检查是否有多个后端进程在运行（使用 `ps aux | grep node` 或任务管理器）
+2. 确保没有其他程序正在访问 `backend/notes.db` 文件
+3. 重启后端服务器
+4. 如果问题持续，删除 `backend/notes.db` 文件并重新启动后端（会自动创建新数据库）
+
 ### CORS错误
 确保前端Vite开发服务器正在运行（npm run dev），它通过proxy处理API请求。不要直接在前端代码中使用完整的 `http://localhost:3001` URL。
+
+### 前端无法连接后端
+如果前端显示 "Network Error" 或无法连接到后端：
+1. 确认后端正在运行（访问 http://localhost:3001/api/health）
+2. 检查端口3001是否被其他程序占用
+3. 确认 Vite proxy 配置正确（`frontend/vite.config.js`）
+4. 检查浏览器控制台的 Network 面板查看请求详情
 
 ### 拖拽不工作
 检查是否在编辑或查看模态框打开时尝试拖拽。模态框打开时拖拽会被自动禁用以防止冲突。
@@ -512,13 +559,13 @@ SELECT * FROM note_connections;
 2. **缩放影响**: 如果白板被缩放，连接线计算需要考虑缩放比例。检查是否正确使用了 `offsetHeight / viewport.scale`
 3. **强制刷新**: 修改便签内容后，如果连接线位置未更新，尝试刷新页面或重新加载
 4. **检查 data-note-id**: 确保每个便签元素都有正确的 `data-note-id` 属性
-5. **浏览器缓存**: 使用 `Ctrl+Shift+R` 硬刷新浏览器清除缓存
+5. **浏览器缓存**: 使用 `Ctrl+Shift+R`（Windows/Linux）或 `Cmd+Shift+R`（Mac）硬刷新浏览器清除缓存
 
 ### 连接操作触发便签移动
 如果在连接点上拖拽时触发了便签的移动，检查：
-1. Note.vue:126 - 确保 `isConnecting` 状态标志被正确设置
-2. Note.vue:197 - 确保 `onDragStart` 中检查了 `isConnecting` 标志
-3. 事件冒泡：连接点事件使用 `@mousedown.stop` 阻止冒泡
+1. Note.vue:206 - 确保 `onDragStart` 中检查了 `isConnecting` 标志
+2. 事件冒泡：连接点事件使用 `@mousedown.stop` 阻止冒泡
+3. 状态标志：确保父组件正确传递了 `isConnecting` 状态
 
 ### 缩放或平移后便签位置错误
 如果白板缩放或平移后，便签位置显示不正确：
@@ -540,7 +587,14 @@ SELECT * FROM note_connections;
 2. **检查样式冲突**: 是否有其他 class 的样式覆盖？使用浏览器开发者工具检查实际应用的样式
 3. **使用条件选择器**: 如 `.class-a:not(.class-b)` 来避免多个 class 时的样式冲突
 4. **增加样式优先级**: 使用更具体的选择器或 `!important`（谨慎使用）
-5. **硬刷新浏览器**: 使用 `Ctrl+Shift+R` 清除缓存并刷新
+5. **硬刷新浏览器**: 使用 `Ctrl+Shift+R`（Windows/Linux）或 `Cmd+Shift+R`（Mac）清除缓存并刷新
+
+### 依赖安装失败
+如果在 `npm install` 时遇到错误：
+1. 删除 `node_modules` 文件夹和 `package-lock.json`
+2. 清除 npm 缓存：`npm cache clean --force`
+3. 重新安装：`npm install`
+4. 如果是网络问题，考虑使用国内镜像：`npm config set registry https://registry.npmmirror.com`
 
 ## 扩展项目指南
 
@@ -633,24 +687,67 @@ const y = elementY + height + offset;  // 垂直位置基于实际高度
 4. 数据库：使用 `sqlite3 notes.db` 命令行工具查询数据
 5. 网络请求：使用浏览器开发者工具的 Network 面板查看 API 请求
 
-### 测试便签连接功能
-后端已实现便签连接API，可以通过以下方式测试：
+### 测试 API
+项目不包含自动化测试，但可以通过以下方式手动测试 API：
 
-**创建连接:**
+**使用 curl 测试后端:**
 ```bash
+# 健康检查
+curl http://localhost:3001/api/health
+
+# 创建便签
+curl -X POST http://localhost:3001/api/notes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"测试标题","content":"测试内容","position_x":100,"position_y":100}'
+
+# 获取所有便签
+curl http://localhost:3001/api/notes
+
+# 更新便签
+curl -X PUT http://localhost:3001/api/notes/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"更新标题","content":"更新内容","position_x":200,"position_y":200}'
+
+# 软删除便签
+curl -X DELETE http://localhost:3001/api/notes/1
+
+# 恢复便签
+curl -X POST http://localhost:3001/api/notes/recycle-bin/restore/1
+
+# 创建连接
 curl -X POST http://localhost:3001/api/notes/connections \
   -H "Content-Type: application/json" \
   -d '{"source_note_id": 1, "target_note_id": 2}'
-```
 
-**获取所有连接:**
-```bash
+# 获取所有连接
 curl http://localhost:3001/api/notes/connections
-```
 
-**删除连接:**
-```bash
+# 删除连接
 curl -X DELETE http://localhost:3001/api/notes/connections/1
 ```
 
-前端可以通过调用这些API来实现便签之间的连接可视化（例如使用SVG或Canvas绘制连接线）。
+**使用浏览器开发者工具:**
+1. 打开浏览器开发者工具（F12）
+2. 切换到 Console 面板
+3. 使用 `fetch` API 测试：
+```javascript
+// 获取所有便签
+fetch('/api/notes')
+  .then(res => res.json())
+  .then(data => console.log(data));
+
+// 创建新便签
+fetch('/api/notes', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    title: '新便签',
+    content: '便签内容',
+    position_x: 100,
+    position_y: 100
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data));
+```
+

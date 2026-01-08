@@ -1,8 +1,6 @@
 <template>
   <div
     class="note-wall"
-    @dragover.prevent
-    @drop="onDrop"
     @mousedown="onWallMouseDown"
     @mousemove="onWallMouseMove"
     @mouseup="onWallMouseUp"
@@ -80,6 +78,7 @@
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @connection-start="onConnectionStart"
+        @drag-start="onNoteDragStart"
       />
     </div>
 
@@ -223,6 +222,13 @@ export default {
       dragStartPoint: null,         // 拖拽起始点坐标 {x, y}
       currentMousePos: null,        // 当前鼠标坐标
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
+      // 便签拖拽状态
+      draggingNote: {
+        isDragging: false,
+        noteId: null,
+        offsetX: 0,
+        offsetY: 0
+      },
       // 白板视口状态
       viewport: {
         scale: 1,           // 缩放比例 (0.25 ~ 3.0)
@@ -310,6 +316,28 @@ export default {
     },
     // 白板鼠标移动事件
     onWallMouseMove(event) {
+      // 处理便签拖拽
+      if (this.draggingNote.isDragging) {
+        const wall = this.$el;
+        const wallRect = wall.getBoundingClientRect();
+
+        // 计算鼠标相对于白板的屏幕坐标
+        const screenX = event.clientX - wallRect.left - this.draggingNote.offsetX;
+        const screenY = event.clientY - wallRect.top - this.draggingNote.offsetY;
+
+        // 转换为世界坐标
+        const worldPos = this.screenToWorld(screenX, screenY);
+
+        // 更新便签位置（实时）
+        const note = this.notes.find(n => n.id === this.draggingNote.noteId);
+        if (note) {
+          note.position_x = worldPos.x;
+          note.position_y = worldPos.y;
+        }
+        return;
+      }
+
+      // 处理白板平移
       if (!this.viewport.isDragging) return;
 
       const deltaX = event.clientX - this.viewport.lastMouseX;
@@ -322,6 +350,18 @@ export default {
     },
     // 白板鼠标抬起事件
     onWallMouseUp(event) {
+      // 结束便签拖拽并保存到后端
+      if (this.draggingNote.isDragging) {
+        const note = this.notes.find(n => n.id === this.draggingNote.noteId);
+        if (note) {
+          this.saveNotePosition(note.id, note.position_x, note.position_y);
+        }
+        this.draggingNote.isDragging = false;
+        this.draggingNote.noteId = null;
+        return;
+      }
+
+      // 结束白板平移
       if (this.viewport.isDragging) {
         this.viewport.isDragging = false;
       }
@@ -435,8 +475,28 @@ export default {
       this.loadRecycleNotes();
       this.loadConnections();  // 后端会自动删除相关连接
     },
-    onDrop(e) {
-      e.preventDefault();
+    // 便签拖拽开始
+    onNoteDragStart(payload) {
+      this.draggingNote.isDragging = true;
+      this.draggingNote.noteId = payload.noteId;
+      this.draggingNote.offsetX = payload.offsetX;
+      this.draggingNote.offsetY = payload.offsetY;
+    },
+    // 保存便签位置到后端
+    async saveNotePosition(noteId, x, y) {
+      try {
+        const note = this.notes.find(n => n.id === noteId);
+        if (!note) return;
+
+        await axios.put(`/api/notes/${noteId}`, {
+          title: note.title,
+          content: note.content,
+          position_x: x,
+          position_y: y
+        });
+      } catch (error) {
+        console.error('Failed to save note position:', error);
+      }
     },
     openEditModal() {
       // Initialize temp values with current values when opening the modal

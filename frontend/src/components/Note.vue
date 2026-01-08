@@ -3,9 +3,6 @@
     class="note"
     :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
-    draggable="true"
-    @dragstart="onDragStart"
-    @dragend="onDragEnd"
     @contextmenu.prevent="onContextMenu"
     @mousedown="onMouseDown"
   >
@@ -129,7 +126,6 @@ export default {
       showContextMenu: false,
       contextMenuX: 0,
       contextMenuY: 0,
-      isDraggingEnabled: true,
       isConnecting: false  // 是否正在创建连接
     };
   },
@@ -198,44 +194,30 @@ export default {
     closeViewModal() {
       this.showViewModal = false;
     },
-    onMouseDown() {
-      // 如果编辑或查看模态框打开，则禁用拖拽
-      if (this.showEditModal || this.showViewModal) {
-        this.isDraggingEnabled = false;
-      } else {
-        this.isDraggingEnabled = true;
+    onMouseDown(e) {
+      // 如果编辑或查看模态框打开，或正在创建连接，则不处理拖拽
+      if (this.showEditModal || this.showViewModal || this.isConnecting) {
+        return;
       }
-    },
 
-    onDragStart(e) {
-      // 如果编辑或查看模态框打开、拖拽被禁用、或正在创建连接，则阻止拖拽
-      if (this.showEditModal || this.showViewModal || !this.isDraggingEnabled || this.isConnecting) {
-        e.preventDefault();
+      // 如果点击的是连接点，不处理拖拽
+      if (e.target.classList.contains('connection-point') || e.target.classList.contains('point-inner')) {
         return;
       }
 
       this.showContextMenu = false;
 
-      const rect = e.target.getBoundingClientRect();
+      // 记录拖拽偏移量
+      const rect = this.$el.getBoundingClientRect();
       this.dragOffsetX = e.clientX - rect.left;
       this.dragOffsetY = e.clientY - rect.top;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('noteId', this.id);
-    },
 
-    onDragEnd(e) {
-      const wall = document.querySelector('.note-wall');
-      const wallRect = wall.getBoundingClientRect();
-
-      // 屏幕坐标
-      const screenX = e.clientX - wallRect.left - this.dragOffsetX;
-      const screenY = e.clientY - wallRect.top - this.dragOffsetY;
-
-      // 通过父组件转换为世界坐标
-      const worldPos = this.$parent.screenToWorld(screenX, screenY);
-
-      // 直接使用世界坐标，允许负值（无限白板）
-      this.updatePosition(worldPos.x, worldPos.y);
+      // 通知父组件开始拖拽
+      this.$emit('drag-start', {
+        noteId: this.id,
+        offsetX: this.dragOffsetX,
+        offsetY: this.dragOffsetY
+      });
     },
     startEdit() {
       this.showContextMenu = false;

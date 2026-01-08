@@ -228,7 +228,11 @@ export default {
       // 通过父组件转换为世界坐标
       const worldPos = this.$parent.screenToWorld(screenX, screenY);
 
-      this.updatePosition(worldPos.x, worldPos.y);
+      // 边界限制：x, y 必须 >= 0
+      const clampedX = Math.max(0, worldPos.x);
+      const clampedY = Math.max(0, worldPos.y);
+
+      this.updatePosition(clampedX, clampedY);
     },
     startEdit() {
       this.showContextMenu = false;

@@ -29,6 +29,13 @@
 
     <!-- 白板内容变换层 -->
     <div class="wall-content" :style="wallTransformStyle">
+      <!-- 白板边界线（x=0 和 y=0） -->
+      <div class="boundary-lines">
+        <div class="boundary-line boundary-top"></div>
+        <div class="boundary-line boundary-left"></div>
+        <div class="boundary-corner">0,0</div>
+      </div>
+
       <!-- SVG连线层（在便签下方） -->
       <svg class="connections-layer" :style="layerStyle">
         <!-- 已建立的连接 -->
@@ -247,9 +254,15 @@ export default {
   },
   computed: {
     layerStyle() {
+      // 简单方案：SVG 从 (0,0) 开始，尺寸足够大
+      // 这样可以保持坐标系统一致，不需要额外的坐标转换
+      const HUGE_SIZE = 50000;  // 50000px 应该足够大
+
       return {
-        width: '100%',
-        height: '100%'
+        left: '0',
+        top: '0',
+        width: `${HUGE_SIZE}px`,
+        height: `${HUGE_SIZE}px`
       };
     },
     // 白板变换样式
@@ -781,15 +794,58 @@ export default {
   will-change: transform;
 }
 
-/* 连接线层样式 */
-.connections-layer {
+/* 白板边界线样式 */
+.boundary-lines {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.boundary-line {
+  position: absolute;
+  background: #ff5722;
+  opacity: 0.6;
+}
+
+.boundary-top {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+}
+
+.boundary-left {
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.boundary-corner {
+  position: absolute;
+  top: 5px;
+  left: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #ff5722;
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* 连接线层样式 */
+.connections-layer {
+  position: absolute;
+  /* 位置和尺寸由 layerStyle 计算属性动态设置 */
   pointer-events: none;  /* 允许点击穿透到便签 */
   z-index: 1;  /* 在便签下方 */
+  overflow: visible;  /* 确保内容不被裁剪 */
 }
 
 .connection-line {

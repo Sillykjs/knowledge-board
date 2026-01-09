@@ -149,7 +149,7 @@
 
     <!-- Edit Title Modal -->
     <div v-if="isEditingTitle" class="modal-overlay">
-      <div class="modal-content" @wheel.stop>
+      <div class="modal-content" @click.stop @mousedown.stop @wheel.stop>
         <h3>编辑标题和备注</h3>
         <div class="form-group">
           <label>标题:</label>
@@ -298,6 +298,11 @@ export default {
     // 白板拖拽方法
     // 白板鼠标按下事件
     onWallMouseDown(event) {
+      // 如果有任何模态框打开，不处理白板拖拽
+      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+        return;
+      }
+
       // 响应左键（button === 0）和中键（button === 1）
       if (event.button === 0 || event.button === 1) {
         // 确保不是点击在便签或连接点上

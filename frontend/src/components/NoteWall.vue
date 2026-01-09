@@ -107,7 +107,7 @@
 
     <!-- Recycle Bin Modal -->
     <div v-if="showRecycleBin" class="recycle-modal" @click="closeRecycleModalOutside">
-      <div class="recycle-modal-content" @click.stop>
+      <div class="recycle-modal-content" @click.stop @wheel.stop>
         <div class="recycle-header">
           <h3>回收站</h3>
           <button class="close-btn" @click="closeRecycleBin">×</button>
@@ -149,7 +149,7 @@
 
     <!-- Edit Title Modal -->
     <div v-if="isEditingTitle" class="modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content" @wheel.stop>
         <h3>编辑标题和备注</h3>
         <div class="form-group">
           <label>标题:</label>
@@ -168,7 +168,7 @@
 
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteConfirm" class="modal-overlay confirm-modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content" @wheel.stop>
         <h3>确认永久删除</h3>
         <p class="confirm-message">确定要永久删除此便签吗？此操作无法撤销。</p>
         <div class="modal-buttons">
@@ -180,7 +180,7 @@
 
     <!-- Clear Recycle Bin Confirmation Modal -->
     <div v-if="showClearConfirm" class="modal-overlay confirm-modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content" @wheel.stop>
         <h3>确认清空回收站</h3>
         <p class="confirm-message">确定要清空回收站吗？这将永久删除 {{ recycleCount }} 个便签，此操作无法撤销。</p>
         <div class="modal-buttons">

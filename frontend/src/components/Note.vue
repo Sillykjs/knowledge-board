@@ -35,6 +35,7 @@
         v-if="showContextMenu"
         class="context-menu"
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+        @wheel.stop
       >
         <div class="context-menu-item" @click="startEdit">
           <span class="menu-icon">✏️</span>
@@ -50,7 +51,7 @@
     <!-- 编辑模态框 - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
     <Teleport to="body">
       <div v-if="showEditModal" class="edit-modal">
-        <div class="edit-modal-content">
+        <div class="edit-modal-content" @wheel.stop>
           <div class="edit-header">
             <h3>编辑笔记</h3>
             <button class="close-btn" @click="cancelEdit">×</button>
@@ -79,7 +80,7 @@
     <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
     <Teleport to="body">
       <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
-        <div class="view-modal-content" @click.stop>
+        <div class="view-modal-content" @click.stop @wheel.stop>
           <div class="view-header">
             <div class="view-title">{{ title }}</div>
             <button class="close-btn" @click="closeViewModal">×</button>

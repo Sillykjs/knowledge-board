@@ -457,9 +457,22 @@ export default {
       }
     },
     calculateNewPosition() {
-      const offsetX = (this.notes.length % 5) * 270 + 50;
-      const offsetY = Math.floor(this.notes.length / 5) * 200 + 150;
-      return { x: offsetX, y: offsetY };
+      // 获取屏幕中心坐标
+      const screenCenterX = window.innerWidth / 2;
+      const screenCenterY = window.innerHeight / 2;
+
+      // 转换为白板世界坐标
+      const worldPos = this.screenToWorld(screenCenterX, screenCenterY);
+
+      // 便签尺寸（宽度250px，默认高度150px）
+      const noteWidth = 250;
+      const noteHeight = 150;
+
+      // 计算便签左上角位置，使便签中心对准屏幕中心
+      return {
+        x: worldPos.x - noteWidth / 2,
+        y: worldPos.y - noteHeight / 2
+      };
     },
     onNoteUpdate(updatedNote) {
       const index = this.notes.findIndex(n => n.id === updatedNote.id);

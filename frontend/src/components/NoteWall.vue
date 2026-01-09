@@ -15,12 +15,12 @@
         @mouseenter="showTooltip = true"
         @mouseleave="showTooltip = false"
       >
-        {{ title }}
+        {{ currentTitle }}
         <div
           v-if="showTooltip"
           class="tooltip"
         >
-          {{ remark }}
+          {{ currentRemark }}
         </div>
       </h1>
     </div>
@@ -201,11 +201,23 @@ export default {
   components: {
     Note
   },
+  props: {
+    boardId: {
+      type: Number,
+      required: true
+    },
+    boardTitle: {
+      type: String,
+      default: '便签墙'
+    },
+    boardRemark: {
+      type: String,
+      default: '这是便签墙的备注信息'
+    }
+  },
   data() {
     return {
       notes: [],
-      title: '便签墙',
-      remark: '这是便签墙的备注信息',
       tempTitle: '',
       tempRemark: '',
       showTooltip: false,
@@ -246,19 +258,13 @@ export default {
       }
     };
   },
-  mounted() {
-    this.loadNotes();
-    this.loadRecycleNotes();
-    this.loadWallConfig();
-    this.loadConnections();
-
-    // 添加键盘事件监听
-    document.addEventListener('keydown', this.onKeyDown);
-  },
-  beforeUnmount() {
-    document.removeEventListener('keydown', this.onKeyDown);
-  },
   computed: {
+    currentTitle() {
+      return this.boardTitle;
+    },
+    currentRemark() {
+      return this.boardRemark;
+    },
     layerStyle() {
       // 简单方案：SVG 从 (0,0) 开始，尺寸足够大
       // 这样可以保持坐标系统一致，不需要额外的坐标转换
@@ -278,6 +284,17 @@ export default {
         transformOrigin: '0 0'  // 从左上角开始变换
       };
     }
+  },
+  mounted() {
+    this.loadNotes();
+    this.loadRecycleNotes();
+    this.loadConnections();
+
+    // 添加键盘事件监听
+    document.addEventListener('keydown', this.onKeyDown);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeyDown);
   },
   methods: {
     // 坐标转换方法
@@ -420,26 +437,11 @@ export default {
       this.viewport.translateX = 0;
       this.viewport.translateY = 0;
     },
-    async loadWallConfig() {
-      try {
-        const response = await axios.get('/api/notes/config');
-        this.title = response.data.title;
-        this.remark = response.data.remark;
-        // Initialize temp variables with current values
-        this.tempTitle = this.title;
-        this.tempRemark = this.remark;
-      } catch (error) {
-        console.error('Failed to load wall config:', error);
-        // 如果加载失败，使用默认值
-        this.title = '便签墙';
-        this.remark = '这是便签墙的备注信息';
-        this.tempTitle = this.title;
-        this.tempRemark = this.remark;
-      }
-    },
     async loadNotes() {
       try {
-        const response = await axios.get('/api/notes');
+        const response = await axios.get('/api/notes', {
+          params: { wall_id: this.boardId }
+        });
         this.notes = response.data.notes;
       } catch (error) {
         console.error('Failed to load notes:', error);
@@ -453,7 +455,8 @@ export default {
           title: '新便签',
           content: '点击编辑添加内容',
           position_x: newPosition.x,
-          position_y: newPosition.y
+          position_y: newPosition.y,
+          wall_id: this.boardId
         });
 
         this.notes.push(response.data.note);
@@ -520,21 +523,25 @@ export default {
     },
     openEditModal() {
       // Initialize temp values with current values when opening the modal
-      this.tempTitle = this.title;
-      this.tempRemark = this.remark;
+      this.tempTitle = this.currentTitle;
+      this.tempRemark = this.currentRemark;
       this.isEditingTitle = true;
     },
     async saveTitleAndRemark() {
       try {
         // 调用后端 API 保存配置
-        await axios.put('/api/notes/config', {
+        await axios.put(`/api/notes/boards/${this.boardId}`, {
           title: this.tempTitle,
           remark: this.tempRemark
         });
 
-        // 更新实际的标题和备注
-        this.title = this.tempTitle;
-        this.remark = this.tempRemark;
+        // 通知父组件更新白板列表
+        this.$emit('board-updated', {
+          id: this.boardId,
+          title: this.tempTitle,
+          remark: this.tempRemark
+        });
+
         this.isEditingTitle = false;
       } catch (error) {
         console.error('Failed to save wall config:', error);
@@ -543,8 +550,8 @@ export default {
     },
     cancelEdit() {
       // Reset temp values to current saved values
-      this.tempTitle = this.title;
-      this.tempRemark = this.remark;
+      this.tempTitle = this.currentTitle;
+      this.tempRemark = this.currentRemark;
       this.isEditingTitle = false;
     },
     // Recycle bin methods
@@ -646,7 +653,9 @@ export default {
     // 加载所有连接
     async loadConnections() {
       try {
-        const response = await axios.get('/api/notes/connections');
+        const response = await axios.get('/api/notes/connections', {
+          params: { wall_id: this.boardId }
+        });
         this.connections = response.data.connections;
       } catch (error) {
         console.error('Failed to load connections:', error);
@@ -849,6 +858,7 @@ export default {
   position: relative;
   width: 100%;
   height: 100vh;
+  padding-top: 50px; /* 为标签栏留出空间 */
   background: #f5f5f5;
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
@@ -1059,7 +1069,7 @@ export default {
 /* 固定标题容器 */
 .title-container {
   position: fixed;
-  top: 20px;
+  top: 70px; /* 从 20px 调整为 70px，避让标签栏 */
   left: 50%;
   transform: translateX(-50%);
   z-index: 1001;

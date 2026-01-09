@@ -23,7 +23,8 @@ function initDb() {
       position_y INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      deleted_at DATETIME DEFAULT NULL
+      deleted_at DATETIME DEFAULT NULL,
+      wall_id INTEGER NOT NULL DEFAULT 1
     )
   `;
 
@@ -89,6 +90,7 @@ function initDb() {
       source_note_id INTEGER NOT NULL,
       target_note_id INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      wall_id INTEGER NOT NULL DEFAULT 1,
       FOREIGN KEY (source_note_id) REFERENCES notes(id) ON DELETE CASCADE,
       FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE CASCADE,
       UNIQUE(source_note_id, target_note_id)
@@ -105,6 +107,7 @@ function initDb() {
       const createIndexSQL = `
         CREATE INDEX IF NOT EXISTS idx_connections_source ON note_connections(source_note_id);
         CREATE INDEX IF NOT EXISTS idx_connections_target ON note_connections(target_note_id);
+        CREATE INDEX IF NOT EXISTS idx_connections_wall_id ON note_connections(wall_id);
       `;
 
       db.run(createIndexSQL, (err) => {
@@ -115,6 +118,176 @@ function initDb() {
         }
       });
     }
+  });
+
+  // 多白板功能迁移
+  migrateToMultiBoard();
+  migrateNotesToBoards();
+  migrateConnectionsToBoards();
+}
+
+// ========== 多白板功能迁移函数 ==========
+
+// 创建 boards 表并从 wall_config 迁移数据
+function migrateToMultiBoard() {
+  const createBoardsTableSQL = `
+    CREATE TABLE IF NOT EXISTS boards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '新白板',
+      remark TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  db.run(createBoardsTableSQL, (err) => {
+    if (err) {
+      console.error('Error creating boards table:', err.message);
+      return;
+    }
+    console.log('Boards table ready');
+
+    // 检查是否需要从 wall_config 迁移数据
+    db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='wall_config'", [], (err, row) => {
+      if (row) {
+        // wall_config 表存在，需要迁移
+        migrateFromWallConfig();
+      } else {
+        // wall_config 表不存在，创建默认白板
+        createDefaultBoard();
+      }
+    });
+  });
+}
+
+// 从 wall_config 迁移数据到 boards
+function migrateFromWallConfig() {
+  // 从 wall_config 读取配置
+  db.get("SELECT title, remark FROM wall_config WHERE id = 1", [], (err, config) => {
+    if (err) {
+      console.error('Error reading wall_config:', err.message);
+      createDefaultBoard();
+      return;
+    }
+
+    // 创建默认白板（id=1）
+    const defaultTitle = config?.title || '便签墙';
+    const defaultRemark = config?.remark || '这是便签墙的备注信息';
+
+    db.run(
+      "INSERT INTO boards (id, title, remark) VALUES (1, ?, ?)",
+      [defaultTitle, defaultRemark],
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) {
+            console.log('Default board already exists, skipping migration');
+          } else {
+            console.error('Error creating default board:', err.message);
+          }
+          return;
+        }
+        console.log('Default board created from wall_config');
+
+        // 删除 wall_config 表
+        db.run("DROP TABLE wall_config", (err) => {
+          if (err) {
+            console.error('Error dropping wall_config:', err.message);
+          } else {
+            console.log('wall_config table dropped');
+          }
+        });
+      }
+    );
+  });
+}
+
+// 创建默认白板
+function createDefaultBoard() {
+  db.run(
+    "INSERT OR IGNORE INTO boards (id, title, remark) VALUES (1, '便签墙', '这是便签墙的备注信息')",
+    (err) => {
+      if (err) {
+        console.error('Error creating default board:', err.message);
+      } else {
+        console.log('Default board initialized');
+      }
+    }
+  );
+}
+
+// 为 notes 表添加 wall_id 字段
+function migrateNotesToBoards() {
+  // 检查 notes 表是否有 wall_id 字段
+  db.all("PRAGMA table_info(notes)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking notes table:', err.message);
+      return;
+    }
+
+    const hasWallId = columns.some(col => col.name === 'wall_id');
+    if (hasWallId) {
+      console.log('notes table already has wall_id column');
+      return;
+    }
+
+    // 添加 wall_id 字段
+    db.run(
+      "ALTER TABLE notes ADD COLUMN wall_id INTEGER NOT NULL DEFAULT 1",
+      (err) => {
+        if (err) {
+          console.error('Error adding wall_id to notes:', err.message);
+        } else {
+          console.log('Migration completed: added wall_id column to notes');
+
+          // 创建索引
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_notes_wall_id ON notes(wall_id)",
+            (err) => {
+              if (err) console.error('Error creating index:', err.message);
+              else console.log('Index idx_notes_wall_id created');
+            }
+          );
+        }
+      }
+    );
+  });
+}
+
+// 为 note_connections 表添加 wall_id 字段
+function migrateConnectionsToBoards() {
+  // 检查 note_connections 表是否有 wall_id 字段
+  db.all("PRAGMA table_info(note_connections)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking note_connections table:', err.message);
+      return;
+    }
+
+    const hasWallId = columns.some(col => col.name === 'wall_id');
+    if (hasWallId) {
+      console.log('note_connections table already has wall_id column');
+      return;
+    }
+
+    // 添加 wall_id 字段
+    db.run(
+      "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NULL DEFAULT 1",
+      (err) => {
+        if (err) {
+          console.error('Error adding wall_id to note_connections:', err.message);
+        } else {
+          console.log('Migration completed: added wall_id column to note_connections');
+
+          // 创建索引
+          db.run(
+            "CREATE INDEX IF NOT EXISTS idx_connections_wall_id ON note_connections(wall_id)",
+            (err) => {
+              if (err) console.error('Error creating index:', err.message);
+              else console.log('Index idx_connections_wall_id created');
+            }
+          );
+        }
+      }
+    );
   });
 }
 

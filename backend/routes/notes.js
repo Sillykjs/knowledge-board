@@ -2,68 +2,28 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-// ============ 便签墙配置相关路由 ============
-
-// 获取便签墙配置
-router.get('/config', (req, res) => {
-  const sql = 'SELECT title, remark FROM wall_config WHERE id = 1';
-  db.get(sql, [], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (!row) {
-      // 如果配置不存在，返回默认值
-      res.json({ title: '便签墙', remark: '这是便签墙的备注信息' });
-      return;
-    }
-    res.json({ title: row.title, remark: row.remark });
-  });
-});
-
-// 更新便签墙配置
-router.put('/config', (req, res) => {
-  const { title, remark } = req.body;
-
-  if (!title || !remark) {
-    res.status(400).json({ error: 'Title and remark are required' });
-    return;
-  }
-
-  const sql = `
-    UPDATE wall_config
-    SET title = ?, remark = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1
-  `;
-  const params = [title, remark];
-
-  db.run(sql, params, function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json({
-      message: 'Wall config updated',
-      title,
-      remark
-    });
-  });
-});
+// 引入白板路由
+const boardsRouter = require('./boards');
+router.use('/boards', boardsRouter);
 
 // ============ 连接相关路由（必须在 /:id 之前定义）============
 
 // 获取所有连接关系
 router.get('/connections', (req, res) => {
+  const wall_id = req.query.wall_id || 1;
+
   const sql = `
     SELECT nc.id, nc.source_note_id, nc.target_note_id, nc.created_at
     FROM note_connections nc
     INNER JOIN notes source_note ON nc.source_note_id = source_note.id
     INNER JOIN notes target_note ON nc.target_note_id = target_note.id
-    WHERE source_note.deleted_at IS NULL AND target_note.deleted_at IS NULL
+    WHERE source_note.deleted_at IS NULL
+      AND target_note.deleted_at IS NULL
+      AND nc.wall_id = ?
     ORDER BY nc.created_at DESC
   `;
 
-  db.all(sql, [], (err, rows) => {
+  db.all(sql, [wall_id], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -74,7 +34,7 @@ router.get('/connections', (req, res) => {
 
 // 创建新连接
 router.post('/connections', (req, res) => {
-  const { source_note_id, target_note_id } = req.body;
+  const { source_note_id, target_note_id, wall_id } = req.body;
 
   if (!source_note_id || !target_note_id) {
     res.status(400).json({ error: 'source_note_id and target_note_id are required' });
@@ -86,30 +46,49 @@ router.post('/connections', (req, res) => {
     return;
   }
 
-  const sql = `
-    INSERT INTO note_connections (source_note_id, target_note_id)
-    VALUES (?, ?)
-  `;
-
-  db.run(sql, [source_note_id, target_note_id], function(err) {
-    if (err) {
-      if (err.message.includes('UNIQUE')) {
-        res.status(400).json({ error: 'Connection already exists' });
-      } else {
+  // 获取源便签所属的白板ID
+  db.get(
+    'SELECT wall_id FROM notes WHERE id = ?',
+    [source_note_id],
+    (err, note) => {
+      if (err) {
         res.status(500).json({ error: err.message });
+        return;
       }
-      return;
-    }
+      if (!note) {
+        res.status(404).json({ error: 'Source note not found' });
+        return;
+      }
 
-    res.status(201).json({
-      message: 'Connection created',
-      connection: {
-        id: this.lastID,
-        source_note_id,
-        target_note_id
-      }
-    });
-  });
+      const boardId = wall_id || note.wall_id || 1;
+
+      const sql = `
+        INSERT INTO note_connections (source_note_id, target_note_id, wall_id)
+        VALUES (?, ?, ?)
+      `;
+
+      db.run(sql, [source_note_id, target_note_id, boardId], function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) {
+            res.status(400).json({ error: 'Connection already exists' });
+          } else {
+            res.status(500).json({ error: err.message });
+          }
+          return;
+        }
+
+        res.status(201).json({
+          message: 'Connection created',
+          connection: {
+            id: this.lastID,
+            source_note_id,
+            target_note_id,
+            wall_id: boardId
+          }
+        });
+      });
+    }
+  );
 });
 
 // 删除连接（通过连接ID）
@@ -134,8 +113,10 @@ router.delete('/connections/:connectionId', (req, res) => {
 
 // 获取所有便签（只返回未删除的）
 router.get('/', (req, res) => {
-  const sql = 'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY created_at DESC';
-  db.all(sql, [], (err, rows) => {
+  const wall_id = req.query.wall_id || 1;
+
+  const sql = 'SELECT * FROM notes WHERE wall_id = ? AND deleted_at IS NULL ORDER BY created_at DESC';
+  db.all(sql, [wall_id], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -146,7 +127,7 @@ router.get('/', (req, res) => {
 
 // 创建新便签
 router.post('/', (req, res) => {
-  const { title, content, position_x, position_y } = req.body;
+  const { title, content, position_x, position_y, wall_id } = req.body;
 
   if (!title || !content) {
     res.status(400).json({ error: 'Title and content are required' });
@@ -154,10 +135,10 @@ router.post('/', (req, res) => {
   }
 
   const sql = `
-    INSERT INTO notes (title, content, position_x, position_y)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO notes (title, content, position_x, position_y, wall_id)
+    VALUES (?, ?, ?, ?, ?)
   `;
-  const params = [title, content, position_x || 0, position_y || 0];
+  const params = [title, content, position_x || 0, position_y || 0, wall_id || 1];
 
   db.run(sql, params, function(err) {
     if (err) {
@@ -171,7 +152,8 @@ router.post('/', (req, res) => {
         title,
         content,
         position_x: position_x || 0,
-        position_y: position_y || 0
+        position_y: position_y || 0,
+        wall_id: wall_id || 1
       }
     });
   });

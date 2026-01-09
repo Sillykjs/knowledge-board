@@ -718,14 +718,13 @@ export default {
     async onConnectionDragEnd(event) {
       if (!this.isDraggingConnection) return;
 
-      // 检查是否释放到引入点上
+      // 检查是否释放到便签上（任意位置）
       const target = document.elementFromPoint(event.clientX, event.clientY);
-      const inputPoint = target?.closest('.input-point');
+      const noteElement = target?.closest('.note');
 
-      if (inputPoint) {
-        // 找到对应的便签组件
-        const noteElement = inputPoint.closest('.note');
-        const targetNoteId = noteElement?.__vueParentComponent?.props?.id;
+      if (noteElement) {
+        // 获取便签 ID
+        const targetNoteId = parseInt(noteElement.getAttribute('data-note-id'));
 
         if (targetNoteId && targetNoteId !== this.dragStartNoteId) {
           await this.createConnection(this.dragStartNoteId, targetNoteId);

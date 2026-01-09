@@ -488,10 +488,12 @@ export default {
         this.$forceUpdate();
       }
     },
-    onNoteDelete(noteId) {
+    async onNoteDelete(noteId) {
+      // 先加载连接（后端会自动删除相关连接），避免渲染时找不到便签导致连接线闪烁到原点
+      await this.loadConnections();
+      // 再从 notes 数组中移除便签
       this.notes = this.notes.filter(n => n.id !== noteId);
       this.loadRecycleNotes();
-      this.loadConnections();  // 后端会自动删除相关连接
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

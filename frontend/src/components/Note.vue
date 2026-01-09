@@ -354,7 +354,7 @@ export default {
   cursor: move;
   user-select: none;
   transition: box-shadow 0.2s;
-  overflow: hidden;
+  /* overflow: hidden; */
   /* 优化缩放时的文字渲染质量 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -380,6 +380,13 @@ export default {
   justify-content: center;
   transition: all 0.2s;
   z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.note:hover .connection-point {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .connection-point:hover {

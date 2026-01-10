@@ -1,40 +1,76 @@
 <template>
   <div id="app">
-    <!-- 顶部标签栏 -->
-    <div class="board-tabs" v-if="boards.length > 0">
-      <div class="tabs-container">
+    <!-- 左侧边栏 -->
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }" :style="sidebarStyle" v-if="boards.length > 0">
+      <!-- 切换按钮 -->
+      <button class="sidebar-toggle" @click="toggleSidebar" :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'">
+        {{ sidebarCollapsed ? '▶' : '◀' }}
+      </button>
+
+      <!-- 白板列表 -->
+      <div class="board-list">
         <div
           v-for="board in boards"
           :key="board.id"
-          :class="['board-tab', { active: currentBoardId === board.id }]"
+          :class="['board-item', { active: currentBoardId === board.id }]"
           @click="switchBoard(board.id)"
         >
-          <span class="tab-title">{{ board.title }}</span>
-          <button
-            v-if="boards.length > 1"
-            class="tab-close"
-            @click.stop="confirmDeleteBoard(board.id)"
-            :disabled="board.id === 1"
-            :title="board.id === 1 ? '默认白板不能删除' : '关闭白板'"
-          >
-            ×
-          </button>
-          <span v-if="board.note_count > 0" class="tab-badge">{{ board.note_count }}</span>
-        </div>
-        <button class="add-tab-button" @click="createBoard" title="新建白板">+</button>
-      </div>
-    </div>
+          <!-- 展开状态：显示完整信息 -->
+          <template v-if="!sidebarCollapsed">
+            <span class="board-title">{{ board.title }}</span>
+            <div class="board-actions">
+              <span v-if="board.note_count > 0" class="board-badge">
+                {{ board.note_count }}
+              </span>
+              <button
+                v-if="boards.length > 1"
+                class="board-delete"
+                @click.stop="confirmDeleteBoard(board.id)"
+                :disabled="board.id === 1"
+                :title="board.id === 1 ? '默认白板不能删除' : '删除白板'"
+              >
+                🗑️
+              </button>
+            </div>
+          </template>
 
-    <!-- 白板组件 -->
-    <NoteWall
-      v-if="currentBoardId"
-      ref="noteWall"
-      :board-id="currentBoardId"
-      :board-title="currentBoard?.title"
-      :board-remark="currentBoard?.remark"
-      :key="currentBoardId"
-      @board-updated="onBoardUpdated"
-    />
+          <!-- 收起状态：只显示图标 -->
+          <template v-else>
+            <div class="board-icon">
+              {{ currentBoardId === board.id ? '📌' : '📄' }}
+              <span v-if="board.note_count > 0" class="board-badge-mini">
+                {{ board.note_count }}
+              </span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- 新建白板按钮 -->
+      <button class="add-board-button" @click="createBoard" :title="sidebarCollapsed ? '新建白板' : ''">
+        <template v-if="!sidebarCollapsed">
+          <span class="add-icon">+</span>
+          <span class="add-text">新建白板</span>
+        </template>
+        <template v-else>
+          <span class="add-icon">+</span>
+        </template>
+      </button>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content" :style="mainContentStyle">
+      <!-- 白板组件 -->
+      <NoteWall
+        v-if="currentBoardId"
+        ref="noteWall"
+        :board-id="currentBoardId"
+        :board-title="currentBoard?.title"
+        :board-remark="currentBoard?.remark"
+        :key="currentBoardId"
+        @board-updated="onBoardUpdated"
+      />
+    </main>
 
     <!-- 删除白板确认模态框 -->
     <Teleport to="body">
@@ -70,7 +106,10 @@ export default {
       currentBoardId: 1,
       showDeleteBoardConfirm: false,
       pendingDeleteBoardId: null,
-      boardViewports: {} // 存储每个白板的视口状态 { boardId: { scale, translateX, translateY } }
+      boardViewports: {}, // 存储每个白板的视口状态 { boardId: { scale, translateX, translateY } }
+      sidebarCollapsed: false, // 侧边栏是否收起
+      sidebarWidth: 250, // 展开时的宽度（px）
+      collapsedWidth: 60 // 收起时的宽度（px）
     };
   },
   computed: {
@@ -79,12 +118,25 @@ export default {
     },
     pendingDeleteBoard() {
       return this.boards.find(b => b.id === this.pendingDeleteBoardId);
+    },
+    sidebarStyle() {
+      return {
+        width: this.sidebarCollapsed ? `${this.collapsedWidth}px` : `${this.sidebarWidth}px`
+      };
+    },
+    mainContentStyle() {
+      return {
+        marginLeft: this.sidebarCollapsed ? `${this.collapsedWidth}px` : `${this.sidebarWidth}px`
+      };
     }
   },
   async mounted() {
     await this.loadBoards();
   },
   methods: {
+    toggleSidebar() {
+      this.sidebarCollapsed = !this.sidebarCollapsed;
+    },
     async loadBoards() {
       try {
         const response = await axios.get('/api/notes/boards');
@@ -195,131 +247,216 @@ body {
   width: 100vw;
   height: 100vh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  overflow: hidden;
 }
 
-/* 顶部标签栏样式 */
-.board-tabs {
+/* 侧边栏样式 */
+.sidebar {
   position: fixed;
-  top: 0;
   left: 0;
-  right: 0;
-  height: 50px;
+  top: 0;
+  bottom: 0;
   background: white;
-  border-bottom: 2px solid #e0e0e0;
+  border-right: 2px solid #e0e0e0;
   z-index: 2000;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  overflow: hidden;
 }
 
-.tabs-container {
+.sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  right: -15px;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  height: 100%;
-  padding: 0 20px;
+  justify-content: center;
+  z-index: 2001;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background: #f5f5f5;
+  transform: scale(1.1);
+}
+
+.board-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 60px 10px 10px 10px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
-.tabs-container::-webkit-scrollbar {
-  height: 4px;
+.board-list::-webkit-scrollbar {
+  width: 4px;
 }
 
-.tabs-container::-webkit-scrollbar-thumb {
+.board-list::-webkit-scrollbar-thumb {
   background: #ccc;
   border-radius: 2px;
 }
 
-.tabs-container::-webkit-scrollbar-thumb:hover {
+.board-list::-webkit-scrollbar-thumb:hover {
   background: #aaa;
 }
 
-.board-tab {
+.board-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  justify-content: space-between;
+  padding: 12px 16px;
   background: #f5f5f5;
-  border-radius: 6px 6px 0 0;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  position: relative;
   user-select: none;
   border: 2px solid transparent;
 }
 
-.board-tab:hover {
+.board-item:hover {
   background: #e8e8e8;
+  transform: translateX(2px);
 }
 
-.board-tab.active {
+.board-item.active {
   background: white;
-  border-color: #e0e0e0;
-  border-bottom-color: white;
+  border-color: #2196F3;
   font-weight: bold;
+  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.2);
 }
 
-.tab-title {
+.board-title {
   font-size: 14px;
   color: #333;
+  flex: 1;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.tab-close {
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: #ddd;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
+.board-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.tab-close:hover:not(:disabled) {
+.board-badge {
+  background: #2196F3;
+  color: white;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.board-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.board-delete:hover:not(:disabled) {
+  opacity: 1;
   background: #ff5252;
+  border-radius: 4px;
   color: white;
 }
 
-.tab-close:disabled {
+.board-delete:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
 
-.tab-badge {
+.board-icon {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  position: relative;
+}
+
+.board-badge-mini {
+  position: absolute;
+  top: -2px;
+  right: -2px;
   background: #2196F3;
   color: white;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 8px;
+  min-width: 14px;
   text-align: center;
 }
 
-.add-tab-button {
-  width: 32px;
-  height: 32px;
-  border: none;
+.add-board-button {
+  margin: 10px;
+  padding: 12px 16px;
   background: #4caf50;
   color: white;
-  border-radius: 50%;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   transition: all 0.2s;
-  flex-shrink: 0;
+  font-size: 14px;
 }
 
-.add-tab-button:hover {
+.add-board-button:hover {
   background: #45a049;
-  transform: scale(1.1);
+  transform: scale(1.02);
+}
+
+.add-icon {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.add-text {
+  font-weight: 500;
+}
+
+.sidebar.collapsed .add-board-button {
+  padding: 12px;
+}
+
+.sidebar.collapsed .add-text {
+  display: none;
+}
+
+.main-content {
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
+  transition: margin-left 0.3s ease;
 }
 
 /* 模态框样式 */

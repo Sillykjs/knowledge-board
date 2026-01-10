@@ -35,7 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-便签墙是一个单页应用(SPA)，提供一个大型白板背景，用户可以添加、编辑、删除和拖拽便签。所有用户共享同一个便签墙。包含软删除和回收站功能。支持便签墙标题和备注的自定义配置、Markdown 渲染，以及便签间的可视化连接功能。
+便签墙是一个单页应用(SPA)，提供多个独立的大型白板，每个白板包含自己的便签、连接和配置。用户可以在白板之间切换，每个白板支持创建、编辑、删除和拖拽便签。包含软删除和回收站功能。支持白板标题和备注的自定义配置、Markdown 渲染，以及便签间的可视化连接功能。**核心特性：多白板管理、白板独立状态保持（缩放平移）、数据隔离。**
 
 ## 技术栈
 
@@ -113,26 +113,29 @@ ChatBranch2/
 ## 后端架构
 
 ### 数据库设计 (SQLite)
+**boards表结构（白板表）:**
+- `id`: 主键，自增
+- `title`: 白板标题
+- `remark`: 白板备注/描述
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
+
 **notes表结构:**
 - `id`: 主键，自增
 - `title`: 便签标题
 - `content`: 便签内容
 - `position_x`: X坐标位置
 - `position_y`: Y坐标位置
+- `wall_id`: 所属白板ID（外键，关联到 boards.id）
 - `created_at`: 创建时间
 - `updated_at`: 更新时间
 - `deleted_at`: 删除时间（软删除标记，NULL表示未删除）
-
-**wall_config表结构:**
-- `id`: 主键，固定为1（单例表）
-- `title`: 便签墙标题
-- `remark`: 便签墙备注/描述
-- `updated_at`: 更新时间
 
 **note_connections表结构:**
 - `id`: 主键，自增
 - `source_note_id`: 源便签ID（外键）
 - `target_note_id`: 目标便签ID（外键）
+- `wall_id`: 所属白板ID（外键，关联到 boards.id）
 - `created_at`: 创建时间
 - 外键约束：级联删除（当便签被删除时，相关连接也会被删除）
 - 唯一约束：`(source_note_id, target_note_id)` 组合必须唯一
@@ -146,20 +149,23 @@ ChatBranch2/
 
 ### API接口
 
-**便签墙配置:**
-- `GET /api/notes/config` - 获取便签墙标题和备注
-- `PUT /api/notes/config` - 更新便签墙标题和备注
-
-**便签连接操作:**
-- `GET /api/notes/connections` - 获取所有便签连接关系
-- `POST /api/notes/connections` - 创建便签之间的连接
-- `DELETE /api/notes/connections/:connectionId` - 删除指定连接
+**白板管理操作:**
+- `GET /api/notes/boards` - 获取所有白板列表（包含便签计数）
+- `POST /api/notes/boards` - 创建新白板
+- `GET /api/notes/boards/:id` - 获取单个白板配置
+- `PUT /api/notes/boards/:id` - 更新白板配置（标题、备注）
+- `DELETE /api/notes/boards/:id` - 删除白板（禁止删除 id=1 的默认白板）
 
 **便签基本操作:**
-- `GET /api/notes` - 获取所有未删除的便签
-- `POST /api/notes` - 创建便签
+- `GET /api/notes?wall_id=1` - 获取指定白板的便签（未删除）
+- `POST /api/notes` - 创建便签（需要传递 wall_id）
 - `PUT /api/notes/:id` - 更新便签(标题、内容、位置)
 - `DELETE /api/notes/:id` - 软删除便签（移入回收站）
+
+**便签连接操作:**
+- `GET /api/notes/connections?wall_id=1` - 获取指定白板的便签连接关系
+- `POST /api/notes/connections` - 创建便签之间的连接（需要传递 wall_id）
+- `DELETE /api/notes/connections/:connectionId` - 删除指定连接
 
 **回收站操作（路由必须在 /:id 之前定义）:**
 - `GET /api/notes/recycle-bin` - 获取回收站中的已删除便签
@@ -168,9 +174,10 @@ ChatBranch2/
 - `DELETE /api/notes/recycle-bin` - 清空回收站（永久删除所有）
 
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
-1. 具体路径（如 `/config`, `/recycle-bin`, `/connections`）
-2. 嵌套路径（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
-3. 参数化路径（如 `/:id`）
+1. 引入白板路由：`router.use('/boards', boardsRouter)`
+2. 具体路径（如 `/recycle-bin`, `/connections`）
+3. 嵌套路径（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
+4. 参数化路径（如 `/:id`）
 
 Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义。
 
@@ -216,16 +223,35 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ### 组件结构
 
 **NoteWall.vue** (便签墙容器)
-- 管理所有便签和回收站的状态
-- 处理便签的添加、更新、删除
+- **Props**: 接收 `boardId`、`boardTitle`、`boardRemark` 从父组件传入
+- 管理单个白板的所有便签和回收站的状态
+- 处理便签的添加、更新、删除（所有 API 调用都带上 `wall_id` 参数）
 - 处理回收站的打开、关闭、恢复、永久删除
 - 提供大型白板背景，支持缩放和平移操作
 - 渲染浮动添加按钮和回收站按钮
 - 垃圾桶按钮显示回收站便签数量徽章
-- 管理便签墙配置（标题和备注），双击标题可编辑
-- 标题固定在顶部，不受白板缩放平移影响
+- 标题和备注通过计算属性 `currentTitle` 和 `currentRemark` 从 props 获取
+- 双击标题可编辑，编辑后通过 `@board-updated` 事件通知父组件更新
 - 缩放控制按钮组：放大、缩小、重置视图，显示当前缩放比例
 - 模态框支持点击外部关闭（使用 `@click.stop` 阻止内容区域冒泡）
+
+**App.vue** (应用入口，新增多白板管理)
+- **顶部标签栏**: 显示所有白板，点击切换，显示便签数量徽章
+- **白板列表管理**:
+  - `boards`: 白板列表数组
+  - `currentBoardId`: 当前选中白板ID
+  - `boardViewports`: 存储每个白板的视口状态 `{ boardId: { scale, translateX, translateY } }`
+- **白板操作方法**:
+  - `loadBoards()`: 加载白板列表
+  - `switchBoard(boardId)`: 切换白板，保存当前白板视口状态，恢复目标白板视口状态
+  - `createBoard()`: 创建新白板
+  - `confirmDeleteBoard(boardId)`: 删除白板（带确认模态框）
+  - `onBoardUpdated(boardData)`: 处理白板配置更新事件
+- **标签栏特性**:
+  - 固定在顶部（z-index: 2000），高度 50px
+  - 活跃状态高亮显示
+  - 默认白板（id=1）不能删除
+  - 新建白板按钮（+）使用 prompt 输入标题
 
 **Note.vue** (单个便签)
 - 显示便签标题和内容
@@ -436,16 +462,35 @@ backface-visibility: hidden;
 ## 数据库迁移
 
 数据库迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中：
-- 创建表时包含 `deleted_at` 字段
-- 创建 `wall_config` 单例表，并插入默认配置（id=1）
+- 创建 `boards` 表（白板表）
+- 从 `wall_config` 表迁移数据到 `boards` 表（id=1 为默认白板），然后删除 `wall_config` 表
+- 为 `notes` 表添加 `wall_id` 外键字段（默认值 1），并创建索引
+- 为 `note_connections` 表添加 `wall_id` 外键字段（默认值 1），并创建索引
 - 启动时检测字段是否存在（使用 `PRAGMA table_info`），不存在则使用 `ALTER TABLE` 添加
 - 数据库文件在backend目录下首次运行时自动创建
 - 如果后端已在运行且数据库已创建，需要重启后端以触发迁移
 
+**多白板迁移步骤**:
+1. 创建 `boards` 表
+2. 检查 `wall_config` 表是否存在，如果存在则迁移数据到 `boards` 表（id=1）
+3. 为 `notes` 表添加 `wall_id` 字段（如果不存在）
+4. 为 `note_connections` 表添加 `wall_id` 字段（如果不存在）
+
 手动迁移命令（仅在自动迁移失败时使用）:
 ```bash
 cd backend
-sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;"
+
+# 创建 boards 表
+sqlite3 notes.db "CREATE TABLE IF NOT EXISTS boards (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL DEFAULT '新白板', remark TEXT NOT NULL DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
+
+# 从 wall_config 迁移数据
+sqlite3 notes.db "INSERT INTO boards (id, title, remark) SELECT 1, title, remark FROM wall_config;"
+
+# 为 notes 表添加 wall_id
+sqlite3 notes.db "ALTER TABLE notes ADD COLUMN wall_id INTEGER NOT NULL DEFAULT 1;"
+
+# 为 note_connections 表添加 wall_id
+sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NULL DEFAULT 1;"
 ```
 
 ## 后端架构细节
@@ -456,12 +501,30 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 - 所有路由通过 `require('../database')` 获取同一数据库实例
 
 ### 路由设计模式
-路由文件 `backend/routes/notes.js` 遵循以下顺序：
-1. **具体路径路由**（如 `/config`, `/recycle-bin`, `/connections`）
-2. **嵌套路径路由**（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
-3. **参数化路径路由**（如 `/:id`）
+**主要路由文件**:
+- `backend/routes/boards.js`: 白板管理路由（新建）
+- `backend/routes/notes.js`: 便签和连接路由（已修改）
+
+**boards.js 路由**（白板管理）:
+- `GET /` - 获取所有白板（包含便签计数）
+- `POST /` - 创建新白板
+- `GET /:id` - 获取单个白板配置
+- `PUT /:id` - 更新白板配置
+- `DELETE /:id` - 删除白板（禁止删除 id=1）
+
+**notes.js 路由顺序**:
+1. 引入白板路由：`router.use('/boards', boardsRouter)`
+2. **具体路径路由**（如 `/recycle-bin`, `/connections`）
+3. **嵌套路径路由**（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
+4. **参数化路径路由**（如 `/:id`）
 
 **关键**: Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义，否则会被错误匹配。
+
+**多白板支持**:
+- 所有便签相关 API 必须传递 `wall_id` 参数（默认值 1）
+- 所有连接相关 API 必须传递 `wall_id` 参数（默认值 1）
+- 使用 `req.query.wall_id || 1` 获取白板ID
+- 使用 `req.body.wall_id || 1` 获取请求体中的白板ID
 
 ### 便签连接功能
 后端实现了便签之间的连接关系管理：
@@ -527,9 +590,11 @@ sqlite3 notes.db "ALTER TABLE notes ADD COLUMN deleted_at DATETIME DEFAULT NULL;
 10. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
 11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
 12. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
-13. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
-14. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
-15. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
+13. **多白板状态管理（重要）**: 每个白板的视口状态（scale、translateX、translateY）独立保存在 App.vue 的 `boardViewports` 对象中。切换白板时，先保存当前状态到 `boardViewports[currentBoardId]`，再恢复目标白板的状态
+14. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
+15. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
+16. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
+17. **白板 API 参数（重要）**: 所有便签和连接相关 API 调用都必须传递 `wall_id` 参数。在 NoteWall.vue 中使用 `this.boardId`，在 axios 调用中通过 `params: { wall_id: this.boardId }` 传递
 
 ## 数据库管理
 
@@ -556,17 +621,20 @@ sqlite3 notes.db
 
 # 查看表结构
 .schema notes
-.schema wall_config
+.schema boards
 .schema note_connections
 
-# 查询所有便签
-SELECT * FROM notes WHERE deleted_at IS NULL;
+# 查询所有白板
+SELECT * FROM boards;
+
+# 查询某个白板的便签
+SELECT * FROM notes WHERE wall_id = 1 AND deleted_at IS NULL;
+
+# 查询某个白板的连接
+SELECT * FROM note_connections WHERE wall_id = 1;
 
 # 查询回收站
 SELECT * FROM notes WHERE deleted_at IS NOT NULL;
-
-# 查询所有连接
-SELECT * FROM note_connections;
 
 # 退出
 .quit
@@ -662,6 +730,34 @@ SELECT * FROM note_connections;
 4. 如果是网络问题，考虑使用国内镜像：`npm config set registry https://registry.npmmirror.com`
 
 ## 扩展项目指南
+
+### 添加与白板相关的新功能
+
+**创建新的白板级别功能**:
+1. 在 `boards` 表中添加新字段（如颜色、图标、排序等）
+   - 在 `backend/database.js` 的 `initDb()` 中添加字段迁移逻辑
+   - 修改 `backend/routes/boards.js` 中的 API 以处理新字段
+   - 更新 `frontend/src/App.vue` 中的白板列表管理
+   - 更新 `frontend/src/components/NoteWall.vue` 中的白板配置显示
+
+**示例：为白板添加颜色功能**
+```javascript
+// 1. 数据库迁移 (database.js)
+db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
+
+// 2. 更新 boards API (routes/boards.js)
+// 在创建和更新白板时处理 color 字段
+
+// 3. 前端显示 (App.vue)
+// 在标签栏显示白板颜色
+<div :style="{ backgroundColor: board.color }"></div>
+```
+
+**修改 NoteWall.vue 以使用新的白板属性**:
+1. 添加新的 prop：`boardColor: { type: String, default: '#2196F3' }`
+2. 添加计算属性：`currentBoardColor() { return this.boardColor; }`
+3. 在模板中使用：`:style="{ borderColor: currentBoardColor }"`
+4. 确保通过 `@board-updated` 事件通知父组件更新
 
 ### 添加新的数据库字段
 1. 在 `backend/database.js` 的 `initDb()` 函数中添加迁移逻辑（参考 `deleted_at` 字段的迁移方式）

@@ -858,7 +858,6 @@ export default {
   position: relative;
   width: 100%;
   height: 100vh;
-  padding-top: 50px; /* 为标签栏留出空间 */
   background: #f5f5f5;
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
@@ -1069,7 +1068,7 @@ export default {
 /* 固定标题容器 */
 .title-container {
   position: fixed;
-  top: 70px; /* 从 20px 调整为 70px，避让标签栏 */
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1001;
@@ -1219,7 +1218,7 @@ export default {
 .recycle-button {
   position: fixed;
   bottom: 40px;
-  left: 40px;
+  left: 270px; /* 调整位置，避免与侧边栏重叠（侧边栏宽度250px + 20px间距） */
   width: 60px;
   height: 60px;
   background: #ff9800;

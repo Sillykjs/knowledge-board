@@ -742,6 +742,9 @@ export default {
         if (targetNoteId && targetNoteId !== this.dragStartNoteId) {
           await this.createConnection(this.dragStartNoteId, targetNoteId);
         }
+      } else {
+        // 没有释放到便签上，在空白处创建新便签并连接
+        await this.createNoteAndConnect(this.dragStartNoteId, this.currentMousePos);
       }
 
       // 重置状态（Note组件会通过自己的mouseup监听器重置isConnecting状态）
@@ -769,6 +772,36 @@ export default {
         if (error.response?.data?.error) {
           alert(error.response.data.error);
         }
+      }
+    },
+
+    // 创建新便签并连接
+    async createNoteAndConnect(sourceId, position) {
+      try {
+        // 计算新便签的位置（使连接点对准鼠标位置）
+        // 新便签的引入点在顶部中心，需要向上偏移
+        const newNoteX = position.x - 125; // 便签宽度一半（250px / 2）
+        const newNoteY = position.y - 12;  // 连接点偏移12px（与样式中的 -12px 对应）
+
+        // 创建新便签
+        const response = await axios.post('/api/notes', {
+          title: '新便签',
+          content: '',
+          position_x: newNoteX,
+          position_y: newNoteY,
+          wall_id: this.boardId
+        });
+
+        const newNoteId = response.data.note.id;
+
+        // 创建连接
+        await this.createConnection(sourceId, newNoteId);
+
+        // 重新加载便签列表
+        await this.loadNotes();
+      } catch (error) {
+        console.error('Failed to create note and connect:', error);
+        alert('创建便签失败: ' + (error.response?.data?.error || error.message));
       }
     },
 

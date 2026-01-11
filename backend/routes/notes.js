@@ -129,7 +129,7 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   const { title, content, position_x, position_y, wall_id } = req.body;
 
-  if (!title || !content) {
+  if (title === undefined || title === null || content === undefined || content === null) {
     res.status(400).json({ error: 'Title and content are required' });
     return;
   }

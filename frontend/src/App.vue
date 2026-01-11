@@ -25,7 +25,7 @@
               <button
                 v-if="boards.length > 1"
                 class="board-delete"
-                @click.stop="confirmDeleteBoard(board.id)"
+                @click.stop="askDeleteBoard(board.id)"
                 :disabled="board.id === 1"
                 :title="board.id === 1 ? '默认白板不能删除' : '删除白板'"
               >
@@ -190,7 +190,7 @@ export default {
       }
     },
 
-    confirmDeleteBoard(boardId) {
+    askDeleteBoard(boardId) {
       const board = this.boards.find(b => b.id === boardId);
       if (!board) return;
 
@@ -270,7 +270,7 @@ body {
 .sidebar-toggle {
   position: absolute;
   top: 10px;
-  right: -15px;
+  right: -10px;
   width: 24px;
   height: 24px;
   background: white;
@@ -289,6 +289,7 @@ body {
 .sidebar-toggle:hover {
   background: #f5f5f5;
   transform: scale(1.1);
+  right: -2px;
 }
 
 .board-list {

@@ -26,7 +26,7 @@
     </div>
 
     <!-- 白板内容变换层 -->
-    <div class="wall-content" :style="wallTransformStyle">
+    <div class="wall-content" :style="wallTransformStyle" @click.self="handleWallClick">
       <!-- 原点十字准星 -->
       <div class="origin-crosshair">
         <div class="crosshair-line crosshair-horizontal"></div>
@@ -45,7 +45,7 @@
           :x2="getConnectionEndPoint(connection).x"
           :y2="getConnectionEndPoint(connection).y"
           :class="['connection-line', { selected: selectedConnectionId === connection.id }]"
-          @click="selectConnection(connection.id)"
+          @click.stop="selectConnection(connection.id)"
         />
         <!-- 箭头 -->
         <polygon
@@ -54,7 +54,7 @@
           :points="getArrowheadPoints(connection)"
           class="connection-arrowhead"
           :class="{ selected: selectedConnectionId === connection.id }"
-          @click="selectConnection(connection.id)"
+          @click.stop="selectConnection(connection.id)"
         />
         <!-- 拖拽中的临时连线 -->
         <line
@@ -860,6 +860,14 @@ export default {
       this.selectedConnectionId = connectionId;
     },
 
+    // 点击白板空白区域处理（取消选择连接线）
+    handleWallClick() {
+      // 只在没有进行平移操作时取消选择
+      // 注意：由于 mousedown 中的 preventDefault，平移操作不会触发 click 事件
+      // 所以这里可以安全地取消选择
+      this.selectedConnectionId = null;
+    },
+
     // 删除选中的连接
     async deleteSelectedConnection() {
       if (!this.selectedConnectionId) return;
@@ -1027,20 +1035,20 @@ export default {
 
 .connection-line {
   stroke: #2196f3;
-  stroke-width: 2;
+  stroke-width: 3;
   pointer-events: stroke;  /* 只在线条上响应点击 */
   cursor: pointer;
   transition: stroke-width 0.2s;
 }
 
 .connection-line:hover {
-  stroke-width: 3;
+  stroke-width: 4;
   stroke: #1976d2;
 }
 
 .connection-line.selected {
   stroke: #ff9800;
-  stroke-width: 3;
+  stroke-width: 4;
 }
 
 .connection-arrowhead {
@@ -1060,7 +1068,7 @@ export default {
 
 .temp-connection-line {
   stroke: #2196f3;
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-dasharray: 5, 5;  /* 虚线效果 */
   opacity: 0.6;
 }

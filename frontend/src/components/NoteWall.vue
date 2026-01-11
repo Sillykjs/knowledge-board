@@ -132,8 +132,8 @@
                 <p class="recycle-item-time">删除于 {{ formatDeletedTime(note.deleted_at) }}</p>
               </div>
               <div class="recycle-item-actions">
-                <button @click="restoreNote(note.id)" class="btn-restore">↩️ 恢复</button>
                 <button @click="permanentDelete(note.id)" class="btn-permanent-delete">🗑️ 永久删除</button>
+                <button @click="restoreNote(note.id)" class="btn-restore">↩️ 恢复</button>
               </div>
             </div>
           </div>

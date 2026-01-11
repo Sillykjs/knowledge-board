@@ -84,7 +84,16 @@
       <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
         <div class="view-modal-content" @click.stop @wheel.stop>
           <div class="view-header">
-            <div class="view-title">{{ title }}</div>
+            <div v-if="!editingViewTitle" class="view-title" @dblclick="startEditViewTitle">{{ title }}</div>
+            <input
+              v-else
+              ref="viewTitleInput"
+              v-model="viewEditTitle"
+              class="view-title-input"
+              @blur="saveViewTitle"
+              @keyup.enter="saveViewTitle"
+              @keyup.esc="cancelEditViewTitle"
+            />
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
@@ -135,7 +144,9 @@ export default {
       showContextMenu: false,
       contextMenuX: 0,
       contextMenuY: 0,
-      isConnecting: false  // 是否正在创建连接
+      isConnecting: false,  // 是否正在创建连接
+      editingViewTitle: false,  // 是否正在编辑查看模态框中的标题
+      viewEditTitle: this.title  // 查看模态框中编辑的临时标题
     };
   },
   computed: {
@@ -215,6 +226,47 @@ export default {
     },
     closeViewModal() {
       this.showViewModal = false;
+      this.editingViewTitle = false;
+    },
+    startEditViewTitle() {
+      this.viewEditTitle = this.title;
+      this.editingViewTitle = true;
+      this.$nextTick(() => {
+        if (this.$refs.viewTitleInput) {
+          this.$refs.viewTitleInput.focus();
+          this.$refs.viewTitleInput.select();
+        }
+      });
+    },
+    async saveViewTitle() {
+      if (!this.editingViewTitle) return;
+      this.editingViewTitle = false;
+
+      // 如果标题没有变化，直接返回
+      if (this.viewEditTitle === this.title) return;
+
+      try {
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.viewEditTitle,
+          content: this.content,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        this.$emit('update', {
+          id: this.id,
+          title: this.viewEditTitle,
+          content: this.content,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+      } catch (error) {
+        console.error('Failed to update note title:', error);
+      }
+    },
+    cancelEditViewTitle() {
+      this.editingViewTitle = false;
+      this.viewEditTitle = this.title;
     },
     onMouseDown(e) {
       // 如果编辑或查看模态框打开，或正在创建连接，则不处理拖拽
@@ -779,6 +831,34 @@ export default {
   line-height: 1.5;
   word-wrap: break-word;
   white-space: pre-wrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: -4px -8px;
+}
+
+.view-title:hover {
+  background: rgba(33, 150, 243, 0.08);
+}
+
+.view-title-input {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1565c0;
+  line-height: 1.5;
+  border: 2px solid #2196f3;
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  background: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.view-title-input:focus {
+  border-color: #0d47a1;
 }
 
 .view-content {

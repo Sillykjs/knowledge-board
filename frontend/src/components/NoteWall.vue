@@ -79,6 +79,7 @@
         @delete="onNoteDelete"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
+        @quick-create="onQuickCreate"
       />
     </div>
 
@@ -801,6 +802,55 @@ export default {
         await this.loadNotes();
       } catch (error) {
         console.error('Failed to create note and connect:', error);
+        alert('创建便签失败: ' + (error.response?.data?.error || error.message));
+      }
+    },
+
+    // 双击引出点快速创建新便签并连接（在正下方）
+    async onQuickCreate(payload) {
+      const { noteId, event } = payload;
+      const sourceNote = this.notes.find(n => n.id === noteId);
+      if (!sourceNote) return;
+
+      try {
+        // 获取源便签的实际高度
+        const noteElement = document.querySelector(`.note[data-note-id="${noteId}"]`);
+        let noteHeight = 180; // 默认高度
+
+        if (noteElement) {
+          noteHeight = noteElement.offsetHeight / this.viewport.scale;
+        }
+
+        // 计算新便签位置：在源便签正下方
+        // 源便签引出点：position_y + noteHeight + 12
+        // 新便签引入点：position_y - 12
+        // 两个连接点之间的距离设置为 100px
+        const verticalGap = 60;
+        const newNoteX = sourceNote.position_x; // 水平对齐
+        const newNoteY = sourceNote.position_y + noteHeight + verticalGap; // 在下方
+
+        // 创建新便签
+        const response = await axios.post('/api/notes', {
+          title: '新便签',
+          content: '',
+          position_x: newNoteX,
+          position_y: newNoteY,
+          wall_id: this.boardId
+        });
+
+        const newNote = response.data.note;
+        const newNoteId = newNote.id;
+
+        // 立即将新便签添加到本地数组（避免连接线闪烁到原点）
+        this.notes.push(newNote);
+
+        // 创建连接
+        await this.createConnection(noteId, newNoteId);
+
+        // 重新加载连接列表
+        await this.loadConnections();
+      } catch (error) {
+        console.error('Failed to quick create note:', error);
         alert('创建便签失败: ' + (error.response?.data?.error || error.message));
       }
     },

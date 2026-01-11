@@ -24,7 +24,8 @@
     <div
       class="connection-point output-point"
       @mousedown.stop="onOutputPointMouseDown"
-      title="引出连接"
+      @dblclick.stop="onOutputPointDoubleClick"
+      title="引出连接（双击在下方创建新便签）"
     >
       <div class="point-inner"></div>
     </div>
@@ -166,6 +167,14 @@ export default {
       this.$emit('connection-start', {
         noteId: this.id,
         type: 'output',
+        event
+      });
+    },
+
+    // 引出点双击事件 - 在正下方创建新便签并连接
+    onOutputPointDoubleClick(event) {
+      this.$emit('quick-create', {
+        noteId: this.id,
         event
       });
     },
@@ -390,7 +399,7 @@ export default {
 }
 
 .connection-point:hover {
-  transform: scale(1.3);
+  transform: translateX(-50%) scale(1.3);
   background: #2196f3;
   box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
 }

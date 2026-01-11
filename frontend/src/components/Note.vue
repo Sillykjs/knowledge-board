@@ -10,7 +10,8 @@
     <div
       class="connection-point input-point"
       @mousedown.stop="onInputPointMouseDown"
-      title="引入连接"
+      @dblclick.stop="onInputPointDoubleClick"
+      title="引入连接（双击编辑便签）"
     >
       <div class="point-inner"></div>
     </div>
@@ -189,6 +190,11 @@ export default {
         type: 'input',
         event
       });
+    },
+
+    // 引入点双击事件 - 打开编辑模态框
+    onInputPointDoubleClick(event) {
+      this.startEdit();
     },
 
     // 重置连接状态
@@ -560,7 +566,7 @@ export default {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   width: 800px;
-  height: 400px;
+  height: 800px;
   max-width: 90vw;
   max-height: 80vh;
   display: flex;

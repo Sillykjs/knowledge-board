@@ -179,10 +179,11 @@ export default {
       try {
         const response = await axios.post('/api/notes/boards', {
           title: title.trim(),
-          remark: ''
+          remark: '你好，我是默认助手。你可以立刻开始跟我聊天'
         });
 
-        this.boards.push(response.data.board);
+        // 重新加载白板列表以确保排序正确
+        await this.loadBoards();
         this.currentBoardId = response.data.board.id;
       } catch (error) {
         console.error('Failed to create board:', error);
@@ -393,7 +394,7 @@ body {
 
 .board-icon {
   width: 100%;
-  height: 40px;
+  height: 30px;
   display: flex;
   flex-direction: column;
   align-items: center;

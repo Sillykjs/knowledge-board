@@ -161,15 +161,17 @@ router.post('/', (req, res) => {
 
 // ============ 回收站相关路由（必须在 /:id 之前定义）============
 
-// 获取回收站中的便签列表
+// 获取回收站中的便签列表（按白板过滤）
 router.get('/recycle-bin', (req, res) => {
+  const wall_id = req.query.wall_id || 1;
+
   const sql = `
     SELECT * FROM notes
-    WHERE deleted_at IS NOT NULL
+    WHERE deleted_at IS NOT NULL AND wall_id = ?
     ORDER BY deleted_at DESC
   `;
 
-  db.all(sql, [], (err, rows) => {
+  db.all(sql, [wall_id], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -214,11 +216,12 @@ router.delete('/recycle-bin/:id', (req, res) => {
   });
 });
 
-// 清空回收站（永久删除所有已删除便签）
+// 清空回收站（永久删除指定白板的所有已删除便签）
 router.delete('/recycle-bin', (req, res) => {
-  const sql = 'DELETE FROM notes WHERE deleted_at IS NOT NULL';
+  const wall_id = req.query.wall_id || 1;
+  const sql = 'DELETE FROM notes WHERE deleted_at IS NOT NULL AND wall_id = ?';
 
-  db.run(sql, [], function(err) {
+  db.run(sql, [wall_id], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;

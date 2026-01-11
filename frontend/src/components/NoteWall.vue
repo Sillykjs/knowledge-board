@@ -564,7 +564,9 @@ export default {
     },
     async loadRecycleNotes() {
       try {
-        const response = await axios.get('/api/notes/recycle-bin');
+        const response = await axios.get('/api/notes/recycle-bin', {
+          params: { wall_id: this.boardId }
+        });
         this.recycleNotes = response.data.notes;
         this.recycleCount = this.recycleNotes.length;
       } catch (error) {
@@ -611,7 +613,9 @@ export default {
       this.showClearConfirm = false;
 
       try {
-        await axios.delete('/api/notes/recycle-bin');
+        await axios.delete('/api/notes/recycle-bin', {
+          params: { wall_id: this.boardId }
+        });
         this.recycleNotes = [];
         this.recycleCount = 0;
       } catch (error) {
@@ -979,9 +983,9 @@ export default {
 }
 
 .add-button {
-  position: fixed;
-  bottom: 40px;
-  right: 40px;
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
   width: 60px;
   height: 60px;
   background: #4caf50;
@@ -1015,9 +1019,9 @@ export default {
 
 /* 缩放控制按钮组 */
 .zoom-controls {
-  position: fixed;
-  bottom: 120px;
-  right: 40px;
+  position: absolute;
+  bottom: 100px;
+  right: 25px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1216,9 +1220,9 @@ export default {
 
 /* Recycle bin styles */
 .recycle-button {
-  position: fixed;
-  bottom: 40px;
-  left: 270px; /* 调整位置，避免与侧边栏重叠（侧边栏宽度250px + 20px间距） */
+  position: absolute;
+  bottom: 20px;
+  left: 20px; /* 调整位置，避免与侧边栏重叠（侧边栏宽度250px + 20px间距） */
   width: 60px;
   height: 60px;
   background: #ff9800;

@@ -369,8 +369,8 @@ export default {
 /* 连接点样式 */
 .connection-point {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #fff;
   border: 2px solid #2196f3;
@@ -396,20 +396,20 @@ export default {
 }
 
 .point-inner {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #2196f3;
 }
 
 .input-point {
-  top: -8px;
+  top: -12px;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .output-point {
-  bottom: -8px;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
 }

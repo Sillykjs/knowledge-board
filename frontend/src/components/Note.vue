@@ -796,6 +796,7 @@ export default {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   width: 800px;
+  height: 800px;
   max-width: 90vw;
   max-height: 80vh;
   display: flex;
@@ -824,7 +825,7 @@ export default {
 }
 
 .view-title {
-  font-size: 24px;
+  font-size: 30px;
   font-weight: bold;
   color: #1565c0;
   margin-bottom: 0px;
@@ -844,7 +845,7 @@ export default {
 }
 
 .view-title-input {
-  font-size: 24px;
+  font-size: 30px;
   font-weight: bold;
   color: #1565c0;
   line-height: 1.5;
@@ -862,7 +863,7 @@ export default {
 }
 
 .view-content {
-  font-size: 14px;
+  font-size: 19px;
   color: #555;
   word-wrap: break-word;
 }

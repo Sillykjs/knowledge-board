@@ -90,6 +90,12 @@
           <div class="view-body">
             <div class="view-content markdown-body" v-html="renderedContent"></div>
           </div>
+          <div class="view-footer">
+            <button class="btn-ai-generate" @click="generateAIContent">
+              <span class="ai-icon">🤖</span>
+              <span>AI 生成内容</span>
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -346,6 +352,32 @@ export default {
         this.showContextMenu = false;
       }
     },
+    async generateAIContent() {
+      // TODO: 调用后端 API，传递便签标题
+      // 目前先返回固定文本
+      const generatedContent = `根据标题「${this.title}」生成的 AI 内容：\n\n这是一个示例回复。后续将接入真实的大模型 API。`;
+
+      try {
+        // 更新到数据库
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 更新本地数据（触发父组件更新）
+        this.$emit('update', {
+          id: this.id,
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+      } catch (error) {
+        console.error('Failed to generate AI content:', error);
+      }
+    }
 
   },
   mounted() {
@@ -759,6 +791,42 @@ export default {
 .view-content:not(.markdown-body) {
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+/* 查看模态框 Footer */
+.view-footer {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+}
+
+.btn-ai-generate {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-ai-generate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-ai-generate:active {
+  transform: translateY(0);
+}
+
+.ai-icon {
+  font-size: 16px;
 }
 </style>
 

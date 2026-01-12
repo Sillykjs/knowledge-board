@@ -39,10 +39,6 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
-        <div class="context-menu-item" @click="startEdit">
-          <span class="menu-icon">✏️</span>
-          <span>编辑</span>
-        </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>
           <span>删除</span>
@@ -50,34 +46,6 @@
       </div>
     </Teleport>
 
-    <!-- 编辑模态框 - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
-    <Teleport to="body">
-      <div v-if="showEditModal" class="edit-modal">
-        <div class="edit-modal-content" @wheel.stop>
-          <div class="edit-header">
-            <h3>编辑笔记</h3>
-            <button class="close-btn" @click="cancelEdit">×</button>
-          </div>
-          <div class="edit-body">
-            <input
-              v-model="editTitle"
-              class="edit-title"
-              placeholder="标题"
-              @keyup.enter="handleEnterKey"
-            />
-            <textarea
-              v-model="editContent"
-              class="edit-content"
-              placeholder="内容"
-            ></textarea>
-          </div>
-          <div class="edit-footer">
-            <button @click="cancelEdit" class="btn-cancel">取消</button>
-            <button @click="saveEdit" class="btn-save">保存</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
     <Teleport to="body">
@@ -148,10 +116,7 @@ export default {
   },
   data() {
     return {
-      showEditModal: false,
       showViewModal: false,
-      editTitle: this.title,
-      editContent: this.content,
       dragOffsetX: 0,
       dragOffsetY: 0,
       showContextMenu: false,
@@ -224,9 +189,12 @@ export default {
       });
     },
 
-    // 引入点双击事件 - 打开编辑模态框
+    // 引入点双击事件 - 打开查看模态框并编辑内容
     onInputPointDoubleClick(event) {
-      this.startEdit();
+      this.openViewModal();
+      this.$nextTick(() => {
+        this.startEditViewContent();
+      });
     },
 
     // 重置连接状态
@@ -323,8 +291,8 @@ export default {
       this.viewEditContent = this.content;
     },
     onMouseDown(e) {
-      // 如果编辑或查看模态框打开，或正在创建连接，则不处理拖拽
-      if (this.showEditModal || this.showViewModal || this.isConnecting) {
+      // 如果查看模态框打开，或正在创建连接，则不处理拖拽
+      if (this.showViewModal || this.isConnecting) {
         return;
       }
 
@@ -346,50 +314,6 @@ export default {
         offsetX: this.dragOffsetX,
         offsetY: this.dragOffsetY
       });
-    },
-    startEdit() {
-      this.showContextMenu = false;
-      this.showEditModal = true;
-      this.editTitle = this.title;
-      this.editContent = this.content;
-    },
-    async saveEdit() {
-      if (!this.showEditModal) return;
-
-      try {
-        await axios.put(`/api/notes/${this.id}`, {
-          title: this.editTitle,
-          content: this.editContent,
-          position_x: this.position_x,
-          position_y: this.position_y
-        });
-
-        this.$emit('update', {
-          id: this.id,
-          title: this.editTitle,
-          content: this.editContent,
-          position_x: this.position_x,
-          position_y: this.position_y
-        });
-
-        this.showEditModal = false;
-      } catch (error) {
-        console.error('Failed to update note:', error);
-      }
-    },
-
-    cancelEdit() {
-      this.showEditModal = false;
-    },
-
-    handleEnterKey(event) {
-      // 在标题输入框中按 Enter 键时，焦点移到内容输入框
-      if (event.target.classList.contains('edit-title')) {
-        event.preventDefault();
-        this.$nextTick(() => {
-          document.querySelector('.edit-content').focus();
-        });
-      }
     },
     async deleteNote() {
       this.showContextMenu = false;
@@ -591,33 +515,6 @@ export default {
   max-height: 84px;
 }
 
-.note-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-}
-
-.edit-title {
-  padding: 8px;
-  border: 2px solid #2196f3;
-  border-radius: 4px;
-  font-size: 16px;
-  font-weight: bold;
-  outline: none;
-}
-
-.edit-content {
-  flex: 1;
-  padding: 8px;
-  border: 2px solid #2196f3;
-  border-radius: 4px;
-  font-size: 14px;
-  resize: none;
-  outline: none;
-  font-family: inherit;
-}
-
 .btn-save {
   padding: 8px;
   background: #4caf50;
@@ -683,152 +580,6 @@ export default {
   font-size: 16px;
   width: 20px;
   text-align: center;
-}
-
-/* 编辑模态框样式 */
-.edit-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.edit-modal-content {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 800px;
-  height: 800px;
-  max-width: 90vw;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  animation: modalAppear 0.2s ease-out;
-}
-
-@keyframes modalAppear {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.edit-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px 8px;
-  border-bottom: 1px solid #eee;
-}
-
-.edit-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background 0.2s;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.edit-body {
-  padding: 16px 20px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.edit-title {
-  padding: 10px;
-  border: 2px solid #2196f3;
-  border-radius: 4px;
-  font-size: 16px;
-  font-weight: bold;
-  outline: none;
-}
-
-.edit-title:focus {
-  border-color: #0d47a1;
-}
-
-.edit-content {
-  flex: 1;
-  padding: 10px;
-  border: 2px solid #2196f3;
-  border-radius: 4px;
-  font-size: 14px;
-  resize: none; /* 禁用调整大小，使用flex自动填充空间 */
-  min-height: 200px;
-  outline: none;
-  font-family: inherit;
-  overflow-y: auto;
-}
-
-.edit-content:focus {
-  border-color: #0d47a1;
-}
-
-.edit-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 20px;
-  border-top: 1px solid #eee;
-}
-
-.btn-cancel, .btn-save {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
-}
-
-.btn-cancel {
-  background: #f5f5f5;
-  color: #555;
-}
-
-.btn-cancel:hover {
-  background: #e0e0e0;
-}
-
-.btn-save {
-  background: #4caf50;
-  color: white;
-}
-
-.btn-save:hover {
-  background: #45a049;
 }
 
 /* 查看模态框样式 */
@@ -916,6 +667,35 @@ export default {
   border-color: #0d47a1;
 }
 
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.edit-body {
+  padding: 16px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
 .view-content {
   font-size: 19px;
   color: #555;
@@ -926,6 +706,7 @@ export default {
   padding: 4px 8px;
   border-radius: 4px;
   margin: -4px -8px;
+  height: 100%;
 }
 
 /* .view-content:hover {

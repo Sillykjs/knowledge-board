@@ -120,7 +120,7 @@ ChatBranch2/
 **boards表结构（白板表）:**
 - `id`: 主键，自增
 - `title`: 白板标题
-- `remark`: 白板备注/描述
+- `system_prompt`: AI系统提示词（用于AI生成功能）
 - `created_at`: 创建时间
 - `updated_at`: 更新时间
 
@@ -157,7 +157,7 @@ ChatBranch2/
 - `GET /api/notes/boards` - 获取所有白板列表（包含便签计数）
 - `POST /api/notes/boards` - 创建新白板
 - `GET /api/notes/boards/:id` - 获取单个白板配置
-- `PUT /api/notes/boards/:id` - 更新白板配置（标题、备注）
+- `PUT /api/notes/boards/:id` - 更新白板配置（标题、系统提示词）
 - `DELETE /api/notes/boards/:id` - 删除白板（禁止删除 id=1 的默认白板）
 
 **便签基本操作:**
@@ -179,6 +179,9 @@ ChatBranch2/
 
 **AI生成操作（路由必须在 /:id 之前定义）:**
 - `POST /api/notes/ai-generate` - 使用AI生成内容（需要配置环境变量）
+  - 请求体: `{ prompt: string, wall_id?: number }`
+  - 响应: Server-Sent Events (SSE) 格式的流式数据
+  - 使用白板的 `system_prompt` 作为 system 消息
 
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
 1. 引入白板路由：`router.use('/boards', boardsRouter)`
@@ -340,12 +343,12 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 这样无论白板如何缩放平移，模态框都保持正常显示
 
 ### 便签墙配置功能
-便签墙支持自定义标题和备注，实现位于 `NoteWall.vue`：
-- **标题显示**: 页面顶部显示大标题，鼠标悬停显示备注
-- **编辑功能**: 双击标题打开编辑模态框，可修改标题和备注
+便签墙支持自定义标题和系统提示词，实现位于 `NoteWall.vue`：
+- **标题显示**: 页面顶部显示大标题
+- **编辑功能**: 双击标题打开编辑模态框，可修改标题和系统提示词
 - **数据持久化**: 配置保存在 `boards` 表中（每个白板独立存储）
 - **API接口**: `GET/PUT /api/notes/boards/:id`
-- **Props 传递**: 通过 App.vue 的 props 传入 `boardTitle` 和 `boardRemark`
+- **Props 传递**: 通过 App.vue 的 props 传入 `boardTitle` 和 `boardSystemPrompt`
 - **加载时机**: 通过 props 响应式更新，无需手动加载
 
 ### Markdown 渲染实现
@@ -417,16 +420,17 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 **环境配置**:
 - 复制 `backend/.env.example` 为 `backend/.env`
 - 配置环境变量：
-  - `OPENAI_API_KEY`: OpenAI API密钥或兼容服务的密钥
-  - `OPENAI_API_BASE`: API基础URL（可选，默认为OpenAI官方API）
-  - `OPENAI_MODEL`: 模型名称（可选，默认为gpt-3.5-turbo）
+  - `OPENAI_API_KEY`: OpenAI API密钥或兼容服务的密钥（必需）
+  - `OPENAI_API_BASE`: API基础URL（必需）
+  - `OPENAI_MODEL`: 模型名称（必需）
 
 **API接口**:
 - `POST /api/notes/ai-generate` - AI生成内容接口（支持流式输出，使用SSE）
-  - 请求体: `{ prompt: string }`
+  - 请求体: `{ prompt: string, wall_id?: number }`
   - 响应: Server-Sent Events (SSE) 格式的流式数据
     - `data: {"content":"文本片段"}` - 内容块
     - `data: [DONE]` - 流结束标记
+  - **System Prompt**: 从白板的 `system_prompt` 字段获取，作为 system 消息发送给 AI
 
 **前端实现**（Note.vue）:
 - **流式输出**: 使用 fetch API 和 ReadableStream 接收SSE数据，逐步显示在模态框中
@@ -552,10 +556,10 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 ### 环境变量配置
 - 使用 `dotenv` 加载环境变量（在 `server.js` 顶部配置）
 - 环境变量文件：`backend/.env`（需要手动创建，参考 `.env.example`）
-- AI生成功能依赖的环境变量：
-  - `OPENAI_API_KEY`: API密钥（必需）
-  - `OPENAI_API_BASE`: API基础URL（可选，默认OpenAI官方）
-  - `OPENAI_MODEL`: 模型名称（可选，默认gpt-3.5-turbo）
+- AI生成功能依赖的环境变量（全部必需）：
+  - `OPENAI_API_KEY`: API密钥
+  - `OPENAI_API_BASE`: API基础URL（如 `https://api.openai.com/v1`）
+  - `OPENAI_MODEL`: 模型名称（如 `gpt-3.5-turbo`）
 - 环境变量文件已添加到 `.gitignore`，不会被提交到版本控制
 
 ### 路由设计模式
@@ -564,10 +568,10 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - `backend/routes/notes.js`: 便签和连接路由（已修改）
 
 **boards.js 路由**（白板管理）:
-- `GET /` - 获取所有白板（包含便签计数）
-- `POST /` - 创建新白板
+- `GET /` - 获取所有白板（包含便签计数，按更新时间倒序）
+- `POST /` - 创建新白板（需要 `title`，可选 `system_prompt`）
 - `GET /:id` - 获取单个白板配置
-- `PUT /:id` - 更新白板配置
+- `PUT /:id` - 更新白板配置（需要 `title`，可选 `system_prompt`）
 - `DELETE /:id` - 删除白板（禁止删除 id=1）
 
 **notes.js 路由顺序**:

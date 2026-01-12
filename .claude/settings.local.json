@@ -12,7 +12,9 @@
       "Bash(findstr:*)",
       "Bash(powershell -Command \"Stop-Process -Id 55680 -Force\")",
       "Bash(powershell:*)",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "mcp__zread__read_file",
+      "mcp__zread__get_repo_structure"
     ]
   }
 }

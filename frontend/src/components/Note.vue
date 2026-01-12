@@ -129,7 +129,8 @@ export default {
       editingViewContent: false,  // 是否正在编辑查看模态框中的内容
       viewEditContent: this.content,  // 查看模态框中编辑的临时内容
       isAIGenerating: false,  // AI生成中
-      aiError: null  // AI错误信息
+      aiError: null,  // AI错误信息
+      streamingContent: ''  // 流式接收的内容
     };
   },
   computed: {
@@ -138,10 +139,12 @@ export default {
     },
     // 渲染 Markdown 内容
     renderedContent() {
-      if (!this.content) return '';
+      // 如果正在AI生成，显示流式接收的内容
+      const contentToRender = this.isAIGenerating ? this.streamingContent : this.content;
+      if (!contentToRender) return '';
       try {
         // 1. 使用 markdown-it 解析 markdown
-        const renderedMarkdown = md.render(this.content);
+        const renderedMarkdown = md.render(contentToRender);
         // 2. 使用 DOMPurify 净化 HTML（防止 XSS）
         const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
@@ -155,7 +158,7 @@ export default {
       } catch (error) {
         console.error('Markdown rendering error:', error);
         // 出错时返回纯文本
-        return this.content;
+        return contentToRender;
       }
     }
   },
@@ -397,16 +400,67 @@ export default {
       }
 
       this.isAIGenerating = true;
+      this.streamingContent = '';  // 重置流式内容
 
       try {
-        // 调用后端AI生成API
-        const response = await axios.post('/api/notes/ai-generate', {
-          prompt: prompt
+        // 使用 fetch API 调用流式接口
+        const response = await fetch('/api/notes/ai-generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ prompt })
         });
 
-        const generatedContent = response.data.content;
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
 
-        // 更新到数据库
+        // 读取流式数据
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+
+          // 解码数据块
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+
+              // 检查是否为结束标记
+              if (data === '[DONE]') {
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+
+                // 检查是否有错误
+                if (parsed.error) {
+                  this.aiError = parsed.error;
+                  break;
+                }
+
+                // 追加内容
+                if (parsed.content) {
+                  this.streamingContent += parsed.content;
+                }
+              } catch (e) {
+                // 忽略JSON解析错误
+              }
+            }
+          }
+        }
+
+        // 流式接收完成后，保存到数据库
+        const generatedContent = this.streamingContent;
+
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,
           content: generatedContent,
@@ -425,9 +479,10 @@ export default {
 
         // 更新编辑状态的临时内容
         this.viewEditContent = generatedContent;
+
       } catch (error) {
         console.error('Failed to generate AI content:', error);
-        const errorMsg = error.response?.data?.error || error.message || 'AI生成失败';
+        const errorMsg = error.message || 'AI生成失败';
         this.aiError = errorMsg;
       } finally {
         this.isAIGenerating = false;

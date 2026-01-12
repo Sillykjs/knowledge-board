@@ -422,14 +422,25 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - `OPENAI_MODEL`: 模型名称（可选，默认为gpt-3.5-turbo）
 
 **API接口**:
-- `POST /api/notes/ai-generate` - AI生成内容接口
+- `POST /api/notes/ai-generate` - AI生成内容接口（支持流式输出，使用SSE）
   - 请求体: `{ prompt: string }`
-  - 响应: `{ content: string }`
+  - 响应: Server-Sent Events (SSE) 格式的流式数据
+    - `data: {"content":"文本片段"}` - 内容块
+    - `data: [DONE]` - 流结束标记
 
 **前端实现**（Note.vue）:
+- **流式输出**: 使用 fetch API 和 ReadableStream 接收SSE数据，逐步显示在模态框中
 - 按钮状态：生成中显示"⏳ 生成中..."并禁用
+- 实时渲染：生成过程中实时渲染 Markdown，内容逐步显示
 - 错误处理：失败时在按钮下方显示错误信息
 - 自动保存：生成完成后自动更新到数据库
+
+**技术实现细节**:
+- 后端使用 axios 的 `responseType: 'stream'` 接收 OpenAI 的流式响应
+- 后端设置 SSE 响应头（`Content-Type: text/event-stream`）
+- 前端使用 `fetch` API 和 `ReadableStream` 读取流式数据
+- 前端计算属性 `renderedContent()` 在生成过程中显示 `streamingContent`
+- 每次接收到内容块时更新 `streamingContent`，触发响应式更新
 
 ### 位置计算
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。

@@ -236,7 +236,7 @@ router.delete('/recycle-bin', (req, res) => {
 
 // ============ AI生成路由（必须在 /:id 之前定义）============
 
-// AI生成内容
+// AI生成内容（流式输出）
 router.post('/ai-generate', async (req, res) => {
   const { prompt } = req.body;
 
@@ -255,6 +255,12 @@ router.post('/ai-generate', async (req, res) => {
     return;
   }
 
+  // 设置SSE响应头
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
   try {
     const response = await axios.post(
       `${apiBase}/chat/completions`,
@@ -266,24 +272,61 @@ router.post('/ai-generate', async (req, res) => {
             content: prompt
           }
         ],
-        temperature: 0.7
+        temperature: 0.7,
+        stream: true  // 启用流式输出
       },
       {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
-        }
+        },
+        responseType: 'stream'  // 接收流式响应
       }
     );
 
-    const generatedContent = response.data.choices[0].message.content;
-    res.json({ content: generatedContent });
+    // 处理流式数据
+    response.data.on('data', (chunk) => {
+      const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+
+          // 检查是否为结束标记
+          if (data === '[DONE]') {
+            res.write('data: [DONE]\n\n');
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+
+            if (content) {
+              // 发送SSE格式的数据
+              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            }
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    });
+
+    response.data.on('end', () => {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    });
+
+    response.data.on('error', (err) => {
+      console.error('Stream error:', err);
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    });
   } catch (error) {
     console.error('AI generation error:', error.response?.data || error.message);
-    res.status(500).json({
-      error: 'Failed to generate content',
-      details: error.response?.data?.error?.message || error.message
-    });
+    res.write(`data: ${JSON.stringify({ error: 'Failed to generate content', details: error.response?.data?.error?.message || error.message })}\n\n`);
+    res.end();
   }
 });
 

@@ -238,7 +238,7 @@ router.delete('/recycle-bin', (req, res) => {
 
 // AI生成内容（流式输出）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt, wall_id } = req.body;
+  const { prompt, wall_id, note_id } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
@@ -265,6 +265,26 @@ router.post('/ai-generate', async (req, res) => {
 
     const systemPrompt = board?.system_prompt || 'You are a helpful assistant.';
 
+    // 如果提供了 note_id，获取引入节点的便签内容作为上下文
+    let contextNotes = [];
+    if (note_id) {
+      const contextSql = `
+        SELECT n.id, n.title, n.content
+        FROM notes n
+        INNER JOIN note_connections nc ON n.id = nc.source_note_id
+        WHERE nc.target_note_id = ?
+          AND n.deleted_at IS NULL
+        ORDER BY n.created_at ASC
+      `;
+
+      contextNotes = await new Promise((resolve, reject) => {
+        db.all(contextSql, [note_id], (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        });
+      });
+    }
+
     // 构建 messages 数组
     const messages = [];
 
@@ -273,6 +293,18 @@ router.post('/ai-generate', async (req, res) => {
       messages.push({
         role: 'system',
         content: systemPrompt
+      });
+    }
+
+    // 如果有引入节点的内容，添加为上下文
+    if (contextNotes.length > 0) {
+      const contextText = contextNotes.map(note => {
+        return `【${note.title}】\n${note.content || ''}`;
+      }).join('\n\n');
+
+      messages.push({
+        role: 'user',
+        content: `以下是相关的便签内容作为上下文参考：\n\n${contextText}\n\n请基于以上上下文回答我的问题。`
       });
     }
 

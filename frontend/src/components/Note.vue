@@ -413,7 +413,11 @@ export default {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ prompt, wall_id: this.wallId })
+          body: JSON.stringify({
+            prompt,
+            wall_id: this.wallId,
+            note_id: this.id  // 传递当前便签ID，用于获取引入节点的上下文
+          })
         });
 
         if (!response.ok) {

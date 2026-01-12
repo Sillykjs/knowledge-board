@@ -20,9 +20,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **关键文件:**
 - `backend/server.js`: Express 服务器入口
 - `backend/database.js`: 数据库初始化和迁移
-- `backend/routes/notes.js`: API 路由（注意路由顺序）
-- `frontend/src/components/NoteWall.vue`: 便签墙容器（缩放、平移、连接）
-- `frontend/src/components/Note.vue`: 单个便签组件（拖拽、编辑、Markdown、Teleport）
+- `backend/routes/notes.js`: 便签和连接 API 路由（注意路由顺序）
+- `backend/routes/boards.js`: 白板管理 API 路由
+- `frontend/src/components/NoteWall.vue`: 便签墙容器（缩放、平移、连接、快速创建）
+- `frontend/src/components/Note.vue`: 单个便签组件（拖拽、双击编辑、Markdown、Teleport）
+- `frontend/src/App.vue`: 应用入口（多白板管理、侧边栏）
 - `frontend/vite.config.js`: Vite 配置（API proxy）
 
 **重要概念:**
@@ -32,6 +34,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - v-html 样式: 动态内容的样式必须放在非 scoped 的 `<style>` 块中
 - Teleport: 模态框使用 Teleport 传送到 body，避免受白板缩放平移影响
 - 文字渲染优化: 使用 GPU 加速和字体平滑属性确保缩放时文字清晰
+- 双击编辑: 查看模态框中的标题和内容都支持双击进入编辑模式，失焦自动保存
+- 快速创建: 双击便签的引出点（下中心连接点）可在正下方快速创建新便签并自动连接
 
 ## 项目概述
 
@@ -193,10 +197,10 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 5. 将新便签添加到 `notes` 数组
 
 **编辑便签流程:**
-1. 用户右键点击便签 → 显示上下文菜单
-2. 点击"编辑" → 打开编辑模态框
-3. 用户修改标题/内容 → 修改临时变量 `editTitle` 和 `editContent`
-4. 点击"保存" → PUT请求到 `/api/notes/:id` 更新数据库
+1. 用户双击便签 → 打开查看模态框
+2. 双击标题或内容 → 进入编辑模式（切换为 input/textarea）
+3. 用户修改标题/内容 → 修改临时变量 `viewEditTitle` 和 `viewEditContent`
+4. 失焦或按 Enter → 自动保存到数据库（PUT请求到 `/api/notes/:id`）
 5. 通过 `@update` 事件通知父组件NoteWall更新本地数据
 
 **删除便签流程（软删除）:**
@@ -234,33 +238,43 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 双击标题可编辑，编辑后通过 `@board-updated` 事件通知父组件更新
 - 缩放控制按钮组：放大、缩小、重置视图，显示当前缩放比例
 - 模态框支持点击外部关闭（使用 `@click.stop` 阻止内容区域冒泡）
+- **快速创建便签**: 双击便签的引出点（下中心连接点），在正下方创建新便签并自动连接
+- **原点十字准星**: 在白板原点（0, 0）显示十字准星，帮助定位
 
 **App.vue** (应用入口，新增多白板管理)
-- **顶部标签栏**: 显示所有白板，点击切换，显示便签数量徽章
+- **左侧边栏**: 显示所有白板，点击切换，显示便签数量徽章，支持收起/展开
+  - 展开状态：显示白板标题、便签数量徽章、删除按钮
+  - 收起状态：只显示图标（当前白板为 📌，其他为 📄）
 - **白板列表管理**:
   - `boards`: 白板列表数组
   - `currentBoardId`: 当前选中白板ID
   - `boardViewports`: 存储每个白板的视口状态 `{ boardId: { scale, translateX, translateY } }`
+  - `sidebarCollapsed`: 侧边栏是否收起
 - **白板操作方法**:
   - `loadBoards()`: 加载白板列表
   - `switchBoard(boardId)`: 切换白板，保存当前白板视口状态，恢复目标白板视口状态
   - `createBoard()`: 创建新白板
   - `confirmDeleteBoard(boardId)`: 删除白板（带确认模态框）
   - `onBoardUpdated(boardData)`: 处理白板配置更新事件
-- **标签栏特性**:
-  - 固定在顶部（z-index: 2000），高度 50px
+  - `toggleSidebar()`: 切换侧边栏收起/展开状态
+- **侧边栏特性**:
+  - 固定在左侧（z-index: 2000），展开宽度 250px，收起宽度 60px
   - 活跃状态高亮显示
   - 默认白板（id=1）不能删除
-  - 新建白板按钮（+）使用 prompt 输入标题
+  - 新建白板按钮在底部
 
 **Note.vue** (单个便签)
 - 显示便签标题和内容
-- 右键菜单支持编辑和删除操作
-- 编辑模态框（点击编辑后弹出）
+- 右键菜单支持删除操作
 - 查看模态框（双击打开，支持 Markdown 渲染，支持点击外部关闭）
+  - **双击标题**：进入标题编辑模式，保存时自动更新到数据库
+  - **双击内容**：进入内容编辑模式，支持纯文本编辑，失焦自动保存
 - **所有模态框使用 Teleport 传送到 body**：避免受白板缩放平移影响
 - 实现拖拽功能(使用HTML5 Drag & Drop)
 - 拖拽结束后更新位置到后端
+- **连接点交互**：
+  - 引入点（上中心）：双击打开查看模态框并直接进入内容编辑模式
+  - 引出点（下中心）：双击在正下方创建新便签并自动连接
 
 ### 数据流和状态管理
 - 便签数据存储在 `NoteWall.vue` 的 `notes` 数组中
@@ -301,7 +315,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 拖拽时自动禁用：当编辑或查看模态框打开时，拖拽功能会被禁用以防止冲突。
 
 ### Teleport 使用（重要）
-项目中所有模态框（右键菜单、编辑模态框、查看模态框）都使用 Vue 3 的 Teleport 功能传送到 `body`：
+项目中所有模态框（右键菜单、查看模态框）都使用 Vue 3 的 Teleport 功能传送到 `body`：
 
 **为什么需要 Teleport？**
 - 白板使用 `transform: scale()` 进行缩放，子元素会继承缩放变换
@@ -326,9 +340,10 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 便签墙支持自定义标题和备注，实现位于 `NoteWall.vue`：
 - **标题显示**: 页面顶部显示大标题，鼠标悬停显示备注
 - **编辑功能**: 双击标题打开编辑模态框，可修改标题和备注
-- **数据持久化**: 配置保存在 `wall_config` 表中（单例表，id=1）
-- **API接口**: `GET/PUT /api/notes/config`
-- **加载时机**: 组件 mounted 时自动加载配置
+- **数据持久化**: 配置保存在 `boards` 表中（每个白板独立存储）
+- **API接口**: `GET/PUT /api/notes/boards/:id`
+- **Props 传递**: 通过 App.vue 的 props 传入 `boardTitle` 和 `boardRemark`
+- **加载时机**: 通过 props 响应式更新，无需手动加载
 
 ### Markdown 渲染实现
 查看便签模态框支持 Markdown 渲染，实现位于 `Note.vue`:
@@ -392,6 +407,11 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 禁止在 Markdown 中使用 HTML 标签（`html: false`）
 - DOMPurify 白名单机制限制可用的 HTML 标签和属性
 - 错误处理防止渲染失败导致崩溃
+
+**AI 内容生成功能**:
+- 查看模态框底部有"AI 生成内容"按钮
+- 目前为占位实现，返回固定文本
+- TODO: 需要接入真实的大模型 API
 
 ### 位置计算
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。
@@ -712,7 +732,7 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 1. **检查 Teleport**: 确认所有模态框都使用 `<Teleport to="body">` 传送到 body
 2. **检查定位**: 模态框应该使用 `position: fixed` 而不是 `absolute`
 3. **检查父元素**: 确保模态框不在 `.wall-content` 内部
-4. **参考现有实现**: 查看 Note.vue 中右键菜单、编辑模态框、查看模态框的实现
+4. **参考现有实现**: 查看 Note.vue 中右键菜单、查看模态框的实现
 
 ### v-html 渲染的内容样式不生效
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
@@ -785,8 +805,8 @@ db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
 <!-- 在 Note.vue 中添加模态框 -->
 <Teleport to="body">
   <div v-if="showXxxModal" class="modal-overlay" @click="cancelXxx">
-    <div class="modal-content" @click.stop>
-      <!-- 内容 -->
+    <div class="modal-content" @click.stop @wheel.stop>
+      <!-- 内容（使用 @wheel.stop 防止滚动事件穿透到白板） -->
       <button @click="cancelXxx">取消</button>
       <button @click="confirmXxx">确认</button>
     </div>

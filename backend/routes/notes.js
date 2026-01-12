@@ -238,7 +238,7 @@ router.delete('/recycle-bin', (req, res) => {
 
 // AI生成内容（流式输出）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, wall_id } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
@@ -247,87 +247,110 @@ router.post('/ai-generate', async (req, res) => {
 
   // 从环境变量获取配置
   const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
-  const model = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+  const apiBase = process.env.OPENAI_API_BASE;
+  const model = process.env.OPENAI_MODEL;
 
-  if (!apiKey) {
-    res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
+  if (!apiKey || !apiBase || !model) {
+    res.status(500).json({ error: 'OPENAI_API_KEY, OPENAI_API_BASE, and OPENAI_MODEL are not configured' });
     return;
   }
 
-  // 设置SSE响应头
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  // 获取白板的 system_prompt
+  const boardId = wall_id || 1;
+  db.get("SELECT system_prompt FROM boards WHERE id = ?", [boardId], async (err, board) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
 
-  try {
-    const response = await axios.post(
-      `${apiBase}/chat/completions`,
-      {
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        stream: true  // 启用流式输出
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+    const systemPrompt = board?.system_prompt || 'You are a helpful assistant.';
+
+    // 构建 messages 数组
+    const messages = [];
+
+    // 如果有 system_prompt，添加为 system 消息
+    if (systemPrompt && systemPrompt.trim()) {
+      messages.push({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+
+    // 添加用户消息
+    messages.push({
+      role: 'user',
+      content: prompt
+    });
+
+    // 设置SSE响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const response = await axios.post(
+        `${apiBase}/chat/completions`,
+        {
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          stream: true  // 启用流式输出
         },
-        responseType: 'stream'  // 接收流式响应
-      }
-    );
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          responseType: 'stream'  // 接收流式响应
+        }
+      );
 
-    // 处理流式数据
-    response.data.on('data', (chunk) => {
-      const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+      // 处理流式数据
+      response.data.on('data', (chunk) => {
+        const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
 
-          // 检查是否为结束标记
-          if (data === '[DONE]') {
-            res.write('data: [DONE]\n\n');
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-
-            if (content) {
-              // 发送SSE格式的数据
-              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+            // 检查是否为结束标记
+            if (data === '[DONE]') {
+              res.write('data: [DONE]\n\n');
+              return;
             }
-          } catch (e) {
-            // 忽略解析错误
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+
+              if (content) {
+                // 发送SSE格式的数据
+                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
           }
         }
-      }
-    });
+      });
 
-    response.data.on('end', () => {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    });
+      response.data.on('end', () => {
+        res.write('data: [DONE]\n\n');
+        res.end();
+      });
 
-    response.data.on('error', (err) => {
-      console.error('Stream error:', err);
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      response.data.on('error', (err) => {
+        console.error('Stream error:', err);
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      });
+    } catch (error) {
+      console.error('AI generation error:', error.response?.data || error.message);
+      res.write(`data: ${JSON.stringify({ error: 'Failed to generate content', details: error.response?.data?.error?.message || error.message })}\n\n`);
       res.end();
-    });
-  } catch (error) {
-    console.error('AI generation error:', error.response?.data || error.message);
-    res.write(`data: ${JSON.stringify({ error: 'Failed to generate content', details: error.response?.data?.error?.message || error.message })}\n\n`);
-    res.end();
-  }
+    }
+  });
 });
 
 // ============ 通用便签路由 ============

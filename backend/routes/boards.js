@@ -5,7 +5,7 @@ const db = require('../database');
 // 获取所有白板
 router.get('/', (req, res) => {
   const sql = `
-    SELECT b.id, b.title, b.remark, b.created_at, b.updated_at,
+    SELECT b.id, b.title, b.system_prompt, b.created_at, b.updated_at,
            COUNT(DISTINCT n.id) as note_count
     FROM boards b
     LEFT JOIN notes n ON b.id = n.wall_id AND n.deleted_at IS NULL
@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
 
 // 创建白板
 router.post('/', (req, res) => {
-  const { title, remark } = req.body;
+  const { title, system_prompt } = req.body;
 
   if (!title) {
     res.status(400).json({ error: 'Title is required' });
@@ -32,10 +32,10 @@ router.post('/', (req, res) => {
   }
 
   const sql = `
-    INSERT INTO boards (title, remark)
+    INSERT INTO boards (title, system_prompt)
     VALUES (?, ?)
   `;
-  const params = [title || '新白板', remark || ''];
+  const params = [title || '新白板', system_prompt || ''];
 
   db.run(sql, params, function(err) {
     if (err) {
@@ -47,7 +47,7 @@ router.post('/', (req, res) => {
       board: {
         id: this.lastID,
         title,
-        remark,
+        system_prompt,
         note_count: 0
       }
     });
@@ -57,7 +57,7 @@ router.post('/', (req, res) => {
 // 获取单个白板配置
 router.get('/:id', (req, res) => {
   const { id } = req.params;
-  const sql = 'SELECT id, title, remark, created_at, updated_at FROM boards WHERE id = ?';
+  const sql = 'SELECT id, title, system_prompt, created_at, updated_at FROM boards WHERE id = ?';
 
   db.get(sql, [id], (err, row) => {
     if (err) {
@@ -75,7 +75,7 @@ router.get('/:id', (req, res) => {
 // 更新白板配置
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { title, remark } = req.body;
+  const { title, system_prompt } = req.body;
 
   if (!title) {
     res.status(400).json({ error: 'Title is required' });
@@ -84,10 +84,10 @@ router.put('/:id', (req, res) => {
 
   const sql = `
     UPDATE boards
-    SET title = ?, remark = ?, updated_at = CURRENT_TIMESTAMP
+    SET title = ?, system_prompt = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `;
-  const params = [title, remark || '', id];
+  const params = [title, system_prompt || '', id];
 
   db.run(sql, params, function(err) {
     if (err) {
@@ -100,7 +100,7 @@ router.put('/:id', (req, res) => {
     }
     res.json({
       message: 'Board updated',
-      board: { id: parseInt(id), title, remark }
+      board: { id: parseInt(id), title, system_prompt }
     });
   });
 });

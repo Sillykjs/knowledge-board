@@ -124,6 +124,7 @@ function initDb() {
   migrateToMultiBoard();
   migrateNotesToBoards();
   migrateConnectionsToBoards();
+  migrateBoardsRemarkToSystemPrompt();
 }
 
 // ========== 多白板功能迁移函数 ==========
@@ -134,7 +135,7 @@ function migrateToMultiBoard() {
     CREATE TABLE IF NOT EXISTS boards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL DEFAULT '新白板',
-      remark TEXT NOT NULL DEFAULT '',
+      system_prompt TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -172,11 +173,11 @@ function migrateFromWallConfig() {
 
     // 创建默认白板（id=1）
     const defaultTitle = config?.title || '便签墙';
-    const defaultRemark = config?.remark || '这是便签墙的备注信息';
+    const defaultSystemPrompt = config?.remark || '这是便签墙的备注信息';
 
     db.run(
-      "INSERT INTO boards (id, title, remark) VALUES (1, ?, ?)",
-      [defaultTitle, defaultRemark],
+      "INSERT INTO boards (id, title, system_prompt) VALUES (1, ?, ?)",
+      [defaultTitle, defaultSystemPrompt],
       function(err) {
         if (err) {
           if (err.message.includes('UNIQUE')) {
@@ -204,7 +205,7 @@ function migrateFromWallConfig() {
 // 创建默认白板
 function createDefaultBoard() {
   db.run(
-    "INSERT OR IGNORE INTO boards (id, title, remark) VALUES (1, '便签墙', '这是便签墙的备注信息')",
+    "INSERT OR IGNORE INTO boards (id, title, system_prompt) VALUES (1, '便签墙', '这是便签墙的备注信息')",
     (err) => {
       if (err) {
         console.error('Error creating default board:', err.message);
@@ -288,6 +289,90 @@ function migrateConnectionsToBoards() {
         }
       }
     );
+  });
+}
+
+// 将 boards 表的 remark 字段重命名为 system_prompt
+function         migrateBoardsRemarkToSystemPrompt() {
+  // 检查 boards 表是否有 remark 字段
+  db.all("PRAGMA table_info(boards)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking boards table:', err.message);
+      return;
+    }
+
+    const hasRemark = columns.some(col => col.name === 'remark');
+    const hasSystemPrompt = columns.some(col => col.name === 'system_prompt');
+
+    if (!hasRemark && hasSystemPrompt) {
+      console.log('boards table already has system_prompt column');
+      return;
+    }
+
+    if (hasRemark && !hasSystemPrompt) {
+      // 使用 ALTER TABLE ... RENAME COLUMN (SQLite 3.25.0+)
+      db.run("ALTER TABLE boards RENAME COLUMN remark TO system_prompt", (err) => {
+        if (err) {
+          // 如果RENAME COLUMN不支持，使用传统方法
+          if (err.message.includes('syntax error')) {
+            migrateBoardsRemarkToSystemPromptTraditional();
+          } else {
+            console.error('Error renaming remark to system_prompt:', err.message);
+          }
+        } else {
+          console.log('Migration completed: renamed remark to system_prompt');
+        }
+      });
+    }
+  });
+}
+
+// 传统方法：创建新表，复制数据，删除旧表
+function migrateBoardsRemarkToSystemPromptTraditional() {
+  console.log('Using traditional migration method for remark -> system_prompt');
+
+  // 创建临时表
+  db.run(`
+    CREATE TABLE boards_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '新白板',
+      system_prompt TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating boards_new table:', err.message);
+      return;
+    }
+
+    // 复制数据
+    db.run(`
+      INSERT INTO boards_new (id, title, system_prompt, created_at, updated_at)
+      SELECT id, title, remark, created_at, updated_at FROM boards
+    `, (err) => {
+      if (err) {
+        console.error('Error copying data to boards_new:', err.message);
+        return;
+      }
+
+      // 删除旧表
+      db.run('DROP TABLE boards', (err) => {
+        if (err) {
+          console.error('Error dropping boards table:', err.message);
+          return;
+        }
+
+        // 重命名新表
+        db.run('ALTER TABLE boards_new RENAME TO boards', (err) => {
+          if (err) {
+            console.error('Error renaming boards_new to boards:', err.message);
+          } else {
+            console.log('Migration completed: renamed remark to system_prompt (traditional method)');
+          }
+        });
+      });
+    });
   });
 }
 

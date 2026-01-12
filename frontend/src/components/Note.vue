@@ -113,7 +113,11 @@ export default {
     title: String,
     content: String,
     position_x: Number,
-    position_y: Number
+    position_y: Number,
+    wallId: {
+      type: Number,
+      default: 1
+    }
   },
   data() {
     return {
@@ -409,7 +413,7 @@ export default {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ prompt })
+          body: JSON.stringify({ prompt, wall_id: this.wallId })
         });
 
         if (!response.ok) {

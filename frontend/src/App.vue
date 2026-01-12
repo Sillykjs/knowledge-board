@@ -66,7 +66,7 @@
         ref="noteWall"
         :board-id="currentBoardId"
         :board-title="currentBoard?.title"
-        :board-remark="currentBoard?.remark"
+        :board-system-prompt="currentBoard?.system_prompt"
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
       />
@@ -179,7 +179,7 @@ export default {
       try {
         const response = await axios.post('/api/notes/boards', {
           title: title.trim(),
-          remark: '你好，我是默认助手。你可以立刻开始跟我聊天'
+          system_prompt: '你好，我是默认助手。你可以立刻开始跟我聊天'
         });
 
         // 重新加载白板列表以确保排序正确

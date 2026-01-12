@@ -75,6 +75,7 @@
         :content="note.content"
         :position_x="note.position_x"
         :position_y="note.position_y"
+        :wallId="boardId"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @connection-start="onConnectionStart"
@@ -151,13 +152,13 @@
     <!-- Edit Title Modal -->
     <div v-if="isEditingTitle" class="modal-overlay">
       <div class="modal-content" @click.stop @mousedown.stop @wheel.stop>
-        <h3>编辑标题和备注</h3>
+        <h3>编辑标题和System Prompt</h3>
         <div class="form-group">
           <label>标题:</label>
           <input v-model="tempTitle" type="text" class="form-input" />
         </div>
         <div class="form-group">
-          <label>备注:</label>
+          <label>System Prompt:</label>
           <textarea v-model="tempRemark" class="form-input" rows="3"></textarea>
         </div>
         <div class="modal-buttons">
@@ -211,9 +212,9 @@ export default {
       type: String,
       default: '便签墙'
     },
-    boardRemark: {
+    boardSystemPrompt: {
       type: String,
-      default: '这是便签墙的备注信息'
+      default: '这是便签墙的System Prompt'
     }
   },
   data() {
@@ -264,7 +265,7 @@ export default {
       return this.boardTitle;
     },
     currentRemark() {
-      return this.boardRemark;
+      return this.boardSystemPrompt;
     },
     layerStyle() {
       // 简单方案：SVG 从 (0,0) 开始，尺寸足够大
@@ -533,14 +534,14 @@ export default {
         // 调用后端 API 保存配置
         await axios.put(`/api/notes/boards/${this.boardId}`, {
           title: this.tempTitle,
-          remark: this.tempRemark
+          system_prompt: this.tempRemark
         });
 
         // 通知父组件更新白板列表
         this.$emit('board-updated', {
           id: this.boardId,
           title: this.tempTitle,
-          remark: this.tempRemark
+          system_prompt: this.tempRemark
         });
 
         this.isEditingTitle = false;

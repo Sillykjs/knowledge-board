@@ -81,10 +81,11 @@
             ></textarea>
           </div>
           <div class="view-footer">
-            <button class="btn-ai-generate" @click="generateAIContent">
-              <span class="ai-icon">🤖</span>
-              <span>AI 生成内容</span>
+            <button class="btn-ai-generate" @click="generateAIContent" :disabled="isAIGenerating">
+              <span class="ai-icon">{{ isAIGenerating ? '⏳' : '🤖' }}</span>
+              <span>{{ isAIGenerating ? '生成中...' : 'AI 生成内容' }}</span>
             </button>
+            <div v-if="aiError" class="ai-error">{{ aiError }}</div>
           </div>
         </div>
       </div>
@@ -126,7 +127,9 @@ export default {
       editingViewTitle: false,  // 是否正在编辑查看模态框中的标题
       viewEditTitle: this.title,  // 查看模态框中编辑的临时标题
       editingViewContent: false,  // 是否正在编辑查看模态框中的内容
-      viewEditContent: this.content  // 查看模态框中编辑的临时内容
+      viewEditContent: this.content,  // 查看模态框中编辑的临时内容
+      isAIGenerating: false,  // AI生成中
+      aiError: null  // AI错误信息
     };
   },
   computed: {
@@ -383,11 +386,26 @@ export default {
       }
     },
     async generateAIContent() {
-      // TODO: 调用后端 API，传递便签标题
-      // 目前先返回固定文本
-      const generatedContent = `根据标题「${this.title}」生成的 AI 内容：\n\n这是一个示例回复。后续将接入真实的大模型 API。`;
+      this.aiError = null;
+
+      // 使用标题作为prompt
+      const prompt = this.title;
+
+      if (!prompt) {
+        this.aiError = '请先设置便签标题';
+        return;
+      }
+
+      this.isAIGenerating = true;
 
       try {
+        // 调用后端AI生成API
+        const response = await axios.post('/api/notes/ai-generate', {
+          prompt: prompt
+        });
+
+        const generatedContent = response.data.content;
+
         // 更新到数据库
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,
@@ -404,8 +422,15 @@ export default {
           position_x: this.position_x,
           position_y: this.position_y
         });
+
+        // 更新编辑状态的临时内容
+        this.viewEditContent = generatedContent;
       } catch (error) {
         console.error('Failed to generate AI content:', error);
+        const errorMsg = error.response?.data?.error || error.message || 'AI生成失败';
+        this.aiError = errorMsg;
+      } finally {
+        this.isAIGenerating = false;
       }
     }
 
@@ -772,8 +797,28 @@ export default {
   transform: translateY(0);
 }
 
+.btn-ai-generate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ai-generate:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
 .ai-icon {
   font-size: 16px;
+}
+
+.ai-error {
+  color: #f44336;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #ffebee;
+  margin-top: 8px;
 }
 </style>
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const axios = require('axios');
 
 // 引入白板路由
 const boardsRouter = require('./boards');
@@ -231,6 +232,59 @@ router.delete('/recycle-bin', (req, res) => {
       count: this.changes
     });
   });
+});
+
+// ============ AI生成路由（必须在 /:id 之前定义）============
+
+// AI生成内容
+router.post('/ai-generate', async (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    res.status(400).json({ error: 'Prompt is required' });
+    return;
+  }
+
+  // 从环境变量获取配置
+  const apiKey = process.env.OPENAI_API_KEY;
+  const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+  const model = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+
+  if (!apiKey) {
+    res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      `${apiBase}/chat/completions`,
+      {
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      }
+    );
+
+    const generatedContent = response.data.choices[0].message.content;
+    res.json({ content: generatedContent });
+  } catch (error) {
+    console.error('AI generation error:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to generate content',
+      details: error.response?.data?.error?.message || error.message
+    });
+  }
 });
 
 // ============ 通用便签路由 ============

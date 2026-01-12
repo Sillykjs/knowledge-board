@@ -177,9 +177,12 @@ ChatBranch2/
 - `DELETE /api/notes/recycle-bin/:id` - 永久删除单个便签
 - `DELETE /api/notes/recycle-bin` - 清空回收站（永久删除所有）
 
+**AI生成操作（路由必须在 /:id 之前定义）:**
+- `POST /api/notes/ai-generate` - 使用AI生成内容（需要配置环境变量）
+
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
 1. 引入白板路由：`router.use('/boards', boardsRouter)`
-2. 具体路径（如 `/recycle-bin`, `/connections`）
+2. 具体路径（如 `/recycle-bin`, `/connections`, `/ai-generate`）
 3. 嵌套路径（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
 4. 参数化路径（如 `/:id`）
 
@@ -408,10 +411,25 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - DOMPurify 白名单机制限制可用的 HTML 标签和属性
 - 错误处理防止渲染失败导致崩溃
 
-**AI 内容生成功能**:
-- 查看模态框底部有"AI 生成内容"按钮
-- 目前为占位实现，返回固定文本
-- TODO: 需要接入真实的大模型 API
+### AI 内容生成功能
+查看便签模态框底部有"AI 生成内容"按钮，点击后使用便签标题作为prompt向AI请求内容：
+
+**环境配置**:
+- 复制 `backend/.env.example` 为 `backend/.env`
+- 配置环境变量：
+  - `OPENAI_API_KEY`: OpenAI API密钥或兼容服务的密钥
+  - `OPENAI_API_BASE`: API基础URL（可选，默认为OpenAI官方API）
+  - `OPENAI_MODEL`: 模型名称（可选，默认为gpt-3.5-turbo）
+
+**API接口**:
+- `POST /api/notes/ai-generate` - AI生成内容接口
+  - 请求体: `{ prompt: string }`
+  - 响应: `{ content: string }`
+
+**前端实现**（Note.vue）:
+- 按钮状态：生成中显示"⏳ 生成中..."并禁用
+- 错误处理：失败时在按钮下方显示错误信息
+- 自动保存：生成完成后自动更新到数据库
 
 ### 位置计算
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。
@@ -520,6 +538,15 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - 连接建立后自动执行 `initDb()` 进行表初始化和迁移
 - 所有路由通过 `require('../database')` 获取同一数据库实例
 
+### 环境变量配置
+- 使用 `dotenv` 加载环境变量（在 `server.js` 顶部配置）
+- 环境变量文件：`backend/.env`（需要手动创建，参考 `.env.example`）
+- AI生成功能依赖的环境变量：
+  - `OPENAI_API_KEY`: API密钥（必需）
+  - `OPENAI_API_BASE`: API基础URL（可选，默认OpenAI官方）
+  - `OPENAI_MODEL`: 模型名称（可选，默认gpt-3.5-turbo）
+- 环境变量文件已添加到 `.gitignore`，不会被提交到版本控制
+
 ### 路由设计模式
 **主要路由文件**:
 - `backend/routes/boards.js`: 白板管理路由（新建）
@@ -578,6 +605,8 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - `cors`: 跨域资源共享
 - `sqlite3`: SQLite数据库驱动
 - `body-parser`: 请求体解析
+- `axios`: HTTP客户端（用于调用OpenAI兼容API）
+- `dotenv`: 环境变量管理
 - `nodemon` (devDependencies): 开发时自动重启服务器
 
 ### 前端依赖
@@ -598,23 +627,24 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 
 ## 开发注意事项
 
-1. **后端热加载**: 使用 `npm start` 时没有热加载，代码修改后必须手动重启。使用 `npm run dev`（nodemon）会自动重启，但数据库迁移逻辑不会重新执行。
-2. **数据库位置**: SQLite数据库文件 `notes.db` 在backend目录下首次运行时自动创建
-3. **路由顺序**: 添加新路由时，具体路径（如 `/config`, `/recycle-bin`, `/connections`）必须在参数化路径（如 `/:id`）之前定义
-4. **软删除**: 删除操作是软删除，不会真正从数据库删除记录，只在回收站中永久删除时才执行真正的DELETE操作
-5. **模态框实现**: 项目使用自定义模态框进行确认操作（如永久删除、清空回收站），不要使用浏览器原生的 `confirm()` 或 `alert()`
-6. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
-7. **点击外部关闭模态框**: 查看模态框和回收站模态框支持点击外部区域关闭，使用 `@click` 和 `@click.stop` 实现事件处理
-8. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
-9. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
-10. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
-11. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
-12. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
-13. **多白板状态管理（重要）**: 每个白板的视口状态（scale、translateX、translateY）独立保存在 App.vue 的 `boardViewports` 对象中。切换白板时，先保存当前状态到 `boardViewports[currentBoardId]`，再恢复目标白板的状态
-14. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
-15. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
-16. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
-17. **白板 API 参数（重要）**: 所有便签和连接相关 API 调用都必须传递 `wall_id` 参数。在 NoteWall.vue 中使用 `this.boardId`，在 axios 调用中通过 `params: { wall_id: this.boardId }` 传递
+1. **环境变量配置**: AI功能需要配置环境变量。复制 `backend/.env.example` 为 `backend/.env` 并填写相关配置。配置修改后需重启后端。
+2. **后端热加载**: 使用 `npm start` 时没有热加载，代码修改后必须手动重启。使用 `npm run dev`（nodemon）会自动重启，但数据库迁移逻辑不会重新执行。
+3. **数据库位置**: SQLite数据库文件 `notes.db` 在backend目录下首次运行时自动创建
+4. **路由顺序**: 添加新路由时，具体路径（如 `/config`, `/recycle-bin`, `/connections`, `/ai-generate`）必须在参数化路径（如 `/:id`）之前定义
+5. **软删除**: 删除操作是软删除，不会真正从数据库删除记录，只在回收站中永久删除时才执行真正的DELETE操作
+6. **模态框实现**: 项目使用自定义模态框进行确认操作（如永久删除、清空回收站），不要使用浏览器原生的 `confirm()` 或 `alert()`
+7. **Markdown 内容**: 便签内容支持 Markdown 语法，仅在查看模态框中渲染（双击打开），编辑时仍为纯文本编辑
+8. **点击外部关闭模态框**: 查看模态框和回收站模态框支持点击外部区域关闭，使用 `@click` 和 `@click.stop` 实现事件处理
+9. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
+10. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
+11. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
+12. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
+13. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
+14. **多白板状态管理（重要）**: 每个白板的视口状态（scale、translateX、translateY）独立保存在 App.vue 的 `boardViewports` 对象中。切换白板时，先保存当前状态到 `boardViewports[currentBoardId]`，再恢复目标白板的状态
+15. **DOM 尺寸获取与缩放**: 当白板缩放后，通过 `offsetHeight` 或 `offsetWidth` 获取的元素尺寸是屏幕空间的值，需要除以 `viewport.scale` 才能得到白板世界坐标系的实际尺寸
+16. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
+17. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
+18. **白板 API 参数（重要）**: 所有便签和连接相关 API 调用都必须传递 `wall_id` 参数。在 NoteWall.vue 中使用 `this.boardId`，在 axios 调用中通过 `params: { wall_id: this.boardId }` 传递
 
 ## 数据库管理
 
@@ -748,6 +778,15 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 2. 清除 npm 缓存：`npm cache clean --force`
 3. 重新安装：`npm install`
 4. 如果是网络问题，考虑使用国内镜像：`npm config set registry https://registry.npmmirror.com`
+
+### AI生成功能不工作
+如果点击"AI 生成内容"按钮后出现错误：
+1. **检查环境变量**: 确认 `backend/.env` 文件存在且配置正确
+2. **检查API密钥**: 确认 `OPENAI_API_KEY` 已设置且有效
+3. **重启后端**: 修改环境变量后必须重启后端服务
+4. **查看错误信息**: 模态框底部会显示详细错误信息
+5. **检查网络**: 确保服务器能访问配置的API地址
+6. **API兼容性**: 如果使用第三方兼容服务，确认其API格式与OpenAI兼容
 
 ## 扩展项目指南
 
@@ -914,6 +953,11 @@ curl http://localhost:3001/api/notes/connections
 
 # 删除连接
 curl -X DELETE http://localhost:3001/api/notes/connections/1
+
+# AI生成内容（需要配置环境变量）
+curl -X POST http://localhost:3001/api/notes/ai-generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"写一篇关于Vue的文章"}'
 ```
 
 **使用浏览器开发者工具:**
@@ -935,6 +979,17 @@ fetch('/api/notes', {
     content: '便签内容',
     position_x: 100,
     position_y: 100
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data));
+
+// AI生成内容（需要配置环境变量）
+fetch('/api/notes/ai-generate', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    prompt: '写一篇关于Vue的文章'
   })
 })
 .then(res => res.json())

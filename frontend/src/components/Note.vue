@@ -97,7 +97,20 @@
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
-            <div class="view-content markdown-body" v-html="renderedContent"></div>
+            <div
+              v-if="!editingViewContent"
+              class="view-content markdown-body"
+              v-html="renderedContent"
+              @dblclick="startEditViewContent"
+            ></div>
+            <textarea
+              v-else
+              ref="viewContentInput"
+              v-model="viewEditContent"
+              class="view-content-input"
+              @blur="saveViewContent"
+              @keyup.esc="cancelEditViewContent"
+            ></textarea>
           </div>
           <div class="view-footer">
             <button class="btn-ai-generate" @click="generateAIContent">
@@ -146,7 +159,9 @@ export default {
       contextMenuY: 0,
       isConnecting: false,  // 是否正在创建连接
       editingViewTitle: false,  // 是否正在编辑查看模态框中的标题
-      viewEditTitle: this.title  // 查看模态框中编辑的临时标题
+      viewEditTitle: this.title,  // 查看模态框中编辑的临时标题
+      editingViewContent: false,  // 是否正在编辑查看模态框中的内容
+      viewEditContent: this.content  // 查看模态框中编辑的临时内容
     };
   },
   computed: {
@@ -267,6 +282,45 @@ export default {
     cancelEditViewTitle() {
       this.editingViewTitle = false;
       this.viewEditTitle = this.title;
+    },
+    startEditViewContent() {
+      this.viewEditContent = this.content;
+      this.editingViewContent = true;
+      this.$nextTick(() => {
+        if (this.$refs.viewContentInput) {
+          this.$refs.viewContentInput.focus();
+        }
+      });
+    },
+    async saveViewContent() {
+      if (!this.editingViewContent) return;
+      this.editingViewContent = false;
+
+      // 如果内容没有变化，直接返回
+      if (this.viewEditContent === this.content) return;
+
+      try {
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.title,
+          content: this.viewEditContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        this.$emit('update', {
+          id: this.id,
+          title: this.title,
+          content: this.viewEditContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+      } catch (error) {
+        console.error('Failed to update note content:', error);
+      }
+    },
+    cancelEditViewContent() {
+      this.editingViewContent = false;
+      this.viewEditContent = this.content;
     },
     onMouseDown(e) {
       // 如果编辑或查看模态框打开，或正在创建连接，则不处理拖拽
@@ -866,6 +920,37 @@ export default {
   font-size: 19px;
   color: #555;
   word-wrap: break-word;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: -4px -8px;
+}
+
+/* .view-content:hover {
+  background: rgba(33, 150, 243, 0.08);
+} */
+
+.view-content-input {
+  font-size: 19px;
+  color: #555;
+  line-height: 1.6;
+  border: 2px solid #2196f3;
+  border-radius: 4px;
+  padding: 8px 12px;
+  outline: none;
+  background: white;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 200px;
+  resize: vertical;
+  font-family: inherit;
+  height: 100%;
+}
+
+.view-content-input:focus {
+  border-color: #0d47a1;
 }
 
 /* 非 markdown 模式时的样式 */

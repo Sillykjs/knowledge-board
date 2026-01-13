@@ -564,20 +564,49 @@ export default {
     },
     // 上文追溯
     onTraceParent(noteId) {
-      // 找到所有以当前便签为目标节点的连接（即父节点）
-      const parentConnections = this.connections.filter(
-        conn => conn.target_note_id === noteId
-      );
+      // 使用广度优先搜索（BFS）查找多层父节点
+      const highlightedNoteIds = new Set();
+      const highlightedConnectionIds = new Set();
 
-      // 获取所有父节点的 ID
-      const parentIds = parentConnections.map(conn => conn.source_note_id);
+      // 队列存储：{ noteId, level }
+      const queue = [{ noteId, level: 0 }];
+      const visited = new Set();  // 避免循环引用导致无限循环
 
-      // 获取所有连接线的 ID
-      const connectionIds = parentConnections.map(conn => conn.id);
+      while (queue.length > 0) {
+        const { noteId: currentNoteId, level } = queue.shift();
+
+        // 如果达到指定的层数，停止查找
+        if (level >= this.contextLevel) {
+          continue;
+        }
+
+        // 如果已经访问过这个节点，跳过（避免循环）
+        if (visited.has(currentNoteId)) {
+          continue;
+        }
+        visited.add(currentNoteId);
+
+        // 找到所有以当前节点为目标节点的连接（即父节点）
+        const parentConnections = this.connections.filter(
+          conn => conn.target_note_id === currentNoteId
+        );
+
+        // 遍历所有父节点
+        parentConnections.forEach(conn => {
+          const parentId = conn.source_note_id;
+
+          // 添加父节点 ID 和连接 ID
+          highlightedNoteIds.add(parentId);
+          highlightedConnectionIds.add(conn.id);
+
+          // 将父节点加入队列，继续查找其父节点（层数+1）
+          queue.push({ noteId: parentId, level: level + 1 });
+        });
+      }
 
       // 添加到高亮集合
-      this.highlightedNoteIds = new Set(parentIds);
-      this.highlightedConnectionIds = new Set(connectionIds);
+      this.highlightedNoteIds = highlightedNoteIds;
+      this.highlightedConnectionIds = highlightedConnectionIds;
 
       // 2秒后清除高亮（动画时长是 2 秒）
       setTimeout(() => {

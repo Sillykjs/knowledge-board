@@ -84,6 +84,7 @@
         :position_y="note.position_y"
         :wallId="boardId"
         :isHighlighting="highlightedNoteIds.has(note.id)"
+        :contextLevel="contextLevel"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"

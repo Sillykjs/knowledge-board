@@ -238,7 +238,7 @@ router.delete('/recycle-bin', (req, res) => {
 
 // AI生成内容（流式输出）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt, wall_id, note_id } = req.body;
+  const { prompt, wall_id, note_id, context_level = 1 } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
@@ -265,24 +265,71 @@ router.post('/ai-generate', async (req, res) => {
 
     const systemPrompt = board?.system_prompt || 'You are a helpful assistant.';
 
-    // 如果提供了 note_id，获取引入节点的便签内容作为上下文
+    // 如果提供了 note_id，使用BFS获取多层父节点的便签内容作为上下文
     let contextNotes = [];
     if (note_id) {
-      const contextSql = `
-        SELECT n.id, n.title, n.content
-        FROM notes n
-        INNER JOIN note_connections nc ON n.id = nc.source_note_id
-        WHERE nc.target_note_id = ?
-          AND n.deleted_at IS NULL
-        ORDER BY n.created_at ASC
-      `;
+      // 使用广度优先搜索（BFS）获取多层父节点
+      const contextLevel = Math.min(Math.max(1, context_level || 1), 24); // 限制在1-24之间
+      const visited = new Set(); // 避免循环引用
+      const queue = [{ noteId: note_id, level: 0 }];
+      const noteIds = new Set(); // 使用Set自动去重
 
-      contextNotes = await new Promise((resolve, reject) => {
-        db.all(contextSql, [note_id], (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
+      while (queue.length > 0) {
+        const { noteId: currentNoteId, level } = queue.shift();
+
+        // 如果达到指定的层数，停止查找
+        if (level >= contextLevel) {
+          continue;
+        }
+
+        // 如果已经访问过这个节点，跳过（避免循环）
+        if (visited.has(currentNoteId)) {
+          continue;
+        }
+        visited.add(currentNoteId);
+
+        // 找到所有以当前节点为目标节点的连接（即父节点）
+        const contextSql = `
+          SELECT n.id, n.title, n.content
+          FROM notes n
+          INNER JOIN note_connections nc ON n.id = nc.source_note_id
+          WHERE nc.target_note_id = ?
+            AND n.deleted_at IS NULL
+        `;
+
+        const parentNotes = await new Promise((resolve, reject) => {
+          db.all(contextSql, [currentNoteId], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          });
         });
-      });
+
+        // 添加父节点到结果集
+        parentNotes.forEach(note => {
+          noteIds.add(note.id);
+          // 将父节点加入队列，继续查找其父节点（层数+1）
+          queue.push({ noteId: note.id, level: level + 1 });
+        });
+      }
+
+      // 根据收集的ID获取便签详情，按创建时间排序
+      if (noteIds.size > 0) {
+        const ids = Array.from(noteIds);
+        const detailSql = `
+          SELECT id, title, content
+          FROM notes
+          WHERE id IN (${ids.map(() => '?').join(',')})
+            AND deleted_at IS NULL
+          ORDER BY created_at ASC
+        `;
+
+        contextNotes = await new Promise((resolve, reject) => {
+          db.all(detailSql, ids, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+          });
+        });
+      }
     }
 
     // 构建 messages 数组
@@ -304,7 +351,7 @@ router.post('/ai-generate', async (req, res) => {
 
       messages.push({
         role: 'user',
-        content: `以下是相关的便签内容作为上下文参考：\n\n${contextText}\n\n请基于以上上下文回答我的问题。`
+        content: `以下的内容作为上文参考：\n\n${contextText}\n\n`
       });
     }
 

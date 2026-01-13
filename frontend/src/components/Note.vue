@@ -133,6 +133,10 @@ export default {
     isHighlighting: {
       type: Boolean,
       default: false
+    },
+    contextLevel: {
+      type: Number,
+      default: 1
     }
   },
   data() {
@@ -450,7 +454,8 @@ export default {
           body: JSON.stringify({
             prompt,
             wall_id: this.wallId,
-            note_id: this.id  // 传递当前便签ID，用于获取引入节点的上下文
+            note_id: this.id,  // 传递当前便签ID，用于获取引入节点的上下文
+            context_level: this.contextLevel  // 传递上文层数
           })
         });
 

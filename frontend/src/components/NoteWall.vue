@@ -463,6 +463,9 @@ export default {
         });
 
         this.notes.push(response.data.note);
+
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
       } catch (error) {
         console.error('Failed to create note:', error);
       }
@@ -500,6 +503,9 @@ export default {
       // 再从 notes 数组中移除便签
       this.notes = this.notes.filter(n => n.id !== noteId);
       this.loadRecycleNotes();
+
+      // 通知父组件更新白板列表（便签数量变化）
+      this.$emit('note-count-changed');
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {
@@ -582,6 +588,9 @@ export default {
         this.recycleNotes = this.recycleNotes.filter(n => n.id !== noteId);
         this.recycleCount = this.recycleNotes.length;
         await this.loadNotes();
+
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
       } catch (error) {
         console.error('Failed to restore note:', error);
       }
@@ -851,6 +860,9 @@ export default {
 
         // 重新加载连接列表
         await this.loadConnections();
+
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
       } catch (error) {
         console.error('Failed to quick create note:', error);
         alert('创建便签失败: ' + (error.response?.data?.error || error.message));

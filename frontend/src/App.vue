@@ -69,6 +69,7 @@
         :board-system-prompt="currentBoard?.system_prompt"
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
+        @note-count-changed="onNoteCountChanged"
       />
     </main>
 
@@ -227,6 +228,11 @@ export default {
       if (index !== -1) {
         this.boards.splice(index, 1, { ...this.boards[index], ...boardData });
       }
+    },
+
+    async onNoteCountChanged() {
+      // 当便签数量变化时，重新加载白板列表以更新 note_count
+      await this.loadBoards();
     }
   }
 };

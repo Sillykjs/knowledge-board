@@ -77,9 +77,11 @@
         :position_x="note.position_x"
         :position_y="note.position_y"
         :wallId="boardId"
+        :isHighlighting="highlightedNoteIds.has(note.id)"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
+        @trace-parent="onTraceParent"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
         @quick-create="onQuickCreate"
@@ -238,6 +240,7 @@ export default {
       dragStartPoint: null,         // 拖拽起始点坐标 {x, y}
       currentMousePos: null,        // 当前鼠标坐标
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
+      highlightedNoteIds: new Set(), // 高亮的便签ID集合
       // 便签拖拽状态
       draggingNote: {
         isDragging: false,
@@ -531,6 +534,24 @@ export default {
         console.error('Failed to copy note:', error);
         alert('复制便签失败: ' + (error.response?.data?.error || error.message));
       }
+    },
+    // 上文追溯
+    onTraceParent(noteId) {
+      // 找到所有以当前便签为目标节点的连接（即父节点）
+      const parentConnections = this.connections.filter(
+        conn => conn.target_note_id === noteId
+      );
+
+      // 获取所有父节点的 ID
+      const parentIds = parentConnections.map(conn => conn.source_note_id);
+
+      // 添加到高亮集合
+      this.highlightedNoteIds = new Set(parentIds);
+
+      // 2秒后清除高亮（动画时长是 2 秒）
+      setTimeout(() => {
+        this.highlightedNoteIds.clear();
+      }, 2000);
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

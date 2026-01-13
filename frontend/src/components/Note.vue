@@ -1,7 +1,10 @@
 <template>
   <div
     class="note"
-    :class="{ generating: isAIGenerating }"
+    :class="{
+      generating: isAIGenerating,
+      'highlight-flash': isHighlighting
+    }"
     :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
     @contextmenu.prevent="onContextMenu"
@@ -43,6 +46,10 @@
         <div class="context-menu-item" @click="copyNote">
           <span class="menu-icon">📋</span>
           <span>复制</span>
+        </div>
+        <div class="context-menu-item" @click="traceParentNotes">
+          <span class="menu-icon">🔗</span>
+          <span>上文追溯</span>
         </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>
@@ -122,6 +129,10 @@ export default {
     wallId: {
       type: Number,
       default: 1
+    },
+    isHighlighting: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -352,6 +363,12 @@ export default {
         position_y: this.position_y
       });
     },
+    traceParentNotes() {
+      this.showContextMenu = false;
+
+      // 触发上文追溯事件，传递当前便签 ID
+      this.$emit('trace-parent', this.id);
+    },
     async updatePosition(x, y) {
       try {
         // 直接使用传入的坐标，允许负值（无限白板）
@@ -563,6 +580,23 @@ export default {
   }
   50% {
     box-shadow: 0 2px 20px rgba(255, 193, 7, 0.7);
+  }
+}
+
+/* 上文追溯高亮闪烁动画 */
+.note.highlight-flash {
+  animation: flashGreen 2s ease-in-out; /* 2秒完成两次完整闪烁 */
+}
+
+@keyframes flashGreen {
+  0%, 100% {
+    background: #e3f2fd; /* 默认蓝色 */
+  }
+  25%, 75% {
+    background: #c5f7c5; /* 绿色 */
+  }
+  50% {
+    background: #e3f2fd; /* 回到蓝色 */
   }
 }
 

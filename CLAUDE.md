@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 添加模态框: 遵循"控制变量→触发方法→确认方法→取消方法"模式
 - 修复样式问题: `v-html` 渲染的内容样式必须放在非 scoped 的 `<style>` 块中
 - 调试位置问题: 使用 `screenToWorld()` 和 `worldToScreen()` 坐标转换方法
+- 添加便签右键菜单项: 在 Note.vue 的右键菜单中添加选项，通过 emit 事件通知父组件处理
 
 **关键文件:**
 - `backend/server.js`: Express 服务器入口
@@ -271,7 +272,10 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 
 **Note.vue** (单个便签)
 - 显示便签标题和内容
-- 右键菜单支持删除操作
+- 右键菜单支持：
+  - **复制**：在原便签右下方（偏移 30px）创建新的便签，标题和内容相同
+  - **上文追溯**：预留功能（待实现）
+  - **删除**：软删除便签到回收站
 - 查看模态框（双击打开，支持 Markdown 渲染，支持点击外部关闭）
   - **双击标题**：进入标题编辑模式，保存时自动更新到数据库
   - **双击内容**：进入内容编辑模式，支持纯文本编辑，失焦自动保存
@@ -281,6 +285,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **连接点交互**：
   - 引入点（上中心）：双击打开查看模态框并直接进入内容编辑模式
   - 引出点（下中心）：双击在正下方创建新便签并自动连接
+- **AI 生成状态显示**：当 AI 正在生成内容时，便签背景变为浅黄色并带有脉冲动画效果
 
 ### 数据流和状态管理
 - 便签数据存储在 `NoteWall.vue` 的 `notes` 数组中
@@ -438,6 +443,10 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 实时渲染：生成过程中实时渲染 Markdown，内容逐步显示
 - 错误处理：失败时在按钮下方显示错误信息
 - 自动保存：生成完成后自动更新到数据库
+- **视觉反馈**: 生成中便签显示浅黄色背景和脉冲动画（`.note.generating` class）
+  - 背景色：`#fff9c4`（浅黄色）
+  - 光晕效果：黄色阴影并带有脉冲动画（2秒循环）
+  - 状态保持：即使关闭模态框，便签仍保持生成状态，直到完成或失败
 
 **技术实现细节**:
 - 后端使用 axios 的 `responseType: 'stream'` 接收 OpenAI 的流式响应
@@ -660,6 +669,8 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 16. **模态框使用 Teleport（重要）**: 所有 Note.vue 中的模态框（右键菜单、编辑、查看）都必须使用 `<Teleport to="body">` 传送到 body，避免受白板缩放平移影响。新添加模态框时务必遵循此模式
 17. **文字渲染优化**: 在 `.wall-content` 和 `.note` 样式中必须包含 GPU 加速和字体平滑属性（`transform-style: preserve-3d`、`backface-visibility: hidden`、`-webkit-font-smoothing: antialiased`），确保缩放时文字清晰
 18. **白板 API 参数（重要）**: 所有便签和连接相关 API 调用都必须传递 `wall_id` 参数。在 NoteWall.vue 中使用 `this.boardId`，在 axios 调用中通过 `params: { wall_id: this.boardId }` 传递
+19. **AI 生成状态（重要）**: 便签在 AI 生成时会显示浅黄色背景和脉冲动画（通过 `isAIGenerating` 状态控制）。即使关闭查看模态框，生成状态仍会保持，直到完成或失败
+20. **右键菜单高度计算**: 添加新的右键菜单项后，需要调整 `onContextMenu` 方法中的 `menuHeight` 值，确保菜单不会被屏幕底部裁剪（每个菜单项约 50px）
 
 ## 数据库管理
 
@@ -837,6 +848,70 @@ db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
 1. 在 `backend/database.js` 的 `initDb()` 函数中添加迁移逻辑（参考 `deleted_at` 字段的迁移方式）
 2. 更新 `backend/routes/notes.js` 中的相关路由以处理新字段
 3. 更新前端组件以支持新字段的显示和编辑
+
+### 添加便签右键菜单功能
+项目中实现了便签复制功能，可作为参考模式：
+
+**1. Note.vue 中添加菜单项**:
+```vue
+<div class="context-menu-item" @click="copyNote">
+  <span class="menu-icon">📋</span>
+  <span>复制</span>
+</div>
+```
+
+**2. Note.vue 中实现方法**:
+```javascript
+copyNote() {
+  this.showContextMenu = false;
+
+  // 触发复制事件，传递便签信息给父组件
+  this.$emit('copy', {
+    id: this.id,
+    title: this.title,
+    content: this.content,
+    position_x: this.position_x,
+    position_y: this.position_y
+  });
+}
+```
+
+**3. NoteWall.vue 中监听事件**:
+```vue
+<Note
+  @copy="onNoteCopy"
+  <!-- 其他 props 和事件 -->
+/>
+```
+
+**4. NoteWall.vue 中实现处理方法**:
+```javascript
+async onNoteCopy(sourceNote) {
+  try {
+    const offsetX = 30;  // 水平偏移
+    const offsetY = 30;  // 垂直偏移
+
+    const response = await axios.post('/api/notes', {
+      title: sourceNote.title,
+      content: sourceNote.content,
+      position_x: sourceNote.position_x + offsetX,
+      position_y: sourceNote.position_y + offsetY,
+      wall_id: this.boardId
+    });
+
+    this.notes.push(response.data.note);
+    this.$emit('note-count-changed');
+  } catch (error) {
+    console.error('Failed to copy note:', error);
+  }
+}
+```
+
+**关键要点**:
+- 使用 emit 事件模式进行子父组件通信
+- 位置偏移避免新便签完全覆盖原便签
+- 记得更新便签数量（触发 `note-count-changed` 事件）
+- 调整右键菜单高度计算以适应新的菜单项数量
 
 ### 添加新的 API 路由
 1. 在 `backend/routes/notes.js` 中添加新路由

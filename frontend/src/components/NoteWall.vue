@@ -6,6 +6,7 @@
     @mouseup="onWallMouseUp"
     @mouseleave="onWallMouseUp"
     @wheel.prevent="onWheel"
+    @dblclick.self="onWallDoubleClick"
   >
     <!-- 固定标题（在白板外部，不受缩放平移影响） -->
     <div class="title-container">
@@ -449,8 +450,8 @@ export default {
         console.error('Failed to load notes:', error);
       }
     },
-    async addNote() {
-      const newPosition = this.calculateNewPosition();
+    async addNote(customPosition = null) {
+      const newPosition = customPosition || this.calculateNewPosition();
 
       try {
         const response = await axios.post('/api/notes', {
@@ -867,6 +868,40 @@ export default {
       // 注意：由于 mousedown 中的 preventDefault，平移操作不会触发 click 事件
       // 所以这里可以安全地取消选择
       this.selectedConnectionId = null;
+    },
+    // 双击白板空白区域处理（在鼠标位置创建新便签）
+    onWallDoubleClick(event) {
+      // 确保不是双击在便签、连接线、连接点、标题或按钮上
+      if (event.target.closest('.note') ||
+          event.target.closest('.connection-line') ||
+          event.target.closest('.connection-point') ||
+          event.target.closest('.title-container') ||
+          event.target.closest('.add-button') ||
+          event.target.closest('.recycle-button') ||
+          event.target.closest('.zoom-controls') ||
+          event.target.closest('.modal-overlay') ||
+          event.target.closest('.recycle-modal')) {
+        return;
+      }
+
+      // 获取鼠标相对于白板的屏幕坐标
+      const wallRect = this.$el.getBoundingClientRect();
+      const screenX = event.clientX - wallRect.left;
+      const screenY = event.clientY - wallRect.top;
+
+      // 转换为世界坐标
+      const worldPos = this.screenToWorld(screenX, screenY);
+
+      // 计算便签左上角位置（使便签中心对准鼠标位置）
+      const noteWidth = 250;
+      const noteHeight = 150;
+      const customPosition = {
+        x: worldPos.x - noteWidth / 2,
+        y: worldPos.y - noteHeight / 2
+      };
+
+      // 在计算出的位置创建便签
+      this.addNote(customPosition);
     },
 
     // 删除选中的连接

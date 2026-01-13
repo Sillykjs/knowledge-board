@@ -525,6 +525,8 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  /* 确保便签在连接线上方 */
+  z-index: 10;
 }
 
 .note:hover {

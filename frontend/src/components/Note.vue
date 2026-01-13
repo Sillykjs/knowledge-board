@@ -1,6 +1,7 @@
 <template>
   <div
     class="note"
+    :class="{ generating: isAIGenerating }"
     :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
     @contextmenu.prevent="onContextMenu"
@@ -531,6 +532,22 @@ export default {
 
 .note:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* AI生成中的便签样式 */
+.note.generating {
+  background: #fff9c4; /* 浅黄色 */
+  box-shadow: 0 2px 12px rgba(255, 193, 7, 0.4); /* 黄色光晕 */
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 2px 12px rgba(255, 193, 7, 0.4);
+  }
+  50% {
+    box-shadow: 0 2px 20px rgba(255, 193, 7, 0.7);
+  }
 }
 
 /* 连接点样式 */

@@ -89,6 +89,38 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 创建白板模态框 -->
+    <Teleport to="body">
+      <div v-if="showCreateBoardModal" class="modal-overlay" @click="cancelCreateBoard">
+        <div class="modal-content" @click.stop>
+          <h3>创建新白板</h3>
+          <div class="form-group">
+            <label class="form-label">白板标题</label>
+            <input
+              v-model="newBoardTitle"
+              class="form-input"
+              placeholder="请输入白板标题"
+              @keyup.enter="confirmCreateBoard"
+              ref="titleInput"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">系统提示词（可选）</label>
+            <textarea
+              v-model="newBoardSystemPrompt"
+              class="form-textarea"
+              placeholder="请输入系统提示词"
+              rows="4"
+            ></textarea>
+          </div>
+          <div class="modal-buttons">
+            <button @click="cancelCreateBoard" class="btn-cancel">取消</button>
+            <button @click="confirmCreateBoard" class="btn-confirm">确认创建</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -110,7 +142,10 @@ export default {
       boardViewports: {}, // 存储每个白板的视口状态 { boardId: { scale, translateX, translateY } }
       sidebarCollapsed: false, // 侧边栏是否收起
       sidebarWidth: 250, // 展开时的宽度（px）
-      collapsedWidth: 60 // 收起时的宽度（px）
+      collapsedWidth: 60, // 收起时的宽度（px）
+      showCreateBoardModal: false, // 控制创建白板模态框显示
+      newBoardTitle: '', // 新白板标题
+      newBoardSystemPrompt: '' // 新白板系统提示词
     };
   },
   computed: {
@@ -133,6 +168,19 @@ export default {
   },
   async mounted() {
     await this.loadBoards();
+  },
+  watch: {
+    showCreateBoardModal(newVal) {
+      if (newVal) {
+        // 模态框打开时，自动聚焦到标题输入框
+        this.$nextTick(() => {
+          if (this.$refs.titleInput) {
+            this.$refs.titleInput.focus();
+            this.$refs.titleInput.select();
+          }
+        });
+      }
+    }
   },
   methods: {
     toggleSidebar() {
@@ -173,15 +221,24 @@ export default {
       });
     },
 
-    async createBoard() {
-      const title = prompt('请输入新白板标题：', '新白板');
-      if (!title || title.trim() === '') return;
+    createBoard() {
+      // 打开创建白板模态框
+      this.newBoardTitle = '新白板';
+      this.newBoardSystemPrompt = '你好，我是默认助手。你可以立刻开始跟我聊天';
+      this.showCreateBoardModal = true;
+    },
+
+    async confirmCreateBoard() {
+      if (!this.newBoardTitle || this.newBoardTitle.trim() === '') return;
 
       try {
         const response = await axios.post('/api/notes/boards', {
-          title: title.trim(),
-          system_prompt: '你好，我是默认助手。你可以立刻开始跟我聊天'
+          title: this.newBoardTitle.trim(),
+          system_prompt: this.newBoardSystemPrompt.trim()
         });
+
+        // 关闭模态框
+        this.showCreateBoardModal = false;
 
         // 重新加载白板列表以确保排序正确
         await this.loadBoards();
@@ -190,6 +247,12 @@ export default {
         console.error('Failed to create board:', error);
         alert('创建白板失败：' + (error.response?.data?.error || error.message));
       }
+    },
+
+    cancelCreateBoard() {
+      this.showCreateBoardModal = false;
+      this.newBoardTitle = '';
+      this.newBoardSystemPrompt = '';
     },
 
     askDeleteBoard(boardId) {
@@ -533,5 +596,53 @@ body {
 
 .btn-delete:hover {
   background-color: #d32f2f;
+}
+
+/* 创建白板模态框样式 */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-input, .form-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.btn-confirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background-color: #45a049;
 }
 </style>

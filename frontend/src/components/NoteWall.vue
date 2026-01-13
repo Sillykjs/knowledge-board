@@ -262,6 +262,7 @@ export default {
       isDraggingConnection: false,  // 是否正在拖拽连线
       dragStartNoteId: null,        // 拖拽起始便签ID
       dragStartPoint: null,         // 拖拽起始点坐标 {x, y}
+      highlightTimer: null,         // 高亮清除定时器ID
       currentMousePos: null,        // 当前鼠标坐标
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
@@ -327,6 +328,10 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeyDown);
+    // 清除高亮定时器
+    if (this.highlightTimer) {
+      clearTimeout(this.highlightTimer);
+    }
   },
   methods: {
     // 坐标转换方法
@@ -564,6 +569,12 @@ export default {
     },
     // 上文追溯
     onTraceParent(noteId) {
+      // 清除之前的定时器（如果存在）
+      if (this.highlightTimer) {
+        clearTimeout(this.highlightTimer);
+        this.highlightTimer = null;
+      }
+
       // 使用广度优先搜索（BFS）查找多层父节点
       const highlightedNoteIds = new Set();
       const highlightedConnectionIds = new Set();
@@ -609,9 +620,10 @@ export default {
       this.highlightedConnectionIds = highlightedConnectionIds;
 
       // 2秒后清除高亮（动画时长是 2 秒）
-      setTimeout(() => {
+      this.highlightTimer = setTimeout(() => {
         this.highlightedNoteIds.clear();
         this.highlightedConnectionIds.clear();
+        this.highlightTimer = null;
       }, 2000);
     },
     // 便签拖拽开始

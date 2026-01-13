@@ -671,6 +671,19 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 18. **白板 API 参数（重要）**: 所有便签和连接相关 API 调用都必须传递 `wall_id` 参数。在 NoteWall.vue 中使用 `this.boardId`，在 axios 调用中通过 `params: { wall_id: this.boardId }` 传递
 19. **AI 生成状态（重要）**: 便签在 AI 生成时会显示浅黄色背景和脉冲动画（通过 `isAIGenerating` 状态控制）。即使关闭查看模态框，生成状态仍会保持，直到完成或失败
 20. **右键菜单高度计算**: 添加新的右键菜单项后，需要调整 `onContextMenu` 方法中的 `menuHeight` 值，确保菜单不会被屏幕底部裁剪（每个菜单项约 50px）
+21. **Vue 事件处理陷阱（重要）**: 在 Vue 模板中绑定事件时，如果方法不需要接收事件参数，务必使用**显式调用**（带括号）。
+    - ✅ **正确写法**: `@click="addNote()"` - 显式调用方法，不传递任何参数
+    - ❌ **错误写法**: `@click="addNote"` - Vue 会自动将 `$event`（事件对象）作为第一个参数传递
+    - **示例场景**:
+      ```javascript
+      // 错误：addNote(PointerEvent) 被调用，导致逻辑错误
+      <button @click="addNote">创建</button>
+
+      // 正确：addNote() 被调用，参数为默认值 null
+      <button @click="addNote()">创建</button>
+      ```
+    - **问题症状**: 如果方法中有类似 `customPosition || this.calculateNewPosition()` 的逻辑，使用错误写法会导致事件对象（truthy 值）覆盖默认值，使得备用逻辑永远不会执行
+    - **调试技巧**: 当方法接收到意外参数时，检查事件绑定是否使用了显式调用。可以通过在方法开头添加 `console.log('参数:', parameter)` 来验证
 
 ## 数据库管理
 

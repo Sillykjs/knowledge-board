@@ -112,7 +112,7 @@
       <button class="level-btn" @click="increaseContextLevel" :disabled="contextLevel >= 24">+</button>
     </div>
 
-    <button class="add-button" @click="addNote">
+    <button class="add-button" @click="addNote()">
       <span class="plus-icon">+</span>
     </button>
 
@@ -508,9 +508,16 @@ export default {
       }
     },
     calculateNewPosition() {
-      // 获取屏幕中心坐标
-      const screenCenterX = window.innerWidth / 2;
-      const screenCenterY = window.innerHeight / 2;
+      // 获取白板容器的位置
+      const wallRect = this.$el.getBoundingClientRect();
+
+      // 浏览器视口中心（相对于浏览器视口）
+      const viewportCenterX = window.innerWidth / 2;
+      const viewportCenterY = window.innerHeight / 2;
+
+      // 转换为相对于白板容器的坐标（与 onWallMouseMove 和 onWallDoubleClick 的逻辑一致）
+      const screenCenterX = viewportCenterX - wallRect.left;
+      const screenCenterY = viewportCenterY - wallRect.top;
 
       // 转换为白板世界坐标
       const worldPos = this.screenToWorld(screenCenterX, screenCenterY);

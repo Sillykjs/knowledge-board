@@ -45,7 +45,10 @@
           :y1="getConnectionStartPoint(connection).y"
           :x2="getConnectionEndPoint(connection).x"
           :y2="getConnectionEndPoint(connection).y"
-          :class="['connection-line', { selected: selectedConnectionId === connection.id }]"
+          :class="['connection-line', {
+            selected: selectedConnectionId === connection.id,
+            'highlight-flash': highlightedConnectionIds.has(connection.id)
+          }]"
           @click.stop="selectConnection(connection.id)"
         />
         <!-- 箭头 -->
@@ -54,7 +57,10 @@
           :key="'arrow-' + connection.id"
           :points="getArrowheadPoints(connection)"
           class="connection-arrowhead"
-          :class="{ selected: selectedConnectionId === connection.id }"
+          :class="{
+            selected: selectedConnectionId === connection.id,
+            'highlight-flash': highlightedConnectionIds.has(connection.id)
+          }"
           @click.stop="selectConnection(connection.id)"
         />
         <!-- 拖拽中的临时连线 -->
@@ -241,6 +247,7 @@ export default {
       currentMousePos: null,        // 当前鼠标坐标
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
+      highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
       // 便签拖拽状态
       draggingNote: {
         isDragging: false,
@@ -545,12 +552,17 @@ export default {
       // 获取所有父节点的 ID
       const parentIds = parentConnections.map(conn => conn.source_note_id);
 
+      // 获取所有连接线的 ID
+      const connectionIds = parentConnections.map(conn => conn.id);
+
       // 添加到高亮集合
       this.highlightedNoteIds = new Set(parentIds);
+      this.highlightedConnectionIds = new Set(connectionIds);
 
       // 2秒后清除高亮（动画时长是 2 秒）
       setTimeout(() => {
         this.highlightedNoteIds.clear();
+        this.highlightedConnectionIds.clear();
       }, 2000);
     },
     // 便签拖拽开始
@@ -1165,6 +1177,27 @@ export default {
   stroke-width: 3;
   stroke-dasharray: 5, 5;  /* 虚线效果 */
   opacity: 0.6;
+}
+
+/* 连接线高亮闪烁动画 */
+.connection-line.highlight-flash,
+.connection-arrowhead.highlight-flash {
+  animation: flashConnectionGreen 2s ease-in-out;
+}
+
+@keyframes flashConnectionGreen {
+  0%, 100% {
+    stroke: #2196f3;
+    fill: #2196f3;
+  }
+  25%, 75% {
+    stroke: #4caf50;
+    fill: #4caf50;
+  }
+  50% {
+    stroke: #2196f3;
+    fill: #2196f3;
+  }
 }
 
 .add-button {

@@ -79,6 +79,7 @@
         :wallId="boardId"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
+        @copy="onNoteCopy"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
         @quick-create="onQuickCreate"
@@ -506,6 +507,30 @@ export default {
 
       // 通知父组件更新白板列表（便签数量变化）
       this.$emit('note-count-changed');
+    },
+    // 复制便签
+    async onNoteCopy(sourceNote) {
+      try {
+        // 计算新便签位置：在原便签右下方偏移
+        const offsetX = 30;  // 水平偏移
+        const offsetY = 30;  // 垂直偏移
+
+        const response = await axios.post('/api/notes', {
+          title: sourceNote.title,
+          content: sourceNote.content,
+          position_x: sourceNote.position_x + offsetX,
+          position_y: sourceNote.position_y + offsetY,
+          wall_id: this.boardId
+        });
+
+        this.notes.push(response.data.note);
+
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
+      } catch (error) {
+        console.error('Failed to copy note:', error);
+        alert('复制便签失败: ' + (error.response?.data?.error || error.message));
+      }
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

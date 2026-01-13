@@ -40,6 +40,10 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
+        <div class="context-menu-item" @click="copyNote">
+          <span class="menu-icon">📋</span>
+          <span>复制</span>
+        </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>
           <span>删除</span>
@@ -336,6 +340,18 @@ export default {
         console.error('Failed to delete note:', error);
       }
     },
+    copyNote() {
+      this.showContextMenu = false;
+
+      // 触发复制事件，传递便签信息给父组件
+      this.$emit('copy', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
+    },
     async updatePosition(x, y) {
       try {
         // 直接使用传入的坐标，允许负值（无限白板）
@@ -368,7 +384,7 @@ export default {
 
       // 计算菜单位置，防止超出屏幕
       const menuWidth = 150;
-      const menuHeight = 80;
+      const menuHeight = 120;  // 2个菜单项，每个约50px
 
       let x = event.clientX;
       let y = event.clientY;

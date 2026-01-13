@@ -94,6 +94,23 @@
       />
     </div>
 
+    <!-- 上文层数控制 -->
+    <div class="context-level-control">
+      <button class="level-btn" @click="decreaseContextLevel" :disabled="contextLevel <= 1">-</button>
+      <div class="level-display">
+        <span class="level-label">上文层数</span>
+        <input
+          type="number"
+          v-model.number="contextLevel"
+          min="1"
+          max="24"
+          class="level-input"
+          @input="validateContextLevel"
+        />
+      </div>
+      <button class="level-btn" @click="increaseContextLevel" :disabled="contextLevel >= 24">+</button>
+    </div>
+
     <button class="add-button" @click="addNote">
       <span class="plus-icon">+</span>
     </button>
@@ -240,6 +257,7 @@ export default {
       showDeleteConfirm: false,
       pendingDeleteNoteId: null,
       showClearConfirm: false,
+      contextLevel: 1,  // 上文层数，默认1层
       connections: [],              // 所有连接关系
       isDraggingConnection: false,  // 是否正在拖拽连线
       dragStartNoteId: null,        // 拖拽起始便签ID
@@ -337,7 +355,9 @@ export default {
       // 响应左键（button === 0）和中键（button === 1）
       if (event.button === 0 || event.button === 1) {
         // 确保不是点击在便签或连接点上
-        if (event.target.closest('.note') || event.target.closest('.connection-point')) {
+        if (event.target.closest('.note') ||
+            event.target.closest('.connection-point') ||
+            event.target.closest('.context-level-control')) {
           return;
         }
 
@@ -949,6 +969,7 @@ export default {
           event.target.closest('.add-button') ||
           event.target.closest('.recycle-button') ||
           event.target.closest('.zoom-controls') ||
+          event.target.closest('.context-level-control') ||
           event.target.closest('.modal-overlay') ||
           event.target.closest('.recycle-modal')) {
         return;
@@ -1049,6 +1070,32 @@ export default {
       const p3 = `${endPoint.x - arrowSize * Math.cos(lineAngle + angle)},${endPoint.y - arrowSize * Math.sin(lineAngle + angle)}`;
 
       return `${p1} ${p2} ${p3}`;
+    },
+
+    // ========== 上文层数控制方法 ==========
+
+    // 增加上文层数
+    increaseContextLevel() {
+      if (this.contextLevel < 24) {
+        this.contextLevel++;
+      }
+    },
+    // 减少上文层数
+    decreaseContextLevel() {
+      if (this.contextLevel > 1) {
+        this.contextLevel--;
+      }
+    },
+    // 验证输入的有效性
+    validateContextLevel() {
+      // 确保在有效范围内
+      if (this.contextLevel < 1) {
+        this.contextLevel = 1;
+      } else if (this.contextLevel > 24) {
+        this.contextLevel = 24;
+      }
+      // 确保是整数
+      this.contextLevel = Math.round(this.contextLevel);
     }
   }
 };
@@ -1198,6 +1245,90 @@ export default {
     stroke: #2196f3;
     fill: #2196f3;
   }
+}
+
+/* 上文层数控制 */
+.context-level-control {
+  position: absolute;
+  bottom: 20px;
+  right: 100px; /* 在添加按钮左边，添加按钮宽度60px + 间距20px */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+.level-btn {
+  width: 32px;
+  height: 32px;
+  background: #4caf50;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.level-btn:hover:not(:disabled) {
+  background: #45a049;
+  transform: scale(1.1);
+}
+
+.level-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.level-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.level-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.level-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.level-input {
+  width: 50px;
+  height: 28px;
+  text-align: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  padding: 0;
+  -moz-appearance: textfield; /* Firefox 去除数字输入框的箭头 */
+}
+
+.level-input::-webkit-outer-spin-button,
+.level-input::-webkit-inner-spin-button {
+  -webkit-appearance: none; /* Chrome 去除数字输入框的箭头 */
+  margin: 0;
+}
+
+.level-input:focus {
+  outline: none;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
 .add-button {

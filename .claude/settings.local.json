@@ -14,7 +14,8 @@
       "Bash(powershell:*)",
       "Bash(npm run dev)",
       "mcp__zread__read_file",
-      "mcp__zread__get_repo_structure"
+      "mcp__zread__get_repo_structure",
+      "Bash(git commit:*)"
     ]
   }
 }

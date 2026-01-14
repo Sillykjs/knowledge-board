@@ -201,11 +201,15 @@ export default {
     },
     async loadBoards() {
       try {
+        // 保存更新前的状态（判断是否为初始化加载）
+        const hadBoards = this.boards.length > 0;
+
         const response = await axios.get('/api/notes/boards');
         this.boards = response.data.boards;
 
-        // 自动切换到第一个白板（最新修改的白板）
-        if (this.boards.length > 0) {
+        // 只在初始化时（boards 列表为空）才自动切换到第一个白板
+        // 避免在便签数量变化时意外切换白板
+        if (!hadBoards && this.boards.length > 0) {
           this.currentBoardId = this.boards[0].id;
         }
       } catch (error) {

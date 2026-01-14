@@ -56,8 +56,8 @@ function initDb() {
   const createConfigTableSQL = `
     CREATE TABLE IF NOT EXISTS wall_config (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      title TEXT NOT NULL DEFAULT '便签墙',
-      remark TEXT NOT NULL DEFAULT '这是便签墙的备注信息',
+      title TEXT NOT NULL DEFAULT '默认话题',
+      remark TEXT NOT NULL DEFAULT '你是默认助手，回答用户的问题',
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `;
@@ -71,7 +71,7 @@ function initDb() {
       // 插入默认配置（如果不存在）
       const insertDefaultConfig = `
         INSERT OR IGNORE INTO wall_config (id, title, remark)
-        VALUES (1, '便签墙', '这是便签墙的备注信息')
+        VALUES (1, '默认话题', '你是默认助手，回答用户的问题')
       `;
       db.run(insertDefaultConfig, (err) => {
         if (err) {
@@ -173,8 +173,8 @@ function migrateFromWallConfig() {
     }
 
     // 创建默认白板（id=1）
-    const defaultTitle = config?.title || '便签墙';
-    const defaultSystemPrompt = config?.remark || '这是便签墙的备注信息';
+    const defaultTitle = config?.title || '默认话题';
+    const defaultSystemPrompt = config?.remark || '你是默认助手，回答用户的问题';
 
     db.run(
       "INSERT INTO boards (id, title, system_prompt) VALUES (1, ?, ?)",
@@ -206,7 +206,7 @@ function migrateFromWallConfig() {
 // 创建默认白板
 function createDefaultBoard() {
   db.run(
-    "INSERT OR IGNORE INTO boards (id, title, system_prompt) VALUES (1, '便签墙', '这是便签墙的备注信息')",
+    "INSERT OR IGNORE INTO boards (id, title, system_prompt) VALUES (1, '默认话题', '你是默认助手，回答用户的问题')",
     (err) => {
       if (err) {
         console.error('Error creating default board:', err.message);

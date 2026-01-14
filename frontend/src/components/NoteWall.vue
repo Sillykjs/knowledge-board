@@ -191,7 +191,7 @@
         </div>
         <div class="form-group">
           <label>System Prompt:</label>
-          <textarea v-model="tempRemark" class="form-input" rows="3"></textarea>
+          <textarea v-model="tempRemark" class="form-input" rows="16"></textarea>
         </div>
         <div class="modal-buttons">
           <button @click="cancelEdit" class="btn-cancel">取消</button>
@@ -242,11 +242,11 @@ export default {
     },
     boardTitle: {
       type: String,
-      default: '便签墙'
+      default: '默认话题'
     },
     boardSystemPrompt: {
       type: String,
-      default: '这是便签墙的System Prompt'
+      default: '你是默认助手，回答用户的问题'
     }
   },
   data() {

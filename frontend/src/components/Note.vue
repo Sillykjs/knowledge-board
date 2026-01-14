@@ -578,6 +578,20 @@ export default {
       this.streamingContent = '';  // 重置流式内容
 
       try {
+        // 从 localStorage 读取最后使用的模型配置
+        let modelConfig = null;
+        const lastUsedModel = localStorage.getItem('lastUsedModel');
+        const savedConfigs = localStorage.getItem('aiModelConfigs');
+
+        if (savedConfigs && lastUsedModel) {
+          try {
+            const modelConfigs = JSON.parse(savedConfigs);
+            modelConfig = modelConfigs[lastUsedModel] || null;
+          } catch (e) {
+            console.error('Failed to parse model configs:', e);
+          }
+        }
+
         // 使用 fetch API 调用流式接口
         const response = await fetch('/api/notes/ai-generate', {
           method: 'POST',
@@ -589,7 +603,8 @@ export default {
             wall_id: this.wallId,
             note_id: this.id,  // 传递当前便签ID，用于获取引入节点的上下文
             context_level: this.contextLevel,  // 传递上文层数
-            include_reasoning: true  // 请求推理模型的思考过程
+            include_reasoning: true,  // 请求推理模型的思考过程
+            model_config: modelConfig  // 传递前端配置的模型参数
           })
         });
 

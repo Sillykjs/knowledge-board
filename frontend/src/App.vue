@@ -57,6 +57,17 @@
         </draggable>
       </div>
 
+      <!-- 切换模型按钮 -->
+      <button class="model-button" @click="openModelModal" :title="sidebarCollapsed ? '切换模型' : ''">
+        <template v-if="!sidebarCollapsed">
+          <span class="model-icon">🤖</span>
+          <span class="model-text">切换模型</span>
+        </template>
+        <template v-else>
+          <span class="model-icon">🤖</span>
+        </template>
+      </button>
+
       <!-- 新建白板按钮 -->
       <button class="add-board-button" @click="createBoard" :title="sidebarCollapsed ? '新建白板' : ''">
         <template v-if="!sidebarCollapsed">
@@ -132,6 +143,56 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 切换模型模态框 -->
+    <Teleport to="body">
+      <div v-if="showModelModal" class="modal-overlay" @click="cancelModelModal">
+        <div class="modal-content" @click.stop>
+          <h3>切换模型</h3>
+          <p class="model-hint">💡 每个模型的配置会单独保存，切换时会自动加载对应的配置</p>
+          <div class="form-group">
+            <label class="form-label">预设模型</label>
+            <select v-model="selectedModelPreset" @change="onModelPresetChange" class="form-select">
+              <option value="">自定义</option>
+              <option value="openai">OpenAI (GPT-4/GPT-3.5)</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="zhipu">智谱AI (GLM-4)</option>
+              <option value="ollama">Ollama (本地)</option>
+              <option value="claude">Anthropic Claude</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">API Base URL</label>
+            <input
+              v-model="modelConfig.apiBase"
+              class="form-input"
+              placeholder="例如: https://api.openai.com/v1"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">API Key</label>
+            <input
+              v-model="modelConfig.apiKey"
+              type="password"
+              class="form-input"
+              placeholder="请输入 API Key"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">模型名称</label>
+            <input
+              v-model="modelConfig.model"
+              class="form-input"
+              placeholder="例如: gpt-4, deepseek-chat"
+            />
+          </div>
+          <div class="modal-buttons">
+            <button @click="cancelModelModal" class="btn-cancel">取消</button>
+            <button @click="confirmModelModal" class="btn-confirm">确认切换</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -158,7 +219,37 @@ export default {
       collapsedWidth: 60, // 收起时的宽度（px）
       showCreateBoardModal: false, // 控制创建白板模态框显示
       newBoardTitle: '', // 新白板标题
-      newBoardSystemPrompt: '' // 新白板系统提示词
+      newBoardSystemPrompt: '', // 新白板系统提示词
+      showModelModal: false, // 控制模型切换模态框显示
+      selectedModelPreset: '', // 选中的预设模型
+      modelConfigs: {}, // 所有模型的配置 { openai: {...}, deepseek: {...}, ... }
+      modelConfig: { // 当前使用的模型配置
+        apiBase: '',
+        apiKey: '',
+        model: ''
+      },
+      modelPresets: { // 预设模型配置
+        openai: {
+          apiBase: 'https://api.openai.com/v1',
+          model: 'gpt-3.5-turbo'
+        },
+        deepseek: {
+          apiBase: 'https://api.deepseek.com/v1',
+          model: 'deepseek-chat'
+        },
+        zhipu: {
+          apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+          model: 'glm-4-flash'
+        },
+        ollama: {
+          apiBase: 'http://localhost:11434/v1',
+          model: 'llama2'
+        },
+        claude: {
+          apiBase: 'https://api.anthropic.com/v1',
+          model: 'claude-3-sonnet'
+        }
+      }
     };
   },
   computed: {
@@ -181,6 +272,7 @@ export default {
   },
   async mounted() {
     await this.loadBoards();
+    this.loadModelConfig();
   },
   watch: {
     showCreateBoardModal(newVal) {
@@ -331,6 +423,99 @@ export default {
         // 失败时重新加载数据
         await this.loadBoards();
       }
+    },
+
+    // 模型配置相关方法
+    loadModelConfig() {
+      // 加载所有保存的模型配置
+      const savedConfigs = localStorage.getItem('aiModelConfigs');
+      if (savedConfigs) {
+        try {
+          this.modelConfigs = JSON.parse(savedConfigs);
+        } catch (error) {
+          console.error('Failed to parse model configs:', error);
+          this.modelConfigs = {};
+        }
+      }
+
+      // 如果有保存的当前选中模型，加载它的配置
+      const lastUsedModel = localStorage.getItem('lastUsedModel');
+      if (lastUsedModel && this.modelConfigs[lastUsedModel]) {
+        this.modelConfig = { ...this.modelConfigs[lastUsedModel] };
+      } else if (this.modelConfigs['openai']) {
+        // 默认加载 OpenAI 配置
+        this.modelConfig = { ...this.modelConfigs['openai'] };
+      }
+    },
+
+    saveModelConfig() {
+      // 如果选择了预设，保存到对应的模型配置中
+      if (this.selectedModelPreset) {
+        this.modelConfigs[this.selectedModelPreset] = { ...this.modelConfig };
+        localStorage.setItem('aiModelConfigs', JSON.stringify(this.modelConfigs));
+        localStorage.setItem('lastUsedModel', this.selectedModelPreset);
+      } else {
+        // 自定义配置保存到 custom
+        this.modelConfigs['custom'] = { ...this.modelConfig };
+        localStorage.setItem('aiModelConfigs', JSON.stringify(this.modelConfigs));
+        localStorage.setItem('lastUsedModel', 'custom');
+      }
+    },
+
+    openModelModal() {
+      this.showModelModal = true;
+
+      // 加载上次使用的模型配置
+      const lastUsedModel = localStorage.getItem('lastUsedModel');
+      if (lastUsedModel && this.modelConfigs[lastUsedModel]) {
+        this.selectedModelPreset = lastUsedModel;
+        this.modelConfig = { ...this.modelConfigs[lastUsedModel] };
+      } else if (this.modelConfigs['openai']) {
+        this.selectedModelPreset = 'openai';
+        this.modelConfig = { ...this.modelConfigs['openai'] };
+      } else {
+        this.selectedModelPreset = '';
+        this.modelConfig = { apiBase: '', apiKey: '', model: '' };
+      }
+    },
+
+    cancelModelModal() {
+      this.showModelModal = false;
+      this.selectedModelPreset = '';
+    },
+
+    onModelPresetChange() {
+      if (this.selectedModelPreset && this.modelPresets[this.selectedModelPreset]) {
+        const preset = this.modelPresets[this.selectedModelPreset];
+
+        // 如果该模型有保存的配置，加载保存的配置
+        if (this.modelConfigs[this.selectedModelPreset]) {
+          this.modelConfig = { ...this.modelConfigs[this.selectedModelPreset] };
+        } else {
+          // 否则使用预设值，但清空 API Key
+          this.modelConfig = {
+            apiBase: preset.apiBase,
+            model: preset.model,
+            apiKey: ''
+          };
+        }
+      } else {
+        // 自定义模式，清空配置
+        this.modelConfig = { apiBase: '', apiKey: '', model: '' };
+      }
+    },
+
+    confirmModelModal() {
+      if (!this.modelConfig.apiBase || !this.modelConfig.model) {
+        alert('请填写 API Base URL 和模型名称');
+        return;
+      }
+
+      this.saveModelConfig();
+      this.showModelModal = false;
+
+      // 可选：显示提示信息
+      console.log('模型配置已保存:', this.modelConfig);
     }
   }
 };
@@ -579,7 +764,7 @@ body {
 }
 
 .add-board-button {
-  margin: 10px;
+  margin: 5px 10px 10px 10px;
   padding: 12px 16px;
   background: #4caf50;
   color: white;
@@ -737,5 +922,78 @@ body {
 
 .btn-confirm:hover {
   background-color: #45a049;
+}
+
+/* 切换模型按钮样式 */
+.model-button {
+  margin: 5px 10px;
+  padding: 12px 16px;
+  background: #9c27b0;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.model-button:hover {
+  background: #7b1fa2;
+  transform: scale(1.02);
+}
+
+.model-icon {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.model-text {
+  font-weight: 500;
+}
+
+.sidebar.collapsed .model-button {
+  padding: 12px;
+}
+
+.sidebar.collapsed .model-text {
+  display: none;
+}
+
+/* 模型配置表单样式 */
+.form-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  background-color: white;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #9c27b0;
+}
+
+.form-select:hover {
+  border-color: #7b1fa2;
+}
+
+/* 模型配置提示 */
+.model-hint {
+  font-size: 13px;
+  color: #666;
+  background: #f5f5f5;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border-left: 3px solid #9c27b0;
 }
 </style>

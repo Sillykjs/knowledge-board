@@ -238,20 +238,20 @@ router.delete('/recycle-bin', (req, res) => {
 
 // AI生成内容（流式输出，支持推理模型）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt, wall_id, note_id, context_level = 1, include_reasoning = false } = req.body;
+  const { prompt, wall_id, note_id, context_level = 1, include_reasoning = false, model_config } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
     return;
   }
 
-  // 从环境变量获取配置
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const model = process.env.OPENAI_MODEL;
+  // 优先使用前端传递的模型配置，否则使用环境变量
+  const apiKey = model_config?.api_key || process.env.OPENAI_API_KEY;
+  const apiBase = model_config?.api_base || process.env.OPENAI_API_BASE;
+  const model = model_config?.model || process.env.OPENAI_MODEL;
 
   if (!apiKey || !apiBase || !model) {
-    res.status(500).json({ error: 'OPENAI_API_KEY, OPENAI_API_BASE, and OPENAI_MODEL are not configured' });
+    res.status(500).json({ error: 'Model configuration is missing. Please configure the model in the sidebar or set up environment variables.' });
     return;
   }
 

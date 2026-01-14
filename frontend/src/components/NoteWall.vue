@@ -480,8 +480,23 @@ export default {
           }
         }
       }
-      // 中键（button === 1）：拖动白板
+      // 中键（button === 1）：拖动白板（允许在便签上拖动）
       else if (event.button === 1) {
+        // 确保不是点击在连接点上
+        if (event.target.closest('.connection-point') ||
+            event.target.closest('.context-level-control')) {
+          return;
+        }
+
+        // 中键拖动时 preventDefault() 防止滚动
+        event.preventDefault();
+
+        this.viewport.isDragging = true;
+        this.viewport.lastMouseX = event.clientX;
+        this.viewport.lastMouseY = event.clientY;
+      }
+      // 右键（button === 2）：拖动白板（不允许在便签上拖动）
+      else if (event.button === 2) {
         // 确保不是点击在便签或连接点上
         if (event.target.closest('.note') ||
             event.target.closest('.connection-point') ||
@@ -489,7 +504,7 @@ export default {
           return;
         }
 
-        // 中键拖动时 preventDefault() 防止滚动
+        // 右键拖动时 preventDefault() 防止默认菜单
         event.preventDefault();
 
         this.viewport.isDragging = true;

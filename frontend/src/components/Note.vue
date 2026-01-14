@@ -326,6 +326,11 @@ export default {
       this.viewEditContent = this.content;
     },
     onMouseDown(e) {
+      // 只允许左键（button === 0）拖动便签，中键和右键不触发拖动
+      if (e.button !== 0) {
+        return;
+      }
+
       // 如果查看模态框打开，或正在创建连接，则不处理拖拽
       if (this.showViewModal || this.isConnecting) {
         return;

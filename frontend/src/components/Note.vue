@@ -778,10 +778,8 @@ export default {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 800px;
-  height: 800px;
-  max-width: 90vw;
-  max-height: 80vh;
+  width: 70%;
+  height: 80%;
   display: flex;
   flex-direction: column;
   animation: modalAppear 0.2s ease-out;

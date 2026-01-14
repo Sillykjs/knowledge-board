@@ -6,7 +6,7 @@
     @mouseup="onWallMouseUp"
     @mouseleave="onWallMouseUp"
     @wheel.prevent="onWheel"
-    @dblclick.self="onWallDoubleClick"
+    @dblclick="onWallDoubleClick"
   >
     <!-- 固定标题（在白板外部，不受缩放平移影响） -->
     <div class="title-container">

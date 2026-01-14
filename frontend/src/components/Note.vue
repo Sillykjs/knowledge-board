@@ -110,6 +110,7 @@
 import axios from 'axios';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
+import mermaid from 'mermaid';
 
 // 初始化 markdown-it 实例
 const md = new MarkdownIt({
@@ -118,6 +119,39 @@ const md = new MarkdownIt({
   typographer: true,  // 启用美化排版
   breaks: true,       // 转换换行符为 <br>
 });
+
+// 自定义 fence 渲染规则，支持 mermaid
+const defaultFence = md.renderer.rules.fence || function(tokens, idx, options, env, self) {
+  return self.renderToken(tokens, idx, options);
+};
+
+md.renderer.rules.fence = function(tokens, idx, options, env, self) {
+  const token = tokens[idx];
+  const info = token.info ? token.info.trim() : '';
+
+  // 如果是 mermaid 代码块
+  if (info === 'mermaid') {
+    // 使用 data 属性存储原始内容，避免被 DOMPurify 清理
+    const encodedContent = encodeURIComponent(token.content);
+    return `<pre class="mermaid" data-mermaid="${encodedContent}"></pre>`;
+  }
+
+  // 其他代码块使用默认渲染
+  return defaultFence(tokens, idx, options, env, self);
+};
+
+// 初始化 Mermaid
+try {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+    logLevel: 'error'  // 只显示错误日志
+  });
+  console.log('Mermaid initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Mermaid:', error);
+}
 
 export default {
   name: 'Note',
@@ -179,8 +213,14 @@ export default {
           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
                          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
                          'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
-                         'table', 'thead', 'tbody', 'tr', 'th', 'td'],
-          ALLOWED_ATTR: ['href', 'title', 'class', 'target'],
+                         'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                         'div', 'svg', 'path', 'rect', 'circle', 'line',
+                         'polygon', 'polyline', 'text', 'g', 'marker'],
+          ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'id',
+                         'd', 'x', 'y', 'cx', 'cy', 'r', 'width', 'height',
+                         'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke',
+                         'stroke-width', 'viewBox', 'xmlns', 'text-anchor',
+                         'font-size', 'font-family', 'transform', 'data-mermaid'],
           ALLOW_DATA_ATTR: false
         });
         return cleanHtml;
@@ -544,8 +584,67 @@ export default {
       } finally {
         this.isAIGenerating = false;
       }
+    },
+    // 渲染 Mermaid 图表
+    async renderMermaid() {
+      // 等待 Vue 完成 DOM 更新
+      await this.$nextTick();
+
+      if (!this.showViewModal) return;
+
+      // 需要额外延迟，确保 Teleport 的 DOM 完全渲染
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      try {
+        // 在 document 级别查找 mermaid 元素（因为使用了 Teleport）
+        const mermaidDivs = document.querySelectorAll('.view-modal-content .mermaid');
+
+        if (mermaidDivs.length === 0) {
+          console.log('No mermaid diagrams found');
+          return;
+        }
+
+        console.log('Found mermaid diagrams:', mermaidDivs.length);
+
+        // 从 data 属性中读取内容并插入到元素中
+        mermaidDivs.forEach((div) => {
+          const encodedContent = div.getAttribute('data-mermaid');
+          if (encodedContent) {
+            div.textContent = decodeURIComponent(encodedContent);
+          }
+        });
+
+        // 使用 mermaid.run() 渲染所有图表
+        await mermaid.run({
+          querySelector: '.view-modal-content .mermaid'
+        });
+
+        console.log('Mermaid rendering completed');
+      } catch (error) {
+        console.error('Mermaid rendering error:', error);
+      }
     }
 
+  },
+  watch: {
+    // 监听模态框打开状态，渲染 mermaid
+    showViewModal(newVal) {
+      if (newVal) {
+        this.renderMermaid();
+      }
+    },
+    // 监听内容变化，重新渲染 mermaid
+    content() {
+      if (this.showViewModal) {
+        this.renderMermaid();
+      }
+    },
+    // 监听流式内容变化（AI生成时）
+    streamingContent() {
+      if (this.showViewModal && this.isAIGenerating) {
+        this.renderMermaid();
+      }
+    }
   },
   mounted() {
     document.addEventListener('click', this.closeContextMenuOnOutsideClick);
@@ -1139,5 +1238,20 @@ export default {
 .markdown-body s {
   text-decoration: line-through;
   color: #6a737d;
+}
+
+/* Mermaid 图表样式 */
+.markdown-body .mermaid {
+  margin: 12px 0;
+  text-align: center;
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.markdown-body .mermaid svg {
+  max-width: 100%;
+  height: auto;
 }
 </style>

@@ -74,6 +74,9 @@
         />
       </svg>
 
+      <!-- 框选矩形 -->
+      <div class="selection-box" :style="selectionBoxStyle"></div>
+
       <Note
         v-for="note in notes"
         :key="note.id"
@@ -84,6 +87,7 @@
         :position_y="note.position_y"
         :wallId="boardId"
         :isHighlighting="highlightedNoteIds.has(note.id)"
+        :isSelected="selectedNoteIds.has(note.id)"
         :contextLevel="contextLevel"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
@@ -275,6 +279,16 @@ export default {
         offsetX: 0,
         offsetY: 0
       },
+      // 框选状态
+      boxSelection: {
+        isSelecting: false,    // 是否正在框选
+        toggleMode: false,     // 是否为切换模式（Shift/Ctrl）
+        startX: 0,             // 框选起始X（世界坐标）
+        startY: 0,             // 框选起始Y（世界坐标）
+        currentX: 0,           // 框选当前X（世界坐标）
+        currentY: 0            // 框选当前Y（世界坐标）
+      },
+      selectedNoteIds: new Set(),  // 选中的便签ID集合
       // 白板视口状态
       viewport: {
         scale: 1,           // 缩放比例 (0.25 ~ 3.0)
@@ -317,6 +331,22 @@ export default {
         transform: `translate(${this.viewport.translateX}px, ${this.viewport.translateY}px) scale(${this.viewport.scale})`,
         transformOrigin: '0 0'  // 从左上角开始变换
       };
+    },
+    // 选择框样式
+    selectionBoxStyle() {
+      if (!this.boxSelection.isSelecting) {
+        return { display: 'none' };
+      }
+
+      const box = this.getSelectionBoxRect();
+
+      return {
+        left: `${box.x1}px`,
+        top: `${box.y1}px`,
+        width: `${box.x2 - box.x1}px`,
+        height: `${box.y2 - box.y1}px`,
+        display: 'block'
+      };
     }
   },
   mounted() {
@@ -326,9 +356,13 @@ export default {
 
     // 添加键盘事件监听
     document.addEventListener('keydown', this.onKeyDown);
+
+    // 添加全局 mouseup 监听器，确保拖拽状态总是能被重置
+    document.addEventListener('mouseup', this.onGlobalMouseUp);
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeyDown);
+    document.removeEventListener('mouseup', this.onGlobalMouseUp);
     // 清除高亮定时器
     if (this.highlightTimer) {
       clearTimeout(this.highlightTimer);
@@ -358,8 +392,96 @@ export default {
         return;
       }
 
-      // 响应左键（button === 0）和中键（button === 1）
-      if (event.button === 0 || event.button === 1) {
+      // 左键（button === 0）：框选或准备拖动便签
+      if (event.button === 0) {
+        // 检查是否点击在便签上
+        const clickedNote = event.target.closest('.note');
+
+        if (clickedNote) {
+          // 点击在便签上：检查是否需要拖动选中的便签或取消选中
+          const noteId = parseInt(clickedNote.getAttribute('data-note-id'));
+          const isSelected = this.selectedNoteIds.has(noteId);
+
+          if (isSelected) {
+            // 点击的是已选中的便签
+            if (event.shiftKey || event.ctrlKey) {
+              // 按住 Shift/Ctrl：取消选中该便签
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              this.selectedNoteIds.delete(noteId);
+            } else {
+              // 没有按修饰键：准备拖动所有选中的便签
+              event.preventDefault();
+              event.stopImmediatePropagation(); // 阻止 Note 组件的 mousedown 事件
+
+              const wall = this.$el;
+              const wallRect = wall.getBoundingClientRect();
+              const noteRect = clickedNote.getBoundingClientRect();
+
+              // 计算点击位置相对于便签的偏移（屏幕坐标）
+              const offsetX = event.clientX - noteRect.left;
+              const offsetY = event.clientY - noteRect.top;
+
+              this.draggingNote.isDragging = true;
+              this.draggingNote.noteId = noteId;
+              this.draggingNote.offsetX = offsetX;
+              this.draggingNote.offsetY = offsetY;
+            }
+          } else {
+            // 点击的是未选中的便签
+            if (event.shiftKey || event.ctrlKey) {
+              // 按住 Shift/Ctrl：追加选中该便签（不拖动）
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              this.selectedNoteIds.add(noteId);
+            } else {
+              // 没有按修饰键：让 Note 组件处理拖动单个便签
+              // 不做任何处理，让 Note 组件自己处理
+            }
+          }
+        } else {
+          // 点击在空白区域：检查是否可以开始框选
+          // 确保没有其他正在进行的操作
+          if (this.isDraggingConnection || this.viewport.isDragging) {
+            return;
+          }
+
+          // 确保不是点击在连接点或控制按钮上
+          if (event.target.closest('.connection-point') ||
+              event.target.closest('.context-level-control') ||
+              event.target.closest('.add-button') ||
+              event.target.closest('.recycle-button') ||
+              event.target.closest('.zoom-controls') ||
+              event.target.closest('.title-container')) {
+            return;
+          }
+
+          event.preventDefault();
+
+          const wall = this.$el;
+          const wallRect = wall.getBoundingClientRect();
+
+          // 转换为世界坐标
+          const screenX = event.clientX - wallRect.left;
+          const screenY = event.clientY - wallRect.top;
+          const worldPos = this.screenToWorld(screenX, screenY);
+
+          // 开始框选
+          this.boxSelection.isSelecting = true;
+          this.boxSelection.toggleMode = event.shiftKey || event.ctrlKey;
+          this.boxSelection.startX = worldPos.x;
+          this.boxSelection.startY = worldPos.y;
+          this.boxSelection.currentX = worldPos.x;
+          this.boxSelection.currentY = worldPos.y;
+
+          // 如果不是切换模式且没有按住 Shift/Ctrl，清空之前的选择
+          if (!this.boxSelection.toggleMode) {
+            this.selectedNoteIds.clear();
+          }
+        }
+      }
+      // 中键（button === 1）：拖动白板
+      else if (event.button === 1) {
         // 确保不是点击在便签或连接点上
         if (event.target.closest('.note') ||
             event.target.closest('.connection-point') ||
@@ -367,8 +489,7 @@ export default {
           return;
         }
 
-        // 如果是左键，阻止默认行为并启动白板拖拽
-        // 如果是中键，preventDefault() 防止滚动
+        // 中键拖动时 preventDefault() 防止滚动
         event.preventDefault();
 
         this.viewport.isDragging = true;
@@ -378,6 +499,25 @@ export default {
     },
     // 白板鼠标移动事件
     onWallMouseMove(event) {
+      // 处理框选
+      if (this.boxSelection.isSelecting) {
+        const wall = this.$el;
+        const wallRect = wall.getBoundingClientRect();
+
+        // 转换为世界坐标
+        const screenX = event.clientX - wallRect.left;
+        const screenY = event.clientY - wallRect.top;
+        const worldPos = this.screenToWorld(screenX, screenY);
+
+        // 更新框选当前点
+        this.boxSelection.currentX = worldPos.x;
+        this.boxSelection.currentY = worldPos.y;
+
+        // 实时计算框选范围内的便签
+        this.updateSelectedNotesInBox();
+        return;
+      }
+
       // 处理便签拖拽
       if (this.draggingNote.isDragging) {
         const wall = this.$el;
@@ -390,11 +530,33 @@ export default {
         // 转换为世界坐标
         const worldPos = this.screenToWorld(screenX, screenY);
 
-        // 更新便签位置（实时）
-        const note = this.notes.find(n => n.id === this.draggingNote.noteId);
-        if (note) {
-          note.position_x = worldPos.x;
-          note.position_y = worldPos.y;
+        // 检查是否拖动选中的便签
+        const isDraggingSelected = this.selectedNoteIds.has(this.draggingNote.noteId);
+
+        if (isDraggingSelected && this.selectedNoteIds.size > 1) {
+          // 拖动多个选中的便签
+          const draggedNote = this.notes.find(n => n.id === this.draggingNote.noteId);
+          if (!draggedNote) return;
+
+          // 计算移动的偏移量
+          const deltaX = worldPos.x - draggedNote.position_x;
+          const deltaY = worldPos.y - draggedNote.position_y;
+
+          // 更新所有选中的便签位置
+          this.selectedNoteIds.forEach(noteId => {
+            const note = this.notes.find(n => n.id === noteId);
+            if (note) {
+              note.position_x += deltaX;
+              note.position_y += deltaY;
+            }
+          });
+        } else {
+          // 拖动单个便签
+          const note = this.notes.find(n => n.id === this.draggingNote.noteId);
+          if (note) {
+            note.position_x = worldPos.x;
+            note.position_y = worldPos.y;
+          }
         }
         return;
       }
@@ -412,18 +574,80 @@ export default {
     },
     // 白板鼠标抬起事件
     onWallMouseUp(event) {
+      // 结束框选
+      if (this.boxSelection.isSelecting) {
+        this.boxSelection.isSelecting = false;
+        this.boxSelection.toggleMode = false;
+        // 记录框选结束时间，防止 click 事件立即清空选择
+        this._lastBoxSelectionTime = Date.now();
+        return;
+      }
+
       // 结束便签拖拽并保存到后端
       if (this.draggingNote.isDragging) {
-        const note = this.notes.find(n => n.id === this.draggingNote.noteId);
-        if (note) {
-          this.saveNotePosition(note.id, note.position_x, note.position_y);
+        const isDraggingSelected = this.selectedNoteIds.has(this.draggingNote.noteId);
+
+        if (isDraggingSelected && this.selectedNoteIds.size > 1) {
+          // 保存所有选中的便签位置
+          this.selectedNoteIds.forEach(noteId => {
+            const note = this.notes.find(n => n.id === noteId);
+            if (note) {
+              this.saveNotePosition(note.id, note.position_x, note.position_y);
+            }
+          });
+        } else {
+          // 保存单个便签位置
+          const note = this.notes.find(n => n.id === this.draggingNote.noteId);
+          if (note) {
+            this.saveNotePosition(note.id, note.position_x, note.position_y);
+          }
         }
+
         this.draggingNote.isDragging = false;
         this.draggingNote.noteId = null;
         return;
       }
 
       // 结束白板平移
+      if (this.viewport.isDragging) {
+        this.viewport.isDragging = false;
+      }
+    },
+    // 全局 mouseup 事件（确保状态总是能被重置，即使鼠标移出白板区域）
+    onGlobalMouseUp(event) {
+      // 重置框选状态
+      if (this.boxSelection.isSelecting) {
+        this.boxSelection.isSelecting = false;
+        this.boxSelection.toggleMode = false;
+        // 记录框选结束时间，防止 click 事件立即清空选择
+        this._lastBoxSelectionTime = Date.now();
+      }
+
+      // 重置便签拖拽状态
+      if (this.draggingNote.isDragging) {
+        const isDraggingSelected = this.selectedNoteIds.has(this.draggingNote.noteId);
+
+        if (isDraggingSelected && this.selectedNoteIds.size > 1) {
+          // 保存所有选中的便签位置
+          this.selectedNoteIds.forEach(noteId => {
+            const note = this.notes.find(n => n.id === noteId);
+            if (note) {
+              this.saveNotePosition(note.id, note.position_x, note.position_y);
+            }
+          });
+        } else {
+          // 保存单个便签位置
+          const note = this.notes.find(n => n.id === this.draggingNote.noteId);
+          if (note) {
+            this.saveNotePosition(note.id, note.position_x, note.position_y);
+          }
+        }
+
+        this.draggingNote.isDragging = false;
+        this.draggingNote.noteId = null;
+      }
+
+      // 重置白板平移状态
       if (this.viewport.isDragging) {
         this.viewport.isDragging = false;
       }
@@ -1002,11 +1226,21 @@ export default {
     },
 
     // 点击白板空白区域处理（取消选择连接线）
-    handleWallClick() {
+    handleWallClick(event) {
       // 只在没有进行平移操作时取消选择
       // 注意：由于 mousedown 中的 preventDefault，平移操作不会触发 click 事件
       // 所以这里可以安全地取消选择
+
+      // 如果刚刚结束框选（在短时间内），不清空选择
+      const now = Date.now();
+      if (this._lastBoxSelectionTime && (now - this._lastBoxSelectionTime < 100)) {
+        this._lastBoxSelectionTime = null;
+        return;
+      }
+
       this.selectedConnectionId = null;
+      // 清空便签选择
+      this.selectedNoteIds.clear();
     },
     // 双击白板空白区域处理（在鼠标位置创建新便签）
     onWallDoubleClick(event) {
@@ -1059,13 +1293,48 @@ export default {
       }
     },
 
-    // 键盘事件处理（Delete键删除连接）
+    // 键盘事件处理（Delete键删除连接或便签，Escape键清空选择）
     onKeyDown(event) {
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (this.selectedConnectionId) {
+        // 优先删除选中的便签
+        if (this.selectedNoteIds.size > 0) {
+          this.deleteSelectedNotes();
+        }
+        // 否则删除选中的连接线
+        else if (this.selectedConnectionId) {
           this.deleteSelectedConnection();
         }
       }
+      // Escape键清空选择
+      else if (event.key === 'Escape') {
+        this.selectedNoteIds.clear();
+        this.selectedConnectionId = null;
+      }
+    },
+
+    // 删除选中的便签
+    async deleteSelectedNotes() {
+      if (this.selectedNoteIds.size === 0) return;
+
+      // 批量删除便签
+      for (const noteId of this.selectedNoteIds) {
+        try {
+          await axios.delete(`/api/notes/${noteId}`);
+        } catch (error) {
+          console.error('Failed to delete note:', error);
+        }
+      }
+
+      // 清空选择
+      this.selectedNoteIds.clear();
+
+      // 重新加载便签和连接
+      await this.loadNotes();
+      await this.loadConnections();
+      await this.loadRecycleNotes();
+
+      // 通知父组件更新白板列表（便签数量变化）
+      this.$emit('note-count-changed');
     },
 
     // 计算连接起点（引出点：便签底部下8px，水平居中）
@@ -1145,6 +1414,69 @@ export default {
       }
       // 确保是整数
       this.contextLevel = Math.round(this.contextLevel);
+    },
+
+    // ========== 框选相关方法 ==========
+
+    // 更新选择框内的便签
+    updateSelectedNotesInBox() {
+      const box = this.getSelectionBoxRect();
+
+      this.notes.forEach(note => {
+        if (this.isNoteInSelectionBox(note, box)) {
+          if (this.boxSelection.toggleMode) {
+            // 切换模式：已选中的取消，未选中的选中
+            if (this.selectedNoteIds.has(note.id)) {
+              this.selectedNoteIds.delete(note.id);
+            } else {
+              this.selectedNoteIds.add(note.id);
+            }
+          } else {
+            // 普通模式：只添加选中
+            this.selectedNoteIds.add(note.id);
+          }
+        }
+      });
+    },
+
+    // 获取选择框的矩形（规范化为左上角和右下角）
+    getSelectionBoxRect() {
+      const x1 = Math.min(this.boxSelection.startX, this.boxSelection.currentX);
+      const y1 = Math.min(this.boxSelection.startY, this.boxSelection.currentY);
+      const x2 = Math.max(this.boxSelection.startX, this.boxSelection.currentX);
+      const y2 = Math.max(this.boxSelection.startY, this.boxSelection.currentY);
+
+      return { x1, y1, x2, y2 };
+    },
+
+    // 判断便签是否在选择框内
+    isNoteInSelectionBox(note, box) {
+      // 便签尺寸（宽度250px，高度需要动态获取）
+      const noteWidth = 250;
+      let noteHeight = 150;
+
+      // 尝试获取便签的实际高度
+      const noteElement = document.querySelector(`.note[data-note-id="${note.id}"]`);
+      if (noteElement) {
+        noteHeight = noteElement.offsetHeight / this.viewport.scale;
+      }
+
+      // 便签的四个角
+      const noteLeft = note.position_x;
+      const noteRight = note.position_x + noteWidth;
+      const noteTop = note.position_y;
+      const noteBottom = note.position_y + noteHeight;
+
+      // 检查便签是否与选择框相交
+      return !(noteRight < box.x1 ||
+               noteLeft > box.x2 ||
+               noteBottom < box.y1 ||
+               noteTop > box.y2);
+    },
+
+    // 清空选择
+    clearSelection() {
+      this.selectedNoteIds.clear();
     }
   }
 };
@@ -1224,6 +1556,15 @@ export default {
   background: #2196f3;
   border-radius: 50%;
   opacity: 0.7;
+}
+
+/* 框选矩形样式 */
+.selection-box {
+  position: absolute;
+  border: 2px dashed #2196f3;
+  background-color: rgba(33, 150, 243, 0.1);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* 连接线层样式 */

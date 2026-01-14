@@ -3,7 +3,8 @@
     class="note"
     :class="{
       generating: isAIGenerating,
-      'highlight-flash': isHighlighting
+      'highlight-flash': isHighlighting,
+      selected: isSelected
     }"
     :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
@@ -131,6 +132,10 @@ export default {
       default: 1
     },
     isHighlighting: {
+      type: Boolean,
+      default: false
+    },
+    isSelected: {
       type: Boolean,
       default: false
     },
@@ -603,6 +608,12 @@ export default {
   50% {
     background: #e3f2fd; /* 回到蓝色 */
   }
+}
+
+/* 选中状态样式 */
+.note.selected {
+  border: 3px solid #2196f3;
+  box-shadow: 0 4px 20px rgba(33, 150, 243, 0.5);
 }
 
 /* 连接点样式 */

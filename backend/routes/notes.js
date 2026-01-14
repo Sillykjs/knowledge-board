@@ -236,9 +236,9 @@ router.delete('/recycle-bin', (req, res) => {
 
 // ============ AI生成路由（必须在 /:id 之前定义）============
 
-// AI生成内容（流式输出）
+// AI生成内容（流式输出，支持推理模型）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt, wall_id, note_id, context_level = 1 } = req.body;
+  const { prompt, wall_id, note_id, context_level = 1, include_reasoning = false } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
@@ -254,6 +254,12 @@ router.post('/ai-generate', async (req, res) => {
     res.status(500).json({ error: 'OPENAI_API_KEY, OPENAI_API_BASE, and OPENAI_MODEL are not configured' });
     return;
   }
+
+  // 检测是否为推理模型
+  const isReasoningModel = include_reasoning && (
+    model?.startsWith('o1') ||
+    model?.startsWith('glm-4.7')
+  );
 
   // 获取白板的 system_prompt
   const boardId = wall_id || 1;
@@ -368,14 +374,24 @@ router.post('/ai-generate', async (req, res) => {
     res.flushHeaders();
 
     try {
+      // 构建请求体
+      const requestBody = {
+        model: model,
+        messages: messages,
+        stream: true  // 启用流式输出
+      };
+
+      // 如果是推理模型，添加reasoning_effort参数
+      if (isReasoningModel) {
+        requestBody.max_completion_tokens = 10000;
+        requestBody.reasoning_effort = 'medium';  // low, medium, high
+      } else {
+        requestBody.temperature = 0.7;
+      }
+
       const response = await axios.post(
         `${apiBase}/chat/completions`,
-        {
-          model: model,
-          messages: messages,
-          temperature: 0.7,
-          stream: true  // 启用流式输出
-        },
+        requestBody,
         {
           headers: {
             'Content-Type': 'application/json',
@@ -384,6 +400,9 @@ router.post('/ai-generate', async (req, res) => {
           responseType: 'stream'  // 接收流式响应
         }
       );
+
+      let hasReasoning = false;
+      let reasoningEnded = false;
 
       // 处理流式数据
       response.data.on('data', (chunk) => {
@@ -401,11 +420,35 @@ router.post('/ai-generate', async (req, res) => {
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
+              const delta = parsed.choices?.[0]?.delta;
 
-              if (content) {
-                // 发送SSE格式的数据
-                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              if (delta) {
+                // 检查reasoning字段（推理模型特有）
+                if (delta.reasoning || delta.reasoning_content) {
+                  const reasoningText = delta.reasoning || delta.reasoning_content || '';
+
+                  // 如果是第一次接收到reasoning，发送开始标记
+                  if (!hasReasoning && reasoningText) {
+                    hasReasoning = true;
+                    res.write(`data: ${JSON.stringify({ content: '<!-- REASONING -->\n' })}\n\n`);
+                  }
+
+                  if (reasoningText) {
+                    res.write(`data: ${JSON.stringify({ content: reasoningText })}\n\n`);
+                  }
+                }
+                // 处理常规content
+                else if (delta.content) {
+                  const content = delta.content;
+
+                  // 如果reasoning结束但还没发送结束标记
+                  if (hasReasoning && !reasoningEnded) {
+                    res.write(`data: ${JSON.stringify({ content: '<!-- END_REASONING -->\n\n' })}\n\n`);
+                    reasoningEnded = true;
+                  }
+
+                  res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                }
               }
             } catch (e) {
               // 忽略解析错误

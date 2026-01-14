@@ -78,6 +78,38 @@
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
+            <!-- Reasoning Callout（仅当有reasoning且非编辑模式时显示） -->
+            <div
+              v-if="parsedReasoning && !editingViewContent"
+              class="reasoning-callout"
+              :class="{ 'collapsed': reasoningCollapsed }"
+            >
+              <div
+                class="reasoning-header"
+                @click="reasoningCollapsed = !reasoningCollapsed"
+              >
+                <div class="reasoning-title">
+                  <svg class="reasoning-icon" viewBox="0 0 16 16">
+                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM7 5h2v2H7V5zm0 4h2v4H7V9z"/>
+                  </svg>
+                  <span>思考过程</span>
+                </div>
+                <svg
+                  class="collapse-icon"
+                  :class="{ 'rotated': !reasoningCollapsed }"
+                  viewBox="0 0 16 16"
+                >
+                  <path d="M4 6l4 4 4-4H4z"/>
+                </svg>
+              </div>
+              <div v-show="!reasoningCollapsed" class="reasoning-content">
+                <div
+                  class="reasoning-text markdown-body"
+                  v-html="renderedReasoning"
+                ></div>
+              </div>
+            </div>
+
             <div
               v-if="!editingViewContent"
               class="view-content markdown-body"
@@ -193,17 +225,68 @@ export default {
       viewEditContent: this.content,  // 查看模态框中编辑的临时内容
       isAIGenerating: false,  // AI生成中
       aiError: null,  // AI错误信息
-      streamingContent: ''  // 流式接收的内容
+      streamingContent: '',  // 流式接收的内容
+      reasoningCollapsed: true  // 思考过程callout折叠状态（默认折叠）
     };
   },
   computed: {
     truncatedContent() {
       return this.content || '';
     },
+    // 解析思考过程内容
+    parsedReasoning() {
+      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
+      if (!contentToParse) return null;
+
+      // 检查是否包含reasoning标记
+      const reasoningStartMatch = contentToParse.match(/<!--\s*REASONING\s*-->/i);
+      const reasoningEndMatch = contentToParse.match(/<!--\s*END_REASONING\s*-->/i);
+
+      if (!reasoningStartMatch || !reasoningEndMatch) return null;
+
+      // 提取reasoning内容
+      const startIndex = reasoningStartMatch.index + reasoningStartMatch[0].length;
+      const endIndex = reasoningEndMatch.index;
+
+      return contentToParse.substring(startIndex, endIndex).trim();
+    },
+    // 解析主要实际内容
+    mainContent() {
+      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
+      if (!contentToParse) return '';
+
+      // 检查是否包含reasoning标记
+      const reasoningEndMatch = contentToParse.match(/<!--\s*END_REASONING\s*-->/i);
+
+      if (!reasoningEndMatch) return contentToParse;
+
+      // 返回reasoning之后的内容
+      return contentToParse.substring(reasoningEndMatch.index + reasoningEndMatch[0].length).trim();
+    },
+    // 渲染思考过程内容
+    renderedReasoning() {
+      const reasoning = this.parsedReasoning;
+      if (!reasoning) return '';
+
+      try {
+        const renderedMarkdown = md.render(reasoning);
+        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
+          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr'],
+          ALLOWED_ATTR: ['href', 'title', 'class'],
+          ALLOW_DATA_ATTR: false
+        });
+        return cleanHtml;
+      } catch (error) {
+        console.error('Reasoning rendering error:', error);
+        return reasoning;
+      }
+    },
     // 渲染 Markdown 内容
     renderedContent() {
-      // 如果正在AI生成，显示流式接收的内容
-      const contentToRender = this.isAIGenerating ? this.streamingContent : this.content;
+      // 使用解析后的主要内容
+      const contentToRender = this.mainContent;
       if (!contentToRender) return '';
       try {
         // 1. 使用 markdown-it 解析 markdown
@@ -505,7 +588,8 @@ export default {
             prompt,
             wall_id: this.wallId,
             note_id: this.id,  // 传递当前便签ID，用于获取引入节点的上下文
-            context_level: this.contextLevel  // 传递上文层数
+            context_level: this.contextLevel,  // 传递上文层数
+            include_reasoning: true  // 请求推理模型的思考过程
           })
         });
 
@@ -1073,6 +1157,142 @@ export default {
 </style>
 
 <style>
+/* Reasoning Callout Styles - GitHub简约灰色风格 */
+.reasoning-callout {
+  margin-bottom: 20px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background-color: #f6f8fa;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.reasoning-callout.collapsed {
+  background-color: #ffffff;
+}
+
+.reasoning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  background-color: #f6f8fa;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.reasoning-callout.collapsed .reasoning-header {
+  border-bottom: none;
+}
+
+.reasoning-header:hover {
+  background-color: #f3f4f6;
+}
+
+.reasoning-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #24292f;
+}
+
+.reasoning-icon {
+  width: 16px;
+  height: 16px;
+  fill: #656d76;
+}
+
+.collapse-icon {
+  width: 16px;
+  height: 16px;
+  fill: #656d76;
+  transition: transform 0.2s ease;
+}
+
+.collapse-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.reasoning-content {
+  padding: 12px 16px;
+  border-top: 1px solid #d0d7de;
+  background-color: #ffffff;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.reasoning-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #656d76;
+}
+
+/* Reasoning Markdown样式 */
+.reasoning-text.markdown-body p {
+  margin-bottom: 8px;
+}
+
+.reasoning-text.markdown-body h1,
+.reasoning-text.markdown-body h2,
+.reasoning-text.markdown-body h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  color: #24292f;
+}
+
+.reasoning-text.markdown-body ul,
+.reasoning-text.markdown-body ol {
+  padding-left: 20px;
+  margin-bottom: 8px;
+}
+
+.reasoning-text.markdown-body code {
+  background-color: #f6f8fa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.reasoning-text.markdown-body pre {
+  background-color: #f6f8fa;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.reasoning-text.markdown-body blockquote {
+  border-left: 3px solid #d0d7de;
+  padding-left: 12px;
+  color: #656d76;
+  margin: 8px 0;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .reasoning-callout {
+    margin-bottom: 16px;
+  }
+
+  .reasoning-header {
+    padding: 10px 12px;
+  }
+
+  .reasoning-content {
+    padding: 10px 12px;
+    max-height: 300px;
+  }
+
+  .reasoning-text {
+    font-size: 12px;
+  }
+}
+
 /* Markdown 样式 - 非scoped以支持v-html渲染 */
 .markdown-body {
   line-height: 1.4;

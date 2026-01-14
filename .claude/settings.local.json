@@ -15,7 +15,8 @@
       "Bash(npm run dev)",
       "mcp__zread__read_file",
       "mcp__zread__get_repo_structure",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "mcp__web-reader__webReader"
     ]
   }
 }

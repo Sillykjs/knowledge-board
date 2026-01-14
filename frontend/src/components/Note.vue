@@ -113,7 +113,7 @@ import DOMPurify from 'dompurify';
 
 // 初始化 markdown-it 实例
 const md = new MarkdownIt({
-  html: false,        // 禁用 HTML 标签（安全考虑）
+  html: true,         // 允许 HTML 标签（通过 DOMPurify 过滤确保安全）
   linkify: true,      // 自动转换 URL 为链接
   typographer: true,  // 启用美化排版
   breaks: true,       // 转换换行符为 <br>

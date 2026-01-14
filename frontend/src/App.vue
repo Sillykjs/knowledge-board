@@ -236,7 +236,7 @@ export default {
 
     createBoard() {
       // 打开创建白板模态框
-      this.newBoardTitle = '新白板';
+      this.newBoardTitle = '新话题';
       this.newBoardSystemPrompt = '你好，我是默认助手。你可以立刻开始跟我聊天';
       this.showCreateBoardModal = true;
     },

@@ -191,9 +191,9 @@ export default {
         const response = await axios.get('/api/notes/boards');
         this.boards = response.data.boards;
 
-        // 如果当前白板不存在，切换到第一个白板
-        if (!this.boards.find(b => b.id === this.currentBoardId)) {
-          this.currentBoardId = this.boards[0]?.id || 1;
+        // 自动切换到第一个白板（最新修改的白板）
+        if (this.boards.length > 0) {
+          this.currentBoardId = this.boards[0].id;
         }
       } catch (error) {
         console.error('Failed to load boards:', error);

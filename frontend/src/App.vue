@@ -9,41 +9,52 @@
 
       <!-- 白板列表 -->
       <div class="board-list">
-        <div
-          v-for="board in boards"
-          :key="board.id"
-          :class="['board-item', { active: currentBoardId === board.id }]"
-          @click="switchBoard(board.id)"
+        <draggable
+          v-model="boards"
+          item-key="id"
+          :disabled="sidebarCollapsed"
+          ghost-class="ghost-board"
+          drag-class="dragging-board"
+          animation="300"
+          @end="onDragEnd"
         >
-          <!-- 展开状态：显示完整信息 -->
-          <template v-if="!sidebarCollapsed">
-            <span class="board-title">{{ board.title }}</span>
-            <div class="board-actions">
-              <span v-if="board.note_count > 0" class="board-badge">
-                {{ board.note_count }}
-              </span>
-              <button
-                v-if="boards.length > 1"
-                class="board-delete"
-                @click.stop="askDeleteBoard(board.id)"
-                :disabled="board.id === 1"
-                :title="board.id === 1 ? '默认白板不能删除' : '删除白板'"
-              >
-                🗑️
-              </button>
-            </div>
-          </template>
+          <template #item="{ element: board }">
+            <div
+              :class="['board-item', { active: currentBoardId === board.id }]"
+              @click="switchBoard(board.id)"
+            >
+              <!-- 展开状态：显示完整信息 -->
+              <template v-if="!sidebarCollapsed">
+                <span class="drag-handle">⋮⋮</span>
+                <span class="board-title">{{ board.title }}</span>
+                <div class="board-actions">
+                  <span v-if="board.note_count > 0" class="board-badge">
+                    {{ board.note_count }}
+                  </span>
+                  <button
+                    v-if="boards.length > 1"
+                    class="board-delete"
+                    @click.stop="askDeleteBoard(board.id)"
+                    :disabled="board.id === 1"
+                    :title="board.id === 1 ? '默认白板不能删除' : '删除白板'"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </template>
 
-          <!-- 收起状态：只显示图标 -->
-          <template v-else>
-            <div class="board-icon">
-              {{ currentBoardId === board.id ? '📌' : '📄' }}
-              <span v-if="board.note_count > 0" class="board-badge-mini">
-                {{ board.note_count }}
-              </span>
+              <!-- 收起状态：只显示图标 -->
+              <template v-else>
+                <div class="board-icon">
+                  {{ currentBoardId === board.id ? '📌' : '📄' }}
+                  <span v-if="board.note_count > 0" class="board-badge-mini">
+                    {{ board.note_count }}
+                  </span>
+                </div>
+              </template>
             </div>
           </template>
-        </div>
+        </draggable>
       </div>
 
       <!-- 新建白板按钮 -->
@@ -127,11 +138,13 @@
 <script>
 import axios from 'axios';
 import NoteWall from './components/NoteWall.vue';
+import draggable from 'vuedraggable';
 
 export default {
   name: 'App',
   components: {
-    NoteWall
+    NoteWall,
+    draggable
   },
   data() {
     return {
@@ -296,6 +309,24 @@ export default {
     async onNoteCountChanged() {
       // 当便签数量变化时，重新加载白板列表以更新 note_count
       await this.loadBoards();
+    },
+
+    // 拖拽结束时保存排序
+    async onDragEnd() {
+      // 保存新的排序到后端
+      const boardOrders = this.boards.map((board, index) => ({
+        id: board.id,
+        sort_order: index
+      }));
+
+      try {
+        await axios.put('/api/notes/boards/reorder', { boardOrders });
+        console.log('Board order saved successfully');
+      } catch (error) {
+        console.error('Failed to save board order:', error);
+        // 失败时重新加载数据
+        await this.loadBoards();
+      }
     }
   }
 };
@@ -365,10 +396,10 @@ body {
 .board-list {
   flex: 1;
   overflow-y: auto;
-  padding: 60px 10px 10px 10px;
+  padding: 60px 16px 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  position: relative;
 }
 
 .board-list::-webkit-scrollbar {
@@ -391,15 +422,17 @@ body {
   padding: 12px 16px;
   background: #f5f5f5;
   border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
+  cursor: grab;
   user-select: none;
   border: 2px solid transparent;
+  position: relative;
+  margin-bottom: 8px;
+  width: 100%;
+  transition: all 0.2s;
 }
 
 .board-item:hover {
   background: #e8e8e8;
-  transform: translateX(2px);
 }
 
 .board-item.active {
@@ -407,6 +440,62 @@ body {
   border-color: #2196F3;
   font-weight: bold;
   box-shadow: 0 2px 6px rgba(33, 150, 243, 0.2);
+  cursor: pointer;
+}
+
+.board-item:active {
+  cursor: grabbing;
+}
+
+/* VueDraggable 拖拽样式 */
+.ghost-board {
+  opacity: 0.4;
+  background: #e3f2fd;
+  border: 2px dashed #2196F3;
+}
+
+.dragging-board {
+  opacity: 1;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.drag-handle {
+  color: #999;
+  cursor: grab;
+  margin-right: 8px;
+  user-select: none;
+  opacity: 0.4;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.drag-handle svg {
+  display: block;
+}
+
+.board-item:hover .drag-handle {
+  opacity: 0.8;
+  color: #666;
+  background: rgba(0, 0, 0, 0.05);
+  transform: scale(1.1);
+}
+
+.board-item.dragging .drag-handle {
+  opacity: 1;
+  color: #2196F3;
+  background: rgba(33, 150, 243, 0.1);
+  transform: scale(1.15);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .board-title {

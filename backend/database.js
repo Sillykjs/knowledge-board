@@ -125,6 +125,7 @@ function initDb() {
   migrateNotesToBoards();
   migrateConnectionsToBoards();
   migrateBoardsRemarkToSystemPrompt();
+  migrateBoardsSortOrder();
 }
 
 // ========== 多白板功能迁移函数 ==========
@@ -373,6 +374,44 @@ function migrateBoardsRemarkToSystemPromptTraditional() {
         });
       });
     });
+  });
+}
+
+// 为 boards 表添加 sort_order 字段用于自定义排序
+function migrateBoardsSortOrder() {
+  // 检查 boards 表是否有 sort_order 字段
+  db.all("PRAGMA table_info(boards)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking boards table:', err.message);
+      return;
+    }
+
+    const hasSortOrder = columns.some(col => col.name === 'sort_order');
+    if (hasSortOrder) {
+      console.log('boards table already has sort_order column');
+      return;
+    }
+
+    // 添加 sort_order 字段
+    db.run(
+      "ALTER TABLE boards ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+      (err) => {
+        if (err) {
+          console.error('Error adding sort_order to boards:', err.message);
+        } else {
+          console.log('Migration completed: added sort_order column to boards');
+
+          // 为现有白板根据 id 设置初始 sort_order
+          db.run(
+            "UPDATE boards SET sort_order = id WHERE sort_order = 0",
+            (err) => {
+              if (err) console.error('Error initializing sort_order:', err.message);
+              else console.log('sort_order initialized for existing boards');
+            }
+          );
+        }
+      }
+    );
   });
 }
 

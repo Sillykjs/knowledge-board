@@ -5,12 +5,12 @@ const db = require('../database');
 // 获取所有白板
 router.get('/', (req, res) => {
   const sql = `
-    SELECT b.id, b.title, b.system_prompt, b.created_at, b.updated_at,
+    SELECT b.id, b.title, b.system_prompt, b.created_at, b.updated_at, b.sort_order,
            COUNT(DISTINCT n.id) as note_count
     FROM boards b
     LEFT JOIN notes n ON b.id = n.wall_id AND n.deleted_at IS NULL
     GROUP BY b.id
-    ORDER BY b.updated_at DESC
+    ORDER BY b.sort_order ASC
   `;
 
   db.all(sql, [], (err, rows) => {
@@ -50,6 +50,53 @@ router.post('/', (req, res) => {
         system_prompt,
         note_count: 0
       }
+    });
+  });
+});
+
+// 批量更新白板排序（必须在 /:id 之前）
+router.put('/reorder', (req, res) => {
+  const { boardOrders } = req.body; // boardOrders: [{ id: 1, sort_order: 0 }, { id: 2, sort_order: 1 }, ...]
+
+  if (!Array.isArray(boardOrders)) {
+    res.status(400).json({ error: 'boardOrders must be an array' });
+    return;
+  }
+
+  // 使用事务批量更新
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    const updateStmt = db.prepare('UPDATE boards SET sort_order = ? WHERE id = ?');
+
+    let completed = 0;
+    let hasError = false;
+
+    boardOrders.forEach(item => {
+      updateStmt.run(item.sort_order, item.id, function(err) {
+        if (err) {
+          hasError = true;
+          console.error('Error updating board sort_order:', err.message);
+        }
+        completed++;
+
+        if (completed === boardOrders.length) {
+          updateStmt.finalize();
+
+          if (hasError) {
+            db.run('ROLLBACK');
+            res.status(500).json({ error: 'Failed to update some boards' });
+          } else {
+            db.run('COMMIT', (err) => {
+              if (err) {
+                res.status(500).json({ error: err.message });
+              } else {
+                res.json({ message: 'Boards reordered successfully' });
+              }
+            });
+          }
+        }
+      });
     });
   });
 });

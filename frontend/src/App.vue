@@ -89,6 +89,7 @@
         :board-id="currentBoardId"
         :board-title="currentBoard?.title"
         :board-system-prompt="currentBoard?.system_prompt"
+        :current-model-name="currentModelName"
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
         @note-count-changed="onNoteCountChanged"
@@ -252,7 +253,8 @@ export default {
       modelsJson: '', // 模型配置 JSON 字符串
       parsedModels: [], // 解析后的模型列表
       selectedProvider: '', // 选中的厂商
-      selectedModelFromList: '' // 从列表中选中的模型
+      selectedModelFromList: '', // 从列表中选中的模型
+      currentModelName: 'AI' // 当前选择的模型名称（响应式）
     };
   },
   computed: {
@@ -282,6 +284,7 @@ export default {
     await this.loadBoards();
     this.loadModelConfig();
     this.loadModelsJson();
+    this.loadCurrentModelName();
   },
   watch: {
     showCreateBoardModal(newVal) {
@@ -440,6 +443,17 @@ export default {
       // 只是保留接口以避免错误
     },
 
+    // 加载当前模型名称
+    loadCurrentModelName() {
+      const lastUsedModel = localStorage.getItem('lastUsedModel');
+      if (lastUsedModel) {
+        const parts = lastUsedModel.split('|');
+        if (parts.length === 2) {
+          this.currentModelName = parts[1]; // 设置当前模型名称
+        }
+      }
+    },
+
     openModelModal() {
       this.showModelModal = true;
       this.selectedProvider = '';
@@ -570,6 +584,9 @@ export default {
       // 保存最后使用的厂商和模型
       const key = `${this.selectedProvider}|${this.selectedModelFromList}`;
       localStorage.setItem('lastUsedModel', key);
+
+      // 更新当前模型名称（响应式更新）
+      this.currentModelName = this.selectedModelFromList;
 
       this.showModelModal = false;
       console.log('已切换到模型:', key);

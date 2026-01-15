@@ -89,6 +89,7 @@
         :isHighlighting="highlightedNoteIds.has(note.id)"
         :isSelected="selectedNoteIds.has(note.id)"
         :contextLevel="contextLevel"
+        :currentModelName="currentModelName"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
@@ -247,6 +248,10 @@ export default {
     boardSystemPrompt: {
       type: String,
       default: '你是默认助手，回答用户的问题'
+    },
+    currentModelName: {
+      type: String,
+      default: 'AI'
     }
   },
   data() {

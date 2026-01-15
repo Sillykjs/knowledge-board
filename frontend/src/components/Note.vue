@@ -128,7 +128,7 @@
           <div class="view-footer">
             <button class="btn-ai-generate" @click="generateAIContent" :disabled="isAIGenerating">
               <span class="ai-icon">{{ isAIGenerating ? '⏳' : '🤖' }}</span>
-              <span>{{ isAIGenerating ? '生成中...' : 'AI 生成内容' }}</span>
+              <span>{{ isAIGenerating ? '生成中...' : `${currentModelName} 生成内容` }}</span>
             </button>
             <div v-if="aiError" class="ai-error">{{ aiError }}</div>
           </div>
@@ -208,6 +208,10 @@ export default {
     contextLevel: {
       type: Number,
       default: 1
+    },
+    currentModelName: {
+      type: String,
+      default: 'AI'
     }
   },
   data() {

@@ -788,7 +788,8 @@ export default {
           wall_id: this.boardId
         });
 
-        this.notes.push(response.data.note);
+        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
+        this.notes.unshift(response.data.note);
 
         // 通知父组件便签列表已更新
         this.$emit('notes-loaded', this.notes);
@@ -861,7 +862,8 @@ export default {
           wall_id: this.boardId
         });
 
-        this.notes.push(response.data.note);
+        // 将复制的便签添加到数组开头（确保在便签索引中显示在最上面）
+        this.notes.unshift(response.data.note);
 
         // 通知父组件便签列表已更新
         this.$emit('notes-loaded', this.notes);
@@ -1231,8 +1233,8 @@ export default {
         const newNote = response.data.note;
         const newNoteId = newNote.id;
 
-        // 立即将新便签添加到本地数组（避免连接线闪烁到原点）
-        this.notes.push(newNote);
+        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
+        this.notes.unshift(newNote);
 
         // 创建连接
         await this.createConnection(sourceId, newNoteId);
@@ -1285,8 +1287,8 @@ export default {
         const newNote = response.data.note;
         const newNoteId = newNote.id;
 
-        // 立即将新便签添加到本地数组（避免连接线闪烁到原点）
-        this.notes.push(newNote);
+        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
+        this.notes.unshift(newNote);
 
         // 创建连接
         await this.createConnection(noteId, newNoteId);

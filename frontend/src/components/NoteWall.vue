@@ -1228,13 +1228,22 @@ export default {
           wall_id: this.boardId
         });
 
-        const newNoteId = response.data.note.id;
+        const newNote = response.data.note;
+        const newNoteId = newNote.id;
+
+        // 立即将新便签添加到本地数组（避免连接线闪烁到原点）
+        this.notes.push(newNote);
 
         // 创建连接
         await this.createConnection(sourceId, newNoteId);
 
-        // 重新加载便签列表
-        await this.loadNotes();
+        // 重新加载连接列表
+        await this.loadConnections();
+
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
       } catch (error) {
         console.error('Failed to create note and connect:', error);
         alert('创建便签失败: ' + (error.response?.data?.error || error.message));

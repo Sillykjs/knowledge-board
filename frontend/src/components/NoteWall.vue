@@ -1703,8 +1703,8 @@ export default {
   image-rendering: -webkit-optimize-contrast;
   /* 强制使用 sub-pixel 渲染 */
   text-rendering: optimizeLegibility;
-  /* 关键：添加平滑过渡，强制浏览器使用高质量渲染路径重新光栅化 */
-  transition: transform 0.15s ease-out;
+  /* 关键：使用极短过渡触发高质量渲染，50ms 几乎无感知但能解决模糊 */
+  transition: transform 0.05s linear;
 }
 
 /* 平滑过渡动画（跳转时使用更长的过渡时间） */

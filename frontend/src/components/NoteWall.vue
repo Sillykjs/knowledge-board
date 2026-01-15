@@ -755,6 +755,8 @@ export default {
           params: { wall_id: this.boardId }
         });
         this.notes = response.data.notes;
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
       } catch (error) {
         console.error('Failed to load notes:', error);
       }
@@ -773,6 +775,8 @@ export default {
 
         this.notes.push(response.data.note);
 
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
         // 通知父组件更新白板列表（便签数量变化）
         this.$emit('note-count-changed');
       } catch (error) {
@@ -811,6 +815,8 @@ export default {
         this.notes.splice(index, 1, { ...updatedNote });
         // 强制连接线重新计算（通过重新触发响应式更新）
         this.$forceUpdate();
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
       }
     },
     async onNoteDelete(noteId) {
@@ -820,6 +826,8 @@ export default {
       this.notes = this.notes.filter(n => n.id !== noteId);
       this.loadRecycleNotes();
 
+      // 通知父组件便签列表已更新
+      this.$emit('notes-loaded', this.notes);
       // 通知父组件更新白板列表（便签数量变化）
       this.$emit('note-count-changed');
     },
@@ -840,6 +848,8 @@ export default {
 
         this.notes.push(response.data.note);
 
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
         // 通知父组件更新白板列表（便签数量变化）
         this.$emit('note-count-changed');
       } catch (error) {
@@ -1260,6 +1270,8 @@ export default {
         // 重新加载连接列表
         await this.loadConnections();
 
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
         // 通知父组件更新白板列表（便签数量变化）
         this.$emit('note-count-changed');
       } catch (error) {
@@ -1580,6 +1592,49 @@ export default {
           console.log('模型已切换到:', provider, '-', modelName);
         }
       }
+    },
+
+    // ========== 供 App.vue 调用的方法 ==========
+
+    // 跳转到指定便签
+    jumpToNote(note) {
+      // 获取便签的实际尺寸
+      const noteElement = document.querySelector(`.note[data-note-id="${note.id}"]`);
+      let noteHeight = 150; // 默认高度
+      let noteWidth = 250;
+
+      if (noteElement) {
+        noteHeight = noteElement.offsetHeight / this.viewport.scale;
+        noteWidth = noteElement.offsetWidth / this.viewport.scale;
+      }
+
+      // 计算便签中心的世界坐标
+      const noteCenterX = note.position_x + noteWidth / 2;
+      const noteCenterY = note.position_y + noteHeight / 2;
+
+      // 计算目标平移量，使便签中心位于屏幕中心
+      // 屏幕中心坐标
+      const wallRect = this.$el.getBoundingClientRect();
+      const screenCenterX = wallRect.width / 2;
+      const screenCenterY = wallRect.height / 2;
+
+      // 反向计算平移量：screenCenter = worldPos * scale + translate
+      // => translate = screenCenter - worldPos * scale
+      this.viewport.translateX = screenCenterX - noteCenterX * this.viewport.scale;
+      this.viewport.translateY = screenCenterY - noteCenterY * this.viewport.scale;
+
+      // 高亮该便签2秒
+      this.highlightedNoteIds.clear();
+      this.highlightedNoteIds.add(note.id);
+
+      if (this.highlightTimer) {
+        clearTimeout(this.highlightTimer);
+      }
+
+      this.highlightTimer = setTimeout(() => {
+        this.highlightedNoteIds.clear();
+        this.highlightTimer = null;
+      }, 2000);
     }
   }
 };

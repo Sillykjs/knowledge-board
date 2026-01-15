@@ -94,8 +94,42 @@
         @board-updated="onBoardUpdated"
         @note-count-changed="onNoteCountChanged"
         @model-changed="onModelChanged"
+        @notes-loaded="onNotesLoaded"
       />
     </main>
+
+    <!-- 右侧便签索引边栏 -->
+    <aside class="right-sidebar" :class="{ collapsed: rightSidebarCollapsed }">
+      <!-- 便签列表 -->
+      <div class="notes-index" v-if="!rightSidebarCollapsed">
+        <div class="notes-index-header">
+          <h3>便签索引</h3>
+          <span class="notes-count">{{ sortedNotes.length }}</span>
+        </div>
+
+        <div class="notes-list">
+          <div
+            v-for="note in sortedNotes"
+            :key="note.id"
+            class="note-index-item"
+            @click="jumpToNote(note)"
+            :title="note.title"
+          >
+            <span class="note-index-title">{{ note.title }}</span>
+            <span class="note-index-time">{{ formatNoteTime(note.created_at) }}</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧边栏切换按钮 -->
+    <button
+      class="right-sidebar-toggle"
+      @click="toggleRightSidebar"
+      :title="rightSidebarCollapsed ? '展开便签索引' : '收起便签索引'"
+    >
+      {{ rightSidebarCollapsed ? '◀' : '▶' }}
+    </button>
 
     <!-- 删除白板确认模态框 -->
     <Teleport to="body">
@@ -202,7 +236,9 @@ export default {
       showEditJsonModal: false, // 控制编辑 JSON 模态框显示
       modelsJson: '', // 模型配置 JSON 字符串
       parsedModels: [], // 解析后的模型列表
-      currentModelName: 'AI' // 当前选择的模型名称（响应式）
+      currentModelName: 'AI', // 当前选择的模型名称（响应式）
+      rightSidebarCollapsed: true, // 右侧边栏是否收起
+      currentNotes: [] // 当前白板的便签列表（用于右侧索引）
     };
   },
   computed: {
@@ -219,8 +255,20 @@ export default {
     },
     mainContentStyle() {
       return {
-        marginLeft: this.sidebarCollapsed ? `${this.collapsedWidth}px` : `${this.sidebarWidth}px`
+        marginLeft: this.sidebarCollapsed ? `${this.collapsedWidth}px` : `${this.sidebarWidth}px`,
+        marginRight: this.rightSidebarCollapsed ? '0' : '300px'
       };
+    },
+    // 获取当前白板的便签列表（按创建时间排序）
+    sortedNotes() {
+      if (!this.currentNotes || this.currentNotes.length === 0) {
+        return [];
+      }
+      return [...this.currentNotes].sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB - dateA; // 降序，新的在前
+      });
     }
   },
   async mounted() {
@@ -359,6 +407,11 @@ export default {
     async onNoteCountChanged() {
       // 当便签数量变化时，重新加载白板列表以更新 note_count
       await this.loadBoards();
+    },
+
+    // 便签列表加载完成
+    onNotesLoaded(notes) {
+      this.currentNotes = notes;
     },
 
     // 拖拽结束时保存排序
@@ -509,6 +562,42 @@ export default {
       // 更新当前模型名称（响应式更新）
       this.currentModelName = modelData.model;
       console.log('App.vue: 模型已切换到', modelData.provider, '-', modelData.model);
+    },
+
+    // ========== 右侧边栏相关方法 ==========
+
+    // 切换右侧边栏展开/收起
+    toggleRightSidebar() {
+      this.rightSidebarCollapsed = !this.rightSidebarCollapsed;
+    },
+
+    // 跳转到指定便签
+    jumpToNote(note) {
+      if (this.$refs.noteWall && this.$refs.noteWall.jumpToNote) {
+        this.$refs.noteWall.jumpToNote(note);
+      }
+    },
+
+    // 格式化便签创建时间
+    formatNoteTime(createdAt) {
+      const date = new Date(createdAt);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return '刚刚';
+      if (diffMins < 60) return `${diffMins}分钟前`;
+      if (diffHours < 24) return `${diffHours}小时前`;
+      if (diffDays < 7) return `${diffDays}天前`;
+
+      return date.toLocaleDateString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
   }
 };
@@ -1046,5 +1135,143 @@ body {
   color: #ff9800 !important;
   font-weight: 500;
   margin-top: 8px !important;
+}
+
+/* ========== 右侧边栏样式 ========== */
+
+.right-sidebar {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  background: white;
+  border-left: 2px solid #e0e0e0;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease;
+  overflow: hidden;
+}
+
+.right-sidebar.collapsed {
+  transform: translateX(100%);
+}
+
+.right-sidebar-toggle {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 60px;
+  background: #2196F3;
+  border: 2px solid white;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+  font-size: 16px;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1501;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.right-sidebar-toggle:hover {
+  background: #1976D2;
+  width: 36px;
+  box-shadow: -3px 0 12px rgba(33, 150, 243, 0.4);
+}
+
+.notes-index {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 60px 16px 16px 16px;
+}
+
+.notes-index-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.notes-index-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+}
+
+.notes-count {
+  background: #2196F3;
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.notes-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notes-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notes-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 2px;
+}
+
+.notes-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.note-index-item {
+  padding: 12px 16px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-index-item:hover {
+  background: #f0f0f0;
+  border-color: #2196F3;
+  transform: translateX(-2px);
+  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.2);
+}
+
+.note-index-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-index-time {
+  font-size: 12px;
+  color: #999;
 }
 </style>

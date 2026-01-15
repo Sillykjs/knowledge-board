@@ -166,18 +166,29 @@ md.use(tm, {
   }
 });
 
-// 添加对 \( \) 和 \[ \] 语法的支持
+// 添加对 \( \) 和 \[ \] 语法的支持，并标准化 $ 分隔符格式
 // 在 markdown-it 渲染前预处理文本
 const originalRender = md.render.bind(md);
 md.render = function(text, env) {
-  // 替换 \( ... \) 为 $...$ （行内公式）
+  // 替换 \( ... \) 为 $...$ （行内公式），去除内部空格
   text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
-    return `$${formula}$`;
+    return `$${formula.trim()}$`;
   });
 
-  // 替换 \[ ... \] 为 $$...$$ （块级公式）
+  // 替换 \[ ... \] 为 $$...$$ （块级公式），去除内部空格
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
-    return `$$${formula}$$`;
+    return `$$${formula.trim()}$$`;
+  });
+
+  // 标准化已有的 $ 分隔符格式，去除 $ 和公式内容之间的空格
+  // 块级公式：$$ ... $$ (支持跨行) -> $$...$$
+  text = text.replace(/\$\$\s+([\s\S]*?)\s+\$\$/g, (match, formula) => {
+    return `$$${formula.trim()}$$`;
+  });
+
+  // 行内公式：$ ... $ (不包含 $$) -> $...$
+  text = text.replace(/\$\s+([^\$]+?)\s+\$/g, (match, formula) => {
+    return `$${formula.trim()}$`;
   });
 
   return originalRender(text, env);

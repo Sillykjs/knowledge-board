@@ -580,7 +580,10 @@ export default {
 
     // 格式化便签创建时间
     formatNoteTime(createdAt) {
-      const date = new Date(createdAt);
+      // SQLite 返回的时间格式为 "YYYY-MM-DD HH:MM:SS"，这是 UTC 时间
+      // 需要将其转换为 ISO 8601 格式（带 Z 后缀）以便 JavaScript 正确解析为 UTC
+      const utcDateString = createdAt.replace(' ', 'T') + 'Z';
+      const date = new Date(utcDateString);
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);

@@ -57,11 +57,11 @@
         </draggable>
       </div>
 
-      <!-- 切换模型按钮 -->
-      <button class="model-button" @click="openModelModal" :title="sidebarCollapsed ? '切换模型' : ''">
+      <!-- 模型管理按钮 -->
+      <button class="model-button" @click="openEditJsonModal" :title="sidebarCollapsed ? '模型管理' : ''">
         <template v-if="!sidebarCollapsed">
           <span class="model-icon">🤖</span>
-          <span class="model-text">切换模型</span>
+          <span class="model-text">模型管理</span>
         </template>
         <template v-else>
           <span class="model-icon">🤖</span>
@@ -93,6 +93,7 @@
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
         @note-count-changed="onNoteCountChanged"
+        @model-changed="onModelChanged"
       />
     </main>
 
@@ -145,58 +146,13 @@
       </div>
     </Teleport>
 
-    <!-- 切换模型模态框 -->
-    <Teleport to="body">
-      <div v-if="showModelModal" class="modal-overlay" @click="cancelModelModal">
-        <div class="modal-content" @click.stop>
-          <h3>切换模型</h3>
-          <p class="model-hint">💡 选择厂商和模型，配置将从 JSON 中自动加载</p>
-
-          <!-- 厂商选择 -->
-          <div class="form-group">
-            <label class="form-label">厂商</label>
-            <select v-model="selectedProvider" @change="onProviderChange" class="form-select">
-              <option value="">请选择厂商</option>
-              <option v-for="provider in parsedModels" :key="provider.provider" :value="provider.provider">
-                {{ provider.provider }}
-              </option>
-            </select>
-          </div>
-
-          <!-- 模型选择 -->
-          <div class="form-group" v-if="selectedProvider && currentProviderModels.length > 0">
-            <label class="form-label">模型</label>
-            <select v-model="selectedModelFromList" @change="onModelFromListChange" class="form-select">
-              <option value="">请选择模型</option>
-              <option v-for="model in currentProviderModels" :key="model" :value="model">
-                {{ model }}
-              </option>
-            </select>
-          </div>
-
-          <!-- 当前配置预览 -->
-          <div v-if="selectedProvider && selectedModelFromList" class="config-preview">
-            <p><strong>API Base:</strong> {{ modelConfig.apiBase }}</p>
-            <p><strong>API Key:</strong> {{ modelConfig.apiKey ? '已配置 (' + modelConfig.apiKey.slice(0, 8) + '...)' : '未配置' }}</p>
-            <p v-if="!modelConfig.apiKey" class="warning-text">⚠️ 请在"编辑模型列表"中配置 API Key</p>
-          </div>
-
-          <div class="modal-buttons">
-            <button @click="openEditJsonModal" class="btn-secondary">编辑模型列表</button>
-            <button @click="cancelModelModal" class="btn-cancel">取消</button>
-            <button @click="confirmModelModal" class="btn-confirm">确认切换</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
     <!-- 编辑模型 JSON 模态框 -->
     <Teleport to="body">
       <div v-if="showEditJsonModal" class="modal-overlay" @click="cancelEditJson">
         <div class="modal-content modal-content-large" @click.stop>
-          <h3>编辑模型配置 (JSON)</h3>
+          <h3>模型管理</h3>
           <p class="model-hint">
-            💡 在此编辑所有模型的配置。apiKey 为该厂商的统一密钥，所有模型共享。
+            💡 在此配置 AI 模型。切换模型请使用白板底部的模型选择器。
             <br>格式: [{"provider":"厂商名","apiBase":"API地址","apiKey":"密钥","models":["模型1","模型2"]}]
           </p>
           <div class="form-group">
@@ -243,17 +199,9 @@ export default {
       showCreateBoardModal: false, // 控制创建白板模态框显示
       newBoardTitle: '', // 新白板标题
       newBoardSystemPrompt: '', // 新白板系统提示词
-      showModelModal: false, // 控制模型切换模态框显示
-      modelConfig: { // 当前使用的模型配置
-        apiBase: '',
-        apiKey: '',
-        model: ''
-      },
       showEditJsonModal: false, // 控制编辑 JSON 模态框显示
       modelsJson: '', // 模型配置 JSON 字符串
       parsedModels: [], // 解析后的模型列表
-      selectedProvider: '', // 选中的厂商
-      selectedModelFromList: '', // 从列表中选中的模型
       currentModelName: 'AI' // 当前选择的模型名称（响应式）
     };
   },
@@ -263,11 +211,6 @@ export default {
     },
     pendingDeleteBoard() {
       return this.boards.find(b => b.id === this.pendingDeleteBoardId);
-    },
-    currentProviderModels() {
-      if (!this.selectedProvider || !this.parsedModels.length) return [];
-      const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
-      return provider?.models || [];
     },
     sidebarStyle() {
       return {
@@ -282,7 +225,6 @@ export default {
   },
   async mounted() {
     await this.loadBoards();
-    this.loadModelConfig();
     this.loadModelsJson();
     this.loadCurrentModelName();
   },
@@ -438,10 +380,6 @@ export default {
     },
 
     // 模型配置相关方法
-    loadModelConfig() {
-      // 这个方法现在不需要做太多，因为配置都是从 JSON 读取
-      // 只是保留接口以避免错误
-    },
 
     // 加载当前模型名称
     loadCurrentModelName() {
@@ -452,40 +390,6 @@ export default {
           this.currentModelName = parts[1]; // 设置当前模型名称
         }
       }
-    },
-
-    openModelModal() {
-      this.showModelModal = true;
-      this.selectedProvider = '';
-      this.selectedModelFromList = '';
-
-      // 加载上次使用的厂商和模型
-      const lastUsedModel = localStorage.getItem('lastUsedModel');
-      if (lastUsedModel) {
-        const parts = lastUsedModel.split('|');
-        if (parts.length === 2) {
-          this.selectedProvider = parts[0];
-          this.selectedModelFromList = parts[1];
-
-          // 从 JSON 配置中加载
-          const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
-          if (provider) {
-            this.modelConfig = {
-              apiBase: provider.apiBase,
-              apiKey: provider.apiKey || '',
-              model: this.selectedModelFromList
-            };
-          }
-        }
-      } else {
-        this.modelConfig = { apiBase: '', apiKey: '', model: '' };
-      }
-    },
-
-    cancelModelModal() {
-      this.showModelModal = false;
-      this.selectedProvider = '';
-      this.selectedModelFromList = '';
     },
 
     // 加载模型 JSON 配置
@@ -548,50 +452,6 @@ export default {
       this.showEditJsonModal = true;
     },
 
-    // 厂商改变事件
-    onProviderChange() {
-      this.selectedModelFromList = '';
-      if (this.selectedProvider) {
-        const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
-        if (provider) {
-          // 直接从 JSON 配置中读取
-          this.modelConfig.apiBase = provider.apiBase;
-          this.modelConfig.apiKey = provider.apiKey || '';
-          this.modelConfig.model = '';
-        }
-      }
-    },
-
-    // 从列表选择模型
-    onModelFromListChange() {
-      if (this.selectedModelFromList) {
-        this.modelConfig.model = this.selectedModelFromList;
-        // API Base 和 API Key 已在厂商选择时设置
-      }
-    },
-
-    confirmModelModal() {
-      if (!this.selectedProvider || !this.selectedModelFromList) {
-        alert('请选择厂商和模型');
-        return;
-      }
-
-      if (!this.modelConfig.apiBase || !this.modelConfig.model) {
-        alert('配置不完整，请检查 JSON 配置');
-        return;
-      }
-
-      // 保存最后使用的厂商和模型
-      const key = `${this.selectedProvider}|${this.selectedModelFromList}`;
-      localStorage.setItem('lastUsedModel', key);
-
-      // 更新当前模型名称（响应式更新）
-      this.currentModelName = this.selectedModelFromList;
-
-      this.showModelModal = false;
-      console.log('已切换到模型:', key);
-    },
-
     // 格式化 JSON
     formatJson() {
       try {
@@ -623,10 +483,13 @@ export default {
         localStorage.setItem('modelsJson', this.modelsJson);
         this.parseModelsJson();
 
+        // 通知 NoteWall 重新加载模型配置
+        if (this.$refs.noteWall && this.$refs.noteWall.loadModelConfig) {
+          this.$refs.noteWall.loadModelConfig();
+        }
+
         // 关闭模态框
         this.showEditJsonModal = false;
-        this.selectedProvider = '';
-        this.selectedModelFromList = '';
 
         alert('模型配置已保存');
       } catch (e) {
@@ -639,6 +502,13 @@ export default {
       this.showEditJsonModal = false;
       // 重新加载原来的配置
       this.loadModelsJson();
+    },
+
+    // 模型切换事件（来自 NoteWall 的快速选择器）
+    onModelChanged(modelData) {
+      // 更新当前模型名称（响应式更新）
+      this.currentModelName = modelData.model;
+      console.log('App.vue: 模型已切换到', modelData.provider, '-', modelData.model);
     }
   }
 };

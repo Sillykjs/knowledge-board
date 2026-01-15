@@ -126,6 +126,28 @@
       <span v-if="recycleCount > 0" class="recycle-count">{{ recycleCount }}</span>
     </button>
 
+    <!-- 模型快速选择框 -->
+    <div class="model-selector">
+      <span class="model-label">🤖 模型</span>
+      <select
+        v-model="selectedModel"
+        @change="onModelChange"
+        class="model-select"
+        title="选择 AI 模型"
+      >
+        <option value="">请选择模型</option>
+        <optgroup v-for="provider in availableModels" :key="provider.provider" :label="provider.provider">
+          <option
+            v-for="model in provider.models"
+            :key="model"
+            :value="`${provider.provider}|${model}`"
+          >
+            {{ model }}
+          </option>
+        </optgroup>
+      </select>
+    </div>
+
     <!-- 缩放控制按钮组 -->
     <div class="zoom-controls">
       <button class="zoom-btn" @click="zoomIn" title="放大">
@@ -308,7 +330,10 @@ export default {
         min: 0.25,
         max: 3.0,
         step: 0.1
-      }
+      },
+      // 模型选择相关
+      availableModels: [],    // 可用的模型列表（从 localStorage 读取）
+      selectedModel: ''       // 当前选中的模型（格式：provider|model）
     };
   },
   computed: {
@@ -358,6 +383,7 @@ export default {
     this.loadNotes();
     this.loadRecycleNotes();
     this.loadConnections();
+    this.loadModelConfig();
 
     // 添加键盘事件监听
     document.addEventListener('keydown', this.onKeyDown);
@@ -454,6 +480,8 @@ export default {
           // 确保不是点击在连接点或控制按钮上
           if (event.target.closest('.connection-point') ||
               event.target.closest('.context-level-control') ||
+              event.target.closest('.model-selector') ||
+              event.target.closest('.model-select') ||
               event.target.closest('.add-button') ||
               event.target.closest('.recycle-button') ||
               event.target.closest('.zoom-controls') ||
@@ -1247,6 +1275,12 @@ export default {
 
     // 点击白板空白区域处理（取消选择连接线）
     handleWallClick(event) {
+      // 如果点击在模型选择器上，不处理
+      if (event.target.closest('.model-selector') ||
+          event.target.closest('.model-select')) {
+        return;
+      }
+
       // 只在没有进行平移操作时取消选择
       // 注意：由于 mousedown 中的 preventDefault，平移操作不会触发 click 事件
       // 所以这里可以安全地取消选择
@@ -1273,6 +1307,8 @@ export default {
           event.target.closest('.recycle-button') ||
           event.target.closest('.zoom-controls') ||
           event.target.closest('.context-level-control') ||
+          event.target.closest('.model-selector') ||
+          event.target.closest('.model-select') ||
           event.target.closest('.modal-overlay') ||
           event.target.closest('.recycle-modal')) {
         return;
@@ -1497,6 +1533,53 @@ export default {
     // 清空选择
     clearSelection() {
       this.selectedNoteIds.clear();
+    },
+
+    // ========== 模型选择相关方法 ==========
+
+    // 加载模型配置
+    loadModelConfig() {
+      try {
+        const modelsJson = localStorage.getItem('modelsJson');
+        if (modelsJson) {
+          this.availableModels = JSON.parse(modelsJson);
+        } else {
+          // 如果没有配置，使用默认空列表
+          this.availableModels = [];
+        }
+
+        // 加载当前选中的模型
+        const lastUsedModel = localStorage.getItem('lastUsedModel');
+        if (lastUsedModel) {
+          this.selectedModel = lastUsedModel;
+        }
+      } catch (error) {
+        console.error('Failed to load model config:', error);
+        this.availableModels = [];
+      }
+    },
+
+    // 模型改变事件
+    onModelChange() {
+      if (this.selectedModel) {
+        // 保存到 localStorage
+        localStorage.setItem('lastUsedModel', this.selectedModel);
+
+        // 解析厂商和模型名称
+        const parts = this.selectedModel.split('|');
+        if (parts.length === 2) {
+          const [provider, modelName] = parts;
+
+          // 触发事件通知父组件（App.vue）
+          this.$emit('model-changed', {
+            provider: provider,
+            model: modelName,
+            fullKey: this.selectedModel
+          });
+
+          console.log('模型已切换到:', provider, '-', modelName);
+        }
+      }
     }
   }
 };
@@ -1670,6 +1753,56 @@ export default {
   padding: 8px 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   z-index: 1000;
+}
+
+/* 模型选择器 */
+.model-selector {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.model-label {
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.model-select {
+  min-width: 200px;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #333;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.model-select:hover {
+  border-color: #9c27b0;
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: #9c27b0;
+  box-shadow: 0 0 0 2px rgba(156, 39, 176, 0.2);
+}
+
+.model-select option {
+  padding: 8px;
+  font-size: 13px;
 }
 
 .level-btn {

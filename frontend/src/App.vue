@@ -101,7 +101,7 @@
     <!-- 右侧便签索引边栏 -->
     <aside class="right-sidebar" :class="{ collapsed: rightSidebarCollapsed }">
       <!-- 便签列表 -->
-      <div class="notes-index" v-if="!rightSidebarCollapsed">
+      <div class="notes-index">
         <div class="notes-index-header">
           <h3>便签索引</h3>
           <span class="notes-count">{{ sortedNotes.length }}</span>
@@ -959,7 +959,7 @@ body {
   flex: 1;
   height: 100vh;
   overflow: hidden;
-  transition: margin-left 0.3s ease;
+  transition: margin-left 0.3s ease, margin-right 0.3s ease;
 }
 
 /* 模态框样式 */

@@ -376,13 +376,15 @@ export default {
                          'span', 'annotation', 'semantics', 'mtext', 'mn',
                          'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
                          'mstyle', 'munder', 'mover', 'munderover', 'msub',
-                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
+                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math',
+                         'img'],
           ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'rel', 'id',
-                         'd', 'x', 'y', 'cx', 'cy', 'r', 'width', 'height',
+                         'src', 'alt', 'width', 'height',
+                         'd', 'x', 'y', 'cx', 'cy', 'r',
                          'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke',
                          'stroke-width', 'viewBox', 'xmlns', 'text-anchor',
                          'font-size', 'font-family', 'transform', 'data-mermaid',
-                         'style', 'xmlns', 'width', 'height', 'viewbox',
+                         'style', 'xmlns', 'viewbox',
                          'preserveaspectratio', 'linebreak', 'indentalign',
                          'indentalignfirst', 'indentshiftfirst', 'columnalign',
                          'columnspacing', 'displaystyle', 'scriptlevel',
@@ -1549,6 +1551,15 @@ export default {
   top: 0;
   font-size: 0.8em;
   opacity: 0.7;
+}
+
+/* 图片样式 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+  display: block;
 }
 
 /* 表格样式 */

@@ -7,6 +7,7 @@
     @mouseleave="onWallMouseUp"
     @wheel.prevent="onWheel"
     @dblclick="onWallDoubleClick"
+    @contextmenu.prevent="onWallContextMenu"
   >
     <!-- 固定标题（在白板外部，不受缩放平移影响） -->
     <div class="title-container">
@@ -93,6 +94,7 @@
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
+        @cut="onNoteCut"
         @trace-parent="onTraceParent"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
@@ -246,6 +248,22 @@
         </div>
       </div>
     </div>
+
+    <!-- 白板右键菜单 - 使用 Teleport 传送到 body，避免受白板缩放平移影响 -->
+    <Teleport to="body">
+      <div
+        v-if="showWallContextMenu"
+        class="wall-context-menu"
+        :style="{ left: wallContextMenuX + 'px', top: wallContextMenuY + 'px' }"
+        @wheel.stop
+        @click.stop
+      >
+        <div class="context-menu-item" @click="pasteNote" :class="{ disabled: !clipboardNote }">
+          <span class="menu-icon">📋</span>
+          <span>粘贴便签</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -289,6 +307,11 @@ export default {
       showDeleteConfirm: false,
       pendingDeleteNoteId: null,
       showClearConfirm: false,
+      // 白板右键菜单
+      showWallContextMenu: false,
+      wallContextMenuX: 0,
+      wallContextMenuY: 0,
+      wallContextMenuOpenedAt: 0,  // 记录菜单打开的时间戳
       contextLevel: 1,  // 上文层数，默认1层
       connections: [],              // 所有连接关系
       isDraggingConnection: false,  // 是否正在拖拽连线
@@ -299,6 +322,8 @@ export default {
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
       highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
+      // 剪切板
+      clipboardNote: null,  // 存储剪切的便签数据
       // 便签拖拽状态
       draggingNote: {
         isDragging: false,
@@ -405,10 +430,17 @@ export default {
 
     // 添加全局 mouseup 监听器，确保拖拽状态总是能被重置
     document.addEventListener('mouseup', this.onGlobalMouseUp);
+
+    // 添加全局点击监听器，用于关闭白板右键菜单
+    document.addEventListener('click', this.closeWallContextMenuOnOutsideClick);
+
+    // 从 localStorage 加载剪切板数据
+    this.loadClipboardFromStorage();
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('mouseup', this.onGlobalMouseUp);
+    document.removeEventListener('click', this.closeWallContextMenuOnOutsideClick);
     // 清除高亮定时器
     if (this.highlightTimer) {
       clearTimeout(this.highlightTimer);
@@ -543,22 +575,7 @@ export default {
         this.viewport.lastMouseX = event.clientX;
         this.viewport.lastMouseY = event.clientY;
       }
-      // 右键（button === 2）：拖动白板（不允许在便签上拖动）
-      else if (event.button === 2) {
-        // 确保不是点击在便签或连接点上
-        if (event.target.closest('.note') ||
-            event.target.closest('.connection-point') ||
-            event.target.closest('.context-level-control')) {
-          return;
-        }
-
-        // 右键拖动时 preventDefault() 防止默认菜单
-        event.preventDefault();
-
-        this.viewport.isDragging = true;
-        this.viewport.lastMouseX = event.clientX;
-        this.viewport.lastMouseY = event.clientY;
-      }
+      // 右键（button === 2）：不处理，让 contextmenu 事件显示右键菜单
     },
     // 白板鼠标移动事件
     onWallMouseMove(event) {
@@ -872,6 +889,174 @@ export default {
       } catch (error) {
         console.error('Failed to copy note:', error);
         alert('复制便签失败: ' + (error.response?.data?.error || error.message));
+      }
+    },
+    // 剪切便签
+    async onNoteCut(noteToCut) {
+      try {
+        // 将便签数据存储到剪切板（包含原白板ID）
+        this.clipboardNote = {
+          ...noteToCut,
+          sourceWallId: this.boardId  // 记录来源白板ID
+        };
+
+        // 保存到 localStorage（支持跨白板粘贴）
+        this.saveClipboardToStorage();
+
+        // 从当前白板删除便签（软删除）
+        await axios.delete(`/api/notes/${noteToCut.id}`);
+
+        // 从 notes 数组移除
+        this.notes = this.notes.filter(n => n.id !== noteToCut.id);
+
+        // 更新回收站计数
+        await this.loadRecycleNotes();
+
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
+      } catch (error) {
+        console.error('Failed to cut note:', error);
+        alert('剪切便签失败: ' + (error.response?.data?.error || error.message));
+      }
+    },
+    // 白板右键菜单
+    onWallContextMenu(event) {
+      // 如果有任何模态框打开，不显示右键菜单
+      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+        return;
+      }
+
+      // 确保不是点击在便签或其子元素上
+      if (event.target.closest('.note')) {
+        return;
+      }
+
+      // 确保不是点击在其他UI元素上
+      if (event.target.closest('.connection-point') ||
+          event.target.closest('.context-level-control') ||
+          event.target.closest('.model-selector') ||
+          event.target.closest('.model-select') ||
+          event.target.closest('.add-button') ||
+          event.target.closest('.recycle-button') ||
+          event.target.closest('.zoom-controls') ||
+          event.target.closest('.title-container') ||
+          event.target.closest('.modal-overlay') ||
+          event.target.closest('.recycle-modal')) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      // 计算菜单位置，防止超出屏幕
+      const menuWidth = 150;
+      const menuHeight = 50;  // 1个菜单项
+
+      let x = event.clientX;
+      let y = event.clientY;
+
+      // 防止右边缘溢出
+      if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+      }
+
+      // 防止底部溢出
+      if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 10;
+      }
+
+      this.wallContextMenuX = x;
+      this.wallContextMenuY = y;
+      this.showWallContextMenu = true;
+      this.wallContextMenuOpenedAt = Date.now();
+    },
+    // 点击外部关闭白板右键菜单
+    closeWallContextMenuOnOutsideClick(event) {
+      if (!this.showWallContextMenu) return;
+
+      // 如果菜单刚刚打开（100ms内），不关闭（避免右键点击立即触发click事件关闭菜单）
+      const timeSinceOpened = Date.now() - this.wallContextMenuOpenedAt;
+      if (timeSinceOpened < 100) {
+        return;
+      }
+
+      this.showWallContextMenu = false;
+    },
+    // 粘贴便签
+    async pasteNote() {
+      this.showWallContextMenu = false;
+
+      if (!this.clipboardNote) {
+        alert('剪切板为空，无法粘贴');
+        return;
+      }
+
+      try {
+        // 从剪切板获取便签数据
+        const { title, content } = this.clipboardNote;
+
+        // 在鼠标位置创建新便签（使用右键菜单的位置）
+        const wallRect = this.$el.getBoundingClientRect();
+        const screenX = this.wallContextMenuX - wallRect.left;
+        const screenY = this.wallContextMenuY - wallRect.top;
+        const worldPos = this.screenToWorld(screenX, screenY);
+
+        // 计算便签左上角位置（使便签中心对准鼠标位置）
+        const noteWidth = 250;
+        const noteHeight = 150;
+        const position_x = worldPos.x - noteWidth / 2;
+        const position_y = worldPos.y - noteHeight / 2;
+
+        // 在当前白板创建新便签
+        const response = await axios.post('/api/notes', {
+          title,
+          content,
+          position_x,
+          position_y,
+          wall_id: this.boardId
+        });
+
+        // 将新便签添加到数组开头
+        this.notes.unshift(response.data.note);
+
+        // 如果是跨白板粘贴，或者剪切板数据被清除，则清空剪切板
+        if (this.clipboardNote.sourceWallId !== this.boardId) {
+          this.clipboardNote = null;
+          this.saveClipboardToStorage();
+        }
+
+        // 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
+      } catch (error) {
+        console.error('Failed to paste note:', error);
+        alert('粘贴便签失败: ' + (error.response?.data?.error || error.message));
+      }
+    },
+    // 从 localStorage 加载剪切板数据
+    loadClipboardFromStorage() {
+      try {
+        const clipboardData = localStorage.getItem('noteClipboard');
+        if (clipboardData) {
+          this.clipboardNote = JSON.parse(clipboardData);
+        }
+      } catch (error) {
+        console.error('Failed to load clipboard from storage:', error);
+      }
+    },
+    // 保存剪切板数据到 localStorage
+    saveClipboardToStorage() {
+      try {
+        if (this.clipboardNote) {
+          localStorage.setItem('noteClipboard', JSON.stringify(this.clipboardNote));
+        } else {
+          localStorage.removeItem('noteClipboard');
+        }
+      } catch (error) {
+        console.error('Failed to save clipboard to storage:', error);
       }
     },
     // 上文追溯
@@ -1875,7 +2060,7 @@ export default {
 }
 
 .model-label {
-  font-size: 14px;
+  font-size: 15px;
   color: #666;
   white-space: nowrap;
 }
@@ -1885,7 +2070,7 @@ export default {
   padding: 6px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 15px;
   color: #333;
   background-color: white;
   cursor: pointer;
@@ -1904,7 +2089,7 @@ export default {
 
 .model-select option {
   padding: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .level-btn {
@@ -2467,5 +2652,107 @@ export default {
 
 .btn-close:hover {
   background: #e0e0e0;
+}
+
+/* 白板右键菜单样式 */
+.wall-context-menu {
+  position: fixed;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px 0;
+  z-index: 2000;
+  min-width: 150px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.wall-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #212121;
+  font-size: 14px;
+}
+
+.wall-context-menu .context-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.wall-context-menu .context-menu-item.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.wall-context-menu .menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+</style>
+
+<!-- 非scoped样式，用于白板右键菜单（需要fixed定位） -->
+<style>
+.wall-context-menu {
+  position: fixed !important;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px 0;
+  z-index: 2000;
+  min-width: 150px;
+  animation: wallMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes wallMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.wall-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #212121;
+  font-size: 14px;
+}
+
+.wall-context-menu .context-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.wall-context-menu .context-menu-item.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.wall-context-menu .menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
 }
 </style>

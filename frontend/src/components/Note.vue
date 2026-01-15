@@ -48,6 +48,10 @@
           <span class="menu-icon">📋</span>
           <span>复制</span>
         </div>
+        <div class="context-menu-item" @click="cutNote">
+          <span class="menu-icon">✂️</span>
+          <span>剪切</span>
+        </div>
         <div class="context-menu-item" @click="traceParentNotes">
           <span class="menu-icon">🔗</span>
           <span>上文追溯</span>
@@ -573,6 +577,18 @@ export default {
         console.error('Failed to delete note:', error);
       }
     },
+    cutNote() {
+      this.showContextMenu = false;
+
+      // 触发剪切事件，传递便签信息给父组件
+      this.$emit('cut', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
+    },
     copyNote() {
       this.showContextMenu = false;
 
@@ -623,7 +639,7 @@ export default {
 
       // 计算菜单位置，防止超出屏幕
       const menuWidth = 150;
-      const menuHeight = 120;  // 2个菜单项，每个约50px
+      const menuHeight = 200;  // 4个菜单项，每个约50px
 
       let x = event.clientX;
       let y = event.clientY;

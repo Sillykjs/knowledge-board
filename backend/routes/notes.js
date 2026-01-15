@@ -146,17 +146,22 @@ router.post('/', (req, res) => {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json({
-      message: 'Note created',
-      note: {
-        id: this.lastID,
-        title,
-        content,
-        position_x: position_x || 0,
-        position_y: position_y || 0,
-        wall_id: wall_id || 1
+
+    // 查询新创建的便签以获取完整信息（包括 created_at）
+    db.get(
+      'SELECT * FROM notes WHERE id = ?',
+      [this.lastID],
+      (selectErr, note) => {
+        if (selectErr) {
+          res.status(500).json({ error: selectErr.message });
+          return;
+        }
+        res.json({
+          message: 'Note created',
+          note: note
+        });
       }
-    });
+    );
   });
 });
 

@@ -580,10 +580,33 @@ export default {
 
     // 格式化便签创建时间
     formatNoteTime(createdAt) {
+      // 处理 undefined、null 或空字符串的情况
+      if (!createdAt) {
+        return '刚刚';
+      }
+
+      let date;
+
+      // 判断时间格式并正确解析
       // SQLite 返回的时间格式为 "YYYY-MM-DD HH:MM:SS"，这是 UTC 时间
       // 需要将其转换为 ISO 8601 格式（带 Z 后缀）以便 JavaScript 正确解析为 UTC
-      const utcDateString = createdAt.replace(' ', 'T') + 'Z';
-      const date = new Date(utcDateString);
+      if (createdAt.includes(' ')) {
+        // 格式: "YYYY-MM-DD HH:MM:SS"
+        const utcDateString = createdAt.replace(' ', 'T') + 'Z';
+        date = new Date(utcDateString);
+      } else if (createdAt.includes('T')) {
+        // 已经是 ISO 格式
+        date = new Date(createdAt);
+      } else {
+        // 其他格式，尝试直接解析
+        date = new Date(createdAt);
+      }
+
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return '刚刚';
+      }
+
       const now = new Date();
       const diffMs = now - date;
       const diffMins = Math.floor(diffMs / 60000);

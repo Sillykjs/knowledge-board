@@ -581,12 +581,26 @@ export default {
         // 从 localStorage 读取最后使用的模型配置
         let modelConfig = null;
         const lastUsedModel = localStorage.getItem('lastUsedModel');
-        const savedConfigs = localStorage.getItem('aiModelConfigs');
+        const modelsJson = localStorage.getItem('modelsJson');
 
-        if (savedConfigs && lastUsedModel) {
+        if (modelsJson && lastUsedModel) {
           try {
-            const modelConfigs = JSON.parse(savedConfigs);
-            modelConfig = modelConfigs[lastUsedModel] || null;
+            const parts = lastUsedModel.split('|');
+            if (parts.length === 2) {
+              const providerName = parts[0];
+              const modelName = parts[1];
+
+              const models = JSON.parse(modelsJson);
+              const provider = models.find(m => m.provider === providerName);
+
+              if (provider) {
+                modelConfig = {
+                  api_base: provider.apiBase,
+                  api_key: provider.apiKey || '',
+                  model: modelName
+                };
+              }
+            }
           } catch (e) {
             console.error('Failed to parse model configs:', e);
           }

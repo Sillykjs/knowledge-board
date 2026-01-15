@@ -149,46 +149,68 @@
       <div v-if="showModelModal" class="modal-overlay" @click="cancelModelModal">
         <div class="modal-content" @click.stop>
           <h3>切换模型</h3>
-          <p class="model-hint">💡 每个模型的配置会单独保存，切换时会自动加载对应的配置</p>
+          <p class="model-hint">💡 选择厂商和模型，配置将从 JSON 中自动加载</p>
+
+          <!-- 厂商选择 -->
           <div class="form-group">
-            <label class="form-label">预设模型</label>
-            <select v-model="selectedModelPreset" @change="onModelPresetChange" class="form-select">
-              <option value="">自定义</option>
-              <option value="openai">OpenAI (GPT-4/GPT-3.5)</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="zhipu">智谱AI (GLM-4)</option>
-              <option value="ollama">Ollama (本地)</option>
-              <option value="claude">Anthropic Claude</option>
+            <label class="form-label">厂商</label>
+            <select v-model="selectedProvider" @change="onProviderChange" class="form-select">
+              <option value="">请选择厂商</option>
+              <option v-for="provider in parsedModels" :key="provider.provider" :value="provider.provider">
+                {{ provider.provider }}
+              </option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">API Base URL</label>
-            <input
-              v-model="modelConfig.apiBase"
-              class="form-input"
-              placeholder="例如: https://api.openai.com/v1"
-            />
+
+          <!-- 模型选择 -->
+          <div class="form-group" v-if="selectedProvider && currentProviderModels.length > 0">
+            <label class="form-label">模型</label>
+            <select v-model="selectedModelFromList" @change="onModelFromListChange" class="form-select">
+              <option value="">请选择模型</option>
+              <option v-for="model in currentProviderModels" :key="model" :value="model">
+                {{ model }}
+              </option>
+            </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">API Key</label>
-            <input
-              v-model="modelConfig.apiKey"
-              type="password"
-              class="form-input"
-              placeholder="请输入 API Key"
-            />
+
+          <!-- 当前配置预览 -->
+          <div v-if="selectedProvider && selectedModelFromList" class="config-preview">
+            <p><strong>API Base:</strong> {{ modelConfig.apiBase }}</p>
+            <p><strong>API Key:</strong> {{ modelConfig.apiKey ? '已配置 (' + modelConfig.apiKey.slice(0, 8) + '...)' : '未配置' }}</p>
+            <p v-if="!modelConfig.apiKey" class="warning-text">⚠️ 请在"编辑模型列表"中配置 API Key</p>
           </div>
-          <div class="form-group">
-            <label class="form-label">模型名称</label>
-            <input
-              v-model="modelConfig.model"
-              class="form-input"
-              placeholder="例如: gpt-4, deepseek-chat"
-            />
-          </div>
+
           <div class="modal-buttons">
+            <button @click="openEditJsonModal" class="btn-secondary">编辑模型列表</button>
             <button @click="cancelModelModal" class="btn-cancel">取消</button>
             <button @click="confirmModelModal" class="btn-confirm">确认切换</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 编辑模型 JSON 模态框 -->
+    <Teleport to="body">
+      <div v-if="showEditJsonModal" class="modal-overlay" @click="cancelEditJson">
+        <div class="modal-content modal-content-large" @click.stop>
+          <h3>编辑模型配置 (JSON)</h3>
+          <p class="model-hint">
+            💡 在此编辑所有模型的配置。apiKey 为该厂商的统一密钥，所有模型共享。
+            <br>格式: [{"provider":"厂商名","apiBase":"API地址","apiKey":"密钥","models":["模型1","模型2"]}]
+          </p>
+          <div class="form-group">
+            <label class="form-label">模型配置 JSON</label>
+            <textarea
+              v-model="modelsJson"
+              class="form-textarea json-editor"
+              rows="15"
+              placeholder='[{"provider":"OpenAI","apiBase":"https://api.openai.com/v1","apiKey":"sk-xxx","models":["gpt-4","gpt-3.5-turbo"]}]'
+            ></textarea>
+          </div>
+          <div class="modal-buttons">
+            <button @click="formatJson" class="btn-secondary">格式化 JSON</button>
+            <button @click="validateAndSaveJson" class="btn-confirm">保存配置</button>
+            <button @click="cancelEditJson" class="btn-cancel">取消</button>
           </div>
         </div>
       </div>
@@ -221,35 +243,16 @@ export default {
       newBoardTitle: '', // 新白板标题
       newBoardSystemPrompt: '', // 新白板系统提示词
       showModelModal: false, // 控制模型切换模态框显示
-      selectedModelPreset: '', // 选中的预设模型
-      modelConfigs: {}, // 所有模型的配置 { openai: {...}, deepseek: {...}, ... }
       modelConfig: { // 当前使用的模型配置
         apiBase: '',
         apiKey: '',
         model: ''
       },
-      modelPresets: { // 预设模型配置
-        openai: {
-          apiBase: 'https://api.openai.com/v1',
-          model: 'gpt-3.5-turbo'
-        },
-        deepseek: {
-          apiBase: 'https://api.deepseek.com/v1',
-          model: 'deepseek-chat'
-        },
-        zhipu: {
-          apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-          model: 'glm-4-flash'
-        },
-        ollama: {
-          apiBase: 'http://localhost:11434/v1',
-          model: 'llama2'
-        },
-        claude: {
-          apiBase: 'https://api.anthropic.com/v1',
-          model: 'claude-3-sonnet'
-        }
-      }
+      showEditJsonModal: false, // 控制编辑 JSON 模态框显示
+      modelsJson: '', // 模型配置 JSON 字符串
+      parsedModels: [], // 解析后的模型列表
+      selectedProvider: '', // 选中的厂商
+      selectedModelFromList: '' // 从列表中选中的模型
     };
   },
   computed: {
@@ -258,6 +261,11 @@ export default {
     },
     pendingDeleteBoard() {
       return this.boards.find(b => b.id === this.pendingDeleteBoardId);
+    },
+    currentProviderModels() {
+      if (!this.selectedProvider || !this.parsedModels.length) return [];
+      const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
+      return provider?.models || [];
     },
     sidebarStyle() {
       return {
@@ -273,6 +281,7 @@ export default {
   async mounted() {
     await this.loadBoards();
     this.loadModelConfig();
+    this.loadModelsJson();
   },
   watch: {
     showCreateBoardModal(newVal) {
@@ -427,95 +436,192 @@ export default {
 
     // 模型配置相关方法
     loadModelConfig() {
-      // 加载所有保存的模型配置
-      const savedConfigs = localStorage.getItem('aiModelConfigs');
-      if (savedConfigs) {
-        try {
-          this.modelConfigs = JSON.parse(savedConfigs);
-        } catch (error) {
-          console.error('Failed to parse model configs:', error);
-          this.modelConfigs = {};
-        }
-      }
-
-      // 如果有保存的当前选中模型，加载它的配置
-      const lastUsedModel = localStorage.getItem('lastUsedModel');
-      if (lastUsedModel && this.modelConfigs[lastUsedModel]) {
-        this.modelConfig = { ...this.modelConfigs[lastUsedModel] };
-      } else if (this.modelConfigs['openai']) {
-        // 默认加载 OpenAI 配置
-        this.modelConfig = { ...this.modelConfigs['openai'] };
-      }
-    },
-
-    saveModelConfig() {
-      // 如果选择了预设，保存到对应的模型配置中
-      if (this.selectedModelPreset) {
-        this.modelConfigs[this.selectedModelPreset] = { ...this.modelConfig };
-        localStorage.setItem('aiModelConfigs', JSON.stringify(this.modelConfigs));
-        localStorage.setItem('lastUsedModel', this.selectedModelPreset);
-      } else {
-        // 自定义配置保存到 custom
-        this.modelConfigs['custom'] = { ...this.modelConfig };
-        localStorage.setItem('aiModelConfigs', JSON.stringify(this.modelConfigs));
-        localStorage.setItem('lastUsedModel', 'custom');
-      }
+      // 这个方法现在不需要做太多，因为配置都是从 JSON 读取
+      // 只是保留接口以避免错误
     },
 
     openModelModal() {
       this.showModelModal = true;
+      this.selectedProvider = '';
+      this.selectedModelFromList = '';
 
-      // 加载上次使用的模型配置
+      // 加载上次使用的厂商和模型
       const lastUsedModel = localStorage.getItem('lastUsedModel');
-      if (lastUsedModel && this.modelConfigs[lastUsedModel]) {
-        this.selectedModelPreset = lastUsedModel;
-        this.modelConfig = { ...this.modelConfigs[lastUsedModel] };
-      } else if (this.modelConfigs['openai']) {
-        this.selectedModelPreset = 'openai';
-        this.modelConfig = { ...this.modelConfigs['openai'] };
+      if (lastUsedModel) {
+        const parts = lastUsedModel.split('|');
+        if (parts.length === 2) {
+          this.selectedProvider = parts[0];
+          this.selectedModelFromList = parts[1];
+
+          // 从 JSON 配置中加载
+          const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
+          if (provider) {
+            this.modelConfig = {
+              apiBase: provider.apiBase,
+              apiKey: provider.apiKey || '',
+              model: this.selectedModelFromList
+            };
+          }
+        }
       } else {
-        this.selectedModelPreset = '';
         this.modelConfig = { apiBase: '', apiKey: '', model: '' };
       }
     },
 
     cancelModelModal() {
       this.showModelModal = false;
-      this.selectedModelPreset = '';
+      this.selectedProvider = '';
+      this.selectedModelFromList = '';
     },
 
-    onModelPresetChange() {
-      if (this.selectedModelPreset && this.modelPresets[this.selectedModelPreset]) {
-        const preset = this.modelPresets[this.selectedModelPreset];
-
-        // 如果该模型有保存的配置，加载保存的配置
-        if (this.modelConfigs[this.selectedModelPreset]) {
-          this.modelConfig = { ...this.modelConfigs[this.selectedModelPreset] };
-        } else {
-          // 否则使用预设值，但清空 API Key
-          this.modelConfig = {
-            apiBase: preset.apiBase,
-            model: preset.model,
-            apiKey: ''
-          };
-        }
+    // 加载模型 JSON 配置
+    loadModelsJson() {
+      const savedJson = localStorage.getItem('modelsJson');
+      if (savedJson) {
+        this.modelsJson = savedJson;
+        this.parseModelsJson();
       } else {
-        // 自定义模式，清空配置
-        this.modelConfig = { apiBase: '', apiKey: '', model: '' };
+        // 使用默认配置
+        const defaultModels = [
+          {
+            provider: 'OpenAI',
+            apiBase: 'https://api.openai.com/v1',
+            apiKey: '',
+            models: ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview']
+          },
+          {
+            provider: 'DeepSeek',
+            apiBase: 'https://api.deepseek.com/v1',
+            apiKey: '',
+            models: ['deepseek-chat', 'deepseek-coder']
+          },
+          {
+            provider: '智谱AI',
+            apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+            apiKey: '',
+            models: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4-air']
+          },
+          {
+            provider: 'Ollama',
+            apiBase: 'http://localhost:11434/v1',
+            apiKey: 'ollama',
+            models: ['llama2', 'llama3', 'mistral', 'codellama']
+          },
+          {
+            provider: 'Anthropic',
+            apiBase: 'https://api.anthropic.com/v1',
+            apiKey: '',
+            models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku']
+          }
+        ];
+        this.modelsJson = JSON.stringify(defaultModels, null, 2);
+        this.parseModelsJson();
+      }
+    },
+
+    // 解析模型 JSON
+    parseModelsJson() {
+      try {
+        this.parsedModels = JSON.parse(this.modelsJson);
+      } catch (e) {
+        console.error('Failed to parse models JSON:', e);
+        this.parsedModels = [];
+      }
+    },
+
+    // 打开 JSON 编辑模态框
+    openEditJsonModal() {
+      this.showEditJsonModal = true;
+    },
+
+    // 厂商改变事件
+    onProviderChange() {
+      this.selectedModelFromList = '';
+      if (this.selectedProvider) {
+        const provider = this.parsedModels.find(p => p.provider === this.selectedProvider);
+        if (provider) {
+          // 直接从 JSON 配置中读取
+          this.modelConfig.apiBase = provider.apiBase;
+          this.modelConfig.apiKey = provider.apiKey || '';
+          this.modelConfig.model = '';
+        }
+      }
+    },
+
+    // 从列表选择模型
+    onModelFromListChange() {
+      if (this.selectedModelFromList) {
+        this.modelConfig.model = this.selectedModelFromList;
+        // API Base 和 API Key 已在厂商选择时设置
       }
     },
 
     confirmModelModal() {
-      if (!this.modelConfig.apiBase || !this.modelConfig.model) {
-        alert('请填写 API Base URL 和模型名称');
+      if (!this.selectedProvider || !this.selectedModelFromList) {
+        alert('请选择厂商和模型');
         return;
       }
 
-      this.saveModelConfig();
-      this.showModelModal = false;
+      if (!this.modelConfig.apiBase || !this.modelConfig.model) {
+        alert('配置不完整，请检查 JSON 配置');
+        return;
+      }
 
-      // 可选：显示提示信息
-      console.log('模型配置已保存:', this.modelConfig);
+      // 保存最后使用的厂商和模型
+      const key = `${this.selectedProvider}|${this.selectedModelFromList}`;
+      localStorage.setItem('lastUsedModel', key);
+
+      this.showModelModal = false;
+      console.log('已切换到模型:', key);
+    },
+
+    // 格式化 JSON
+    formatJson() {
+      try {
+        const parsed = JSON.parse(this.modelsJson);
+        this.modelsJson = JSON.stringify(parsed, null, 2);
+        this.parseModelsJson();
+      } catch (e) {
+        alert('JSON 格式错误，请检查语法');
+      }
+    },
+
+    // 验证并保存 JSON
+    validateAndSaveJson() {
+      try {
+        const parsed = JSON.parse(this.modelsJson);
+
+        // 验证必需字段
+        if (!Array.isArray(parsed)) {
+          throw new Error('JSON 必须是数组格式');
+        }
+
+        for (const item of parsed) {
+          if (!item.provider || !item.apiBase || !item.models || !Array.isArray(item.models)) {
+            throw new Error('每个模型必须包含 provider、apiBase 和 models 字段');
+          }
+        }
+
+        // 保存到 localStorage
+        localStorage.setItem('modelsJson', this.modelsJson);
+        this.parseModelsJson();
+
+        // 关闭模态框
+        this.showEditJsonModal = false;
+        this.selectedProvider = '';
+        this.selectedModelFromList = '';
+
+        alert('模型配置已保存');
+      } catch (e) {
+        alert('JSON 格式错误: ' + e.message);
+      }
+    },
+
+    // 取消编辑 JSON
+    cancelEditJson() {
+      this.showEditJsonModal = false;
+      // 重新加载原来的配置
+      this.loadModelsJson();
     }
   }
 };
@@ -995,5 +1101,63 @@ body {
   border-radius: 4px;
   margin-bottom: 15px;
   border-left: 3px solid #9c27b0;
+}
+
+/* 次要按钮 */
+.btn-secondary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  background-color: #9c27b0;
+  color: white;
+  margin-right: auto;
+}
+
+.btn-secondary:hover {
+  background-color: #7b1fa2;
+}
+
+/* 大尺寸模态框 */
+.modal-content-large {
+  max-width: 800px;
+  width: 90%;
+}
+
+/* JSON 编辑器 */
+.json-editor {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+}
+
+/* 配置预览 */
+.config-preview {
+  background: #f0f0f0;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 15px;
+  border-left: 3px solid #9c27b0;
+}
+
+.config-preview p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: #333;
+}
+
+.config-preview strong {
+  color: #666;
+  min-width: 80px;
+  display: inline-block;
+}
+
+.warning-text {
+  color: #ff9800 !important;
+  font-weight: 500;
+  margin-top: 8px !important;
 }
 </style>

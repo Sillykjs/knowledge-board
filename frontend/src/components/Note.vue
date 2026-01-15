@@ -143,6 +143,11 @@ import axios from 'axios';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import mermaid from 'mermaid';
+import katex from 'katex';
+import tm from 'markdown-it-texmath';
+
+// 导入 KaTeX CSS 样式
+import 'katex/dist/katex.min.css';
 
 // 初始化 markdown-it 实例
 const md = new MarkdownIt({
@@ -151,6 +156,32 @@ const md = new MarkdownIt({
   typographer: true,  // 启用美化排版
   breaks: true,       // 转换换行符为 <br>
 });
+
+// 配置 texmath 插件，支持数学公式
+md.use(tm, {
+  engine: katex,
+  delimiters: 'dollars',
+  katexOptions: {
+    macros: {"\\RR": "\\mathbb{R}"}
+  }
+});
+
+// 添加对 \( \) 和 \[ \] 语法的支持
+// 在 markdown-it 渲染前预处理文本
+const originalRender = md.render.bind(md);
+md.render = function(text, env) {
+  // 替换 \( ... \) 为 $...$ （行内公式）
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
+    return `$${formula}$`;
+  });
+
+  // 替换 \[ ... \] 为 $$...$$ （块级公式）
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
+    return `$$${formula}$$`;
+  });
+
+  return originalRender(text, env);
+};
 
 // 自定义 fence 渲染规则，支持 mermaid
 const defaultFence = md.renderer.rules.fence || function(tokens, idx, options, env, self) {
@@ -277,8 +308,20 @@ export default {
         const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
                          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr'],
-          ALLOWED_ATTR: ['href', 'title', 'class'],
+                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
+                         'span', 'annotation', 'semantics', 'mtext', 'mn',
+                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
+                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
+                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
+          ALLOWED_ATTR: ['href', 'title', 'class', 'style', 'xmlns',
+                         'width', 'height', 'viewbox', 'preserveaspectratio',
+                         'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
+                         'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points',
+                         'text-anchor', 'font-size', 'font-family', 'transform',
+                         'data-mermaid', 'linebreak', 'indentalign',
+                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
+                         'columnspacing', 'displaystyle', 'scriptlevel',
+                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
           ALLOW_DATA_ATTR: false
         });
         return cleanHtml;
@@ -293,7 +336,7 @@ export default {
       const contentToRender = this.mainContent;
       if (!contentToRender) return '';
       try {
-        // 1. 使用 markdown-it 解析 markdown
+        // 1. 使用 markdown-it 解析 markdown（包含数学公式）
         const renderedMarkdown = md.render(contentToRender);
         // 2. 使用 DOMPurify 净化 HTML（防止 XSS）
         const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
@@ -302,12 +345,21 @@ export default {
                          'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
                          'table', 'thead', 'tbody', 'tr', 'th', 'td',
                          'div', 'svg', 'path', 'rect', 'circle', 'line',
-                         'polygon', 'polyline', 'text', 'g', 'marker'],
+                         'polygon', 'polyline', 'text', 'g', 'marker',
+                         'span', 'annotation', 'semantics', 'mtext', 'mn',
+                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
+                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
+                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
           ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'id',
                          'd', 'x', 'y', 'cx', 'cy', 'r', 'width', 'height',
                          'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke',
                          'stroke-width', 'viewBox', 'xmlns', 'text-anchor',
-                         'font-size', 'font-family', 'transform', 'data-mermaid'],
+                         'font-size', 'font-family', 'transform', 'data-mermaid',
+                         'style', 'xmlns', 'width', 'height', 'viewbox',
+                         'preserveaspectratio', 'linebreak', 'indentalign',
+                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
+                         'columnspacing', 'displaystyle', 'scriptlevel',
+                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
           ALLOW_DATA_ATTR: false
         });
         return cleanHtml;
@@ -1506,5 +1558,25 @@ export default {
 .markdown-body .mermaid svg {
   max-width: 100%;
   height: auto;
+}
+
+/* KaTeX 数学公式样式 */
+.markdown-body .katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+
+.markdown-body .katex {
+  font-size: 1.1em;
+}
+
+.markdown-body .katex-display > .katex {
+  text-align: center;
+}
+
+.markdown-body .katex-html {
+  color: #000;
 }
 </style>

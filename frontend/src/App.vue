@@ -107,6 +107,25 @@
           <span class="notes-count">{{ sortedNotes.length }}</span>
         </div>
 
+        <!-- 搜索输入框 -->
+        <div class="search-box">
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="搜索便签标题..."
+            @input="onSearchInput"
+          />
+          <button
+            v-if="searchQuery"
+            class="search-clear"
+            @click="clearSearch"
+            title="清除搜索"
+          >
+            ✕
+          </button>
+        </div>
+
         <div class="notes-list">
           <div
             v-for="note in sortedNotes"
@@ -238,7 +257,8 @@ export default {
       parsedModels: [], // 解析后的模型列表
       currentModelName: 'AI', // 当前选择的模型名称（响应式）
       rightSidebarCollapsed: true, // 右侧边栏是否收起
-      currentNotes: [] // 当前白板的便签列表（用于右侧索引）
+      currentNotes: [], // 当前白板的便签列表（用于右侧索引）
+      searchQuery: '' // 搜索关键词
     };
   },
   computed: {
@@ -259,15 +279,27 @@ export default {
         marginRight: this.rightSidebarCollapsed ? '0' : '300px'
       };
     },
-    // 获取当前白板的便签列表（按创建时间排序）
+    // 获取当前白板的便签列表（按创建时间排序并搜索过滤）
     sortedNotes() {
       if (!this.currentNotes || this.currentNotes.length === 0) {
         return [];
       }
-      return [...this.currentNotes].sort((a, b) => {
+
+      let notes = [...this.currentNotes];
+
+      // 根据搜索关键词过滤
+      if (this.searchQuery && this.searchQuery.trim() !== '') {
+        const query = this.searchQuery.toLowerCase().trim();
+        notes = notes.filter(note =>
+          note.title && note.title.toLowerCase().includes(query)
+        );
+      }
+
+      // 按创建时间排序（降序，新的在前）
+      return notes.sort((a, b) => {
         const dateA = new Date(a.created_at);
         const dateB = new Date(b.created_at);
-        return dateB - dateA; // 降序，新的在前
+        return dateB - dateA;
       });
     }
   },
@@ -569,6 +601,17 @@ export default {
     // 切换右侧边栏展开/收起
     toggleRightSidebar() {
       this.rightSidebarCollapsed = !this.rightSidebarCollapsed;
+    },
+
+    // 搜索输入处理
+    onSearchInput() {
+      // v-model 自动更新 searchQuery，计算属性 sortedNotes 会自动重新计算
+      // 这里可以添加额外的逻辑，比如防抖等
+    },
+
+    // 清除搜索
+    clearSearch() {
+      this.searchQuery = '';
     },
 
     // 跳转到指定便签
@@ -1220,7 +1263,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 60px 16px 16px 16px;
+  padding: 15px 16px 16px 16px;
 }
 
 .notes-index-header {
@@ -1231,6 +1274,57 @@ body {
   background: #f5f5f5;
   border-radius: 8px;
   margin-bottom: 16px;
+}
+
+/* 搜索框样式 */
+.search-box {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 16px;
+  padding-right: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.search-input::placeholder {
+  color: #999;
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: #ccc;
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.search-clear:hover {
+  background: #999;
 }
 
 .notes-index-header h3 {

@@ -27,7 +27,7 @@
     </div>
 
     <!-- 白板内容变换层 -->
-    <div class="wall-content" :style="wallTransformStyle" @click.self="handleWallClick">
+    <div ref="wallContent" class="wall-content" :style="wallTransformStyle" @click.self="handleWallClick">
       <!-- 原点十字准星 -->
       <div class="origin-crosshair">
         <div class="crosshair-line crosshair-horizontal"></div>
@@ -1613,6 +1613,11 @@ export default {
 
     // 跳转到指定便签
     jumpToNote(note) {
+      // 添加动画 class
+      if (this.$refs.wallContent) {
+        this.$refs.wallContent.classList.add('animating');
+      }
+
       // 获取便签的实际尺寸
       const noteElement = document.querySelector(`.note[data-note-id="${note.id}"]`);
       let noteHeight = 150; // 默认高度
@@ -1637,6 +1642,13 @@ export default {
       // => translate = screenCenter - worldPos * scale
       this.viewport.translateX = screenCenterX - noteCenterX * this.viewport.scale;
       this.viewport.translateY = screenCenterY - noteCenterY * this.viewport.scale;
+
+      // 动画结束后移除 class（1000ms 与 CSS transition 时间一致）
+      setTimeout(() => {
+        if (this.$refs.wallContent) {
+          this.$refs.wallContent.classList.remove('animating');
+        }
+      }, 1000);
 
       // 高亮该便签2秒
       this.highlightedNoteIds.clear();
@@ -1689,6 +1701,11 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   /* 确保缩放时文字清晰 */
   image-rendering: -webkit-optimize-contrast;
+}
+
+/* 平滑过渡动画（仅在跳转时启用） */
+.wall-content.animating {
+  transition: transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* 原点十字准星样式 */

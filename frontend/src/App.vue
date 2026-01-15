@@ -668,26 +668,29 @@ body {
 .sidebar-toggle {
   position: absolute;
   top: 10px;
-  right: -10px;
-  width: 24px;
-  height: 24px;
-  background: white;
-  border: 1px solid #ccc;
-  border-radius: 50%;
+  right: -5px;
+  width: 32px;
+  height: 32px;
+  background: #2196F3;
+  border: 2px solid white;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2001;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
 }
 
 .sidebar-toggle:hover {
-  background: #f5f5f5;
-  transform: scale(1.1);
-  right: -2px;
+  background: #1976D2;
+  width: 36px;
+  height: 36px;
+  right: -5px;
+  box-shadow: 3px 0 12px rgba(33, 150, 243, 0.4);
 }
 
 .board-list {

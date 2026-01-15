@@ -1693,17 +1693,21 @@ export default {
   width: 100%;
   height: 100%;
   pointer-events: auto;
-  will-change: transform;
   /* 启用 GPU 加速和优化渲染质量 */
+  will-change: transform;
   transform-style: preserve-3d;
   backface-visibility: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* 确保缩放时文字清晰 */
   image-rendering: -webkit-optimize-contrast;
+  /* 强制使用 sub-pixel 渲染 */
+  text-rendering: optimizeLegibility;
+  /* 关键：添加平滑过渡，强制浏览器使用高质量渲染路径重新光栅化 */
+  transition: transform 0.15s ease-out;
 }
 
-/* 平滑过渡动画（仅在跳转时启用） */
+/* 平滑过渡动画（跳转时使用更长的过渡时间） */
 .wall-content.animating {
   transition: transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }

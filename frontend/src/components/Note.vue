@@ -853,6 +853,10 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  /* 强制 GPU 加速和独立渲染层 */
+  will-change: transform;
+  /* 确保缩放时文字清晰 */
+  image-rendering: -webkit-optimize-contrast;
   /* 确保便签在连接线上方 */
   z-index: 10;
 }
@@ -959,6 +963,10 @@ export default {
   font-weight: bold;
   margin-bottom: 12px;
   color: #1565c0;
+  /* 优化文字渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .note-text {
@@ -970,6 +978,10 @@ export default {
   word-wrap: break-word;
   overflow: hidden;
   max-height: 84px;
+  /* 优化文字渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .btn-save {

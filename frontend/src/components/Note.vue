@@ -166,6 +166,22 @@ md.use(tm, {
   }
 });
 
+// 自定义链接渲染器，让所有链接在新标签页打开
+const defaultLinkOpen = md.renderer.rules.link_open || function(tokens, idx, options, env, self) {
+  return self.renderToken(tokens, idx, options);
+};
+
+md.renderer.rules.link_open = function(tokens, idx, options, env, self) {
+  // 添加 target="_blank" 和 rel="noopener noreferrer"
+  const token = tokens[idx];
+  const hrefIndex = token.attrIndex('href');
+  if (hrefIndex >= 0) {
+    token.attrPush(['target', '_blank']);
+    token.attrPush(['rel', 'noopener noreferrer']);
+  }
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
+
 // 添加对 \( \) 和 \[ \] 语法的支持，并标准化 $ 分隔符格式
 // 在 markdown-it 渲染前预处理文本
 const originalRender = md.render.bind(md);
@@ -361,7 +377,7 @@ export default {
                          'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
                          'mstyle', 'munder', 'mover', 'munderover', 'msub',
                          'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
-          ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'id',
+          ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'rel', 'id',
                          'd', 'x', 'y', 'cx', 'cy', 'r', 'width', 'height',
                          'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke',
                          'stroke-width', 'viewBox', 'xmlns', 'text-anchor',
@@ -1517,10 +1533,22 @@ export default {
 .markdown-body a {
   color: #0366d6;
   text-decoration: none;
+  position: relative;
+  padding-right: 13px; /* 为外部链接图标留出空间 */
 }
 
 .markdown-body a:hover {
   text-decoration: underline;
+}
+
+/* 外部链接图标 */
+.markdown-body a[target="_blank"]::after {
+  content: '↗';
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 0.8em;
+  opacity: 0.7;
 }
 
 /* 表格样式 */

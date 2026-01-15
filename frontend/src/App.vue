@@ -1286,7 +1286,6 @@ body {
 .note-index-item:hover {
   background: #f0f0f0;
   border-color: #2196F3;
-  transform: translateX(-2px);
   box-shadow: 0 2px 6px rgba(33, 150, 243, 0.2);
 }
 

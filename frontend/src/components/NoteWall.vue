@@ -379,11 +379,26 @@ export default {
       };
     }
   },
-  mounted() {
-    this.loadNotes();
+  async mounted() {
+    await this.loadNotes();
     this.loadRecycleNotes();
     this.loadConnections();
     this.loadModelConfig();
+
+    // 自动跳转到最新便签
+    if (this.notes.length > 0) {
+      // 按创建时间降序排序，获取最新便签
+      const sortedNotes = [...this.notes].sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB - dateA;
+      });
+
+      // 延迟执行，确保 DOM 渲染完成
+      this.$nextTick(() => {
+        this.jumpToNote(sortedNotes[0]);
+      });
+    }
 
     // 添加键盘事件监听
     document.addEventListener('keydown', this.onKeyDown);

@@ -260,7 +260,7 @@
       >
         <div class="context-menu-item" @click="pasteNote" :class="{ disabled: !clipboardNote }">
           <span class="menu-icon">📋</span>
-          <span>粘贴便签</span>
+          <span>{{ clipboardNote ? '粘贴便签' : '剪切板为空' }}</span>
         </div>
       </div>
     </Teleport>
@@ -323,7 +323,8 @@ export default {
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
       highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
       // 剪切板
-      clipboardNote: null,  // 存储剪切的便签数据
+      clipboardNote: null,  // 存储复制的便签数据
+      isCutMode: false,  // 是否为剪切模式（true=剪切，false=复制）
       // 便签拖拽状态
       draggingNote: {
         isDragging: false,
@@ -867,25 +868,15 @@ export default {
     // 复制便签
     async onNoteCopy(sourceNote) {
       try {
-        // 计算新便签位置：在原便签右下方偏移
-        const offsetX = 30;  // 水平偏移
-        const offsetY = 30;  // 垂直偏移
+        // 将便签数据保存到剪切板（复制模式）
+        this.clipboardNote = {
+          ...sourceNote,
+          sourceWallId: this.boardId  // 记录来源白板ID
+        };
+        this.isCutMode = false;  // 复制模式
 
-        const response = await axios.post('/api/notes', {
-          title: sourceNote.title,
-          content: sourceNote.content,
-          position_x: sourceNote.position_x + offsetX,
-          position_y: sourceNote.position_y + offsetY,
-          wall_id: this.boardId
-        });
-
-        // 将复制的便签添加到数组开头（确保在便签索引中显示在最上面）
-        this.notes.unshift(response.data.note);
-
-        // 通知父组件便签列表已更新
-        this.$emit('notes-loaded', this.notes);
-        // 通知父组件更新白板列表（便签数量变化）
-        this.$emit('note-count-changed');
+        // 保存到 localStorage
+        this.saveClipboardToStorage();
       } catch (error) {
         console.error('Failed to copy note:', error);
         alert('复制便签失败: ' + (error.response?.data?.error || error.message));
@@ -894,11 +885,12 @@ export default {
     // 剪切便签
     async onNoteCut(noteToCut) {
       try {
-        // 将便签数据存储到剪切板（包含原白板ID）
+        // 将便签数据存储到剪切板（剪切模式）
         this.clipboardNote = {
           ...noteToCut,
           sourceWallId: this.boardId  // 记录来源白板ID
         };
+        this.isCutMode = true;  // 剪切模式
 
         // 保存到 localStorage（支持跨白板粘贴）
         this.saveClipboardToStorage();
@@ -1021,9 +1013,12 @@ export default {
         // 将新便签添加到数组开头
         this.notes.unshift(response.data.note);
 
-        // 如果是跨白板粘贴，或者剪切板数据被清除，则清空剪切板
-        if (this.clipboardNote.sourceWallId !== this.boardId) {
+        // 根据模式决定是否清空剪切板：
+        // - 剪切模式：粘贴后清空剪切板（一次性）
+        // - 复制模式：保留剪切板（可以重复粘贴）
+        if (this.isCutMode) {
           this.clipboardNote = null;
+          this.isCutMode = false;
           this.saveClipboardToStorage();
         }
 
@@ -1041,7 +1036,9 @@ export default {
       try {
         const clipboardData = localStorage.getItem('noteClipboard');
         if (clipboardData) {
-          this.clipboardNote = JSON.parse(clipboardData);
+          const data = JSON.parse(clipboardData);
+          this.clipboardNote = data.note;
+          this.isCutMode = data.isCutMode || false;
         }
       } catch (error) {
         console.error('Failed to load clipboard from storage:', error);
@@ -1051,7 +1048,10 @@ export default {
     saveClipboardToStorage() {
       try {
         if (this.clipboardNote) {
-          localStorage.setItem('noteClipboard', JSON.stringify(this.clipboardNote));
+          localStorage.setItem('noteClipboard', JSON.stringify({
+            note: this.clipboardNote,
+            isCutMode: this.isCutMode
+          }));
         } else {
           localStorage.removeItem('noteClipboard');
         }

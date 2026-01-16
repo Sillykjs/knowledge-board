@@ -12,7 +12,7 @@ function maskApiKey(apiKey) {
 
 // 获取所有模型配置（API Key 已掩码）
 router.get('/', (req, res) => {
-  db.all("SELECT * FROM model_configs ORDER BY provider", [], (err, rows) => {
+  db.all("SELECT * FROM model_configs ORDER BY sort_order", [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -58,8 +58,8 @@ router.post('/', (req, res) => {
       if (item._keepOriginalKey && item.id) {
         // 保持原密钥不变，只更新其他字段
         db.run(
-          "UPDATE model_configs SET provider=?, api_base=?, models=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-          [item.provider, item.apiBase, JSON.stringify(item.models), item.id],
+          "UPDATE model_configs SET provider=?, api_base=?, models=?, sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+          [item.provider, item.apiBase, JSON.stringify(item.models), index, item.id],
           (err) => {
             if (err) {
               hasError = true;
@@ -86,9 +86,9 @@ router.post('/', (req, res) => {
       } else {
         // 插入或更新（包括新密钥）
         db.run(
-          `INSERT OR REPLACE INTO model_configs (provider, api_base, api_key, models, updated_at)
-           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-          [item.provider, item.apiBase, item.apiKey || '', JSON.stringify(item.models)],
+          `INSERT OR REPLACE INTO model_configs (provider, api_base, api_key, models, sort_order, updated_at)
+           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [item.provider, item.apiBase, item.apiKey || '', JSON.stringify(item.models), index],
           function(err) {
             if (err) {
               hasError = true;

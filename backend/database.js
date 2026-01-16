@@ -129,6 +129,7 @@ function initDb() {
 
   // 模型配置表
   migrateModelConfigs();
+  migrateModelConfigsSortOrder();
 }
 
 // 创建模型配置表
@@ -151,6 +152,44 @@ function migrateModelConfigs() {
     } else {
       console.log('Model configs table ready');
     }
+  });
+}
+
+// 为 model_configs 表添加 sort_order 字段
+function migrateModelConfigsSortOrder() {
+  // 检查 model_configs 表是否有 sort_order 字段
+  db.all("PRAGMA table_info(model_configs)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking model_configs table:', err.message);
+      return;
+    }
+
+    const hasSortOrder = columns.some(col => col.name === 'sort_order');
+    if (hasSortOrder) {
+      console.log('model_configs table already has sort_order column');
+      return;
+    }
+
+    // 添加 sort_order 字段
+    db.run(
+      "ALTER TABLE model_configs ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+      (err) => {
+        if (err) {
+          console.error('Error adding sort_order to model_configs:', err.message);
+        } else {
+          console.log('Migration completed: added sort_order column to model_configs');
+
+          // 为现有记录按 id 设置初始 sort_order
+          db.run(
+            "UPDATE model_configs SET sort_order = id WHERE sort_order = 0",
+            (err) => {
+              if (err) console.error('Error initializing sort_order:', err.message);
+              else console.log('sort_order initialized for existing model_configs');
+            }
+          );
+        }
+      }
+    );
   });
 }
 

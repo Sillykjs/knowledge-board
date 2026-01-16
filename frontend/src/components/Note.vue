@@ -516,7 +516,6 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.viewTitleInput) {
           this.$refs.viewTitleInput.focus();
-          this.$refs.viewTitleInput.select();
         }
       });
     },
@@ -556,6 +555,8 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.viewContentInput) {
           this.$refs.viewContentInput.focus();
+          this.$refs.viewContentInput.setSelectionRange(0, 0);
+          this.$refs.viewContentInput.scrollTop = 0;
         }
       });
     },

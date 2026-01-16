@@ -117,4 +117,56 @@ router.post('/', (req, res) => {
   });
 });
 
+// 批量删除模型配置
+router.delete('/', (req, res) => {
+  const { ids } = req.body;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'IDs must be a non-empty array' });
+    return;
+  }
+
+  // 使用事务确保所有操作要么全部成功，要么全部回滚
+  db.serialize(() => {
+    db.run("BEGIN TRANSACTION");
+
+    let completed = 0;
+    let hasError = false;
+
+    ids.forEach((id, index) => {
+      if (!id || typeof id !== 'number') {
+        hasError = true;
+        res.status(400).json({ error: `Invalid ID at index ${index}` });
+        return;
+      }
+
+      db.run('DELETE FROM model_configs WHERE id = ?', [id], function(err) {
+        if (err) {
+          hasError = true;
+          res.status(500).json({ error: err.message });
+          return;
+        }
+
+        completed++;
+        if (completed === ids.length) {
+          if (hasError) {
+            db.run("ROLLBACK");
+          } else {
+            db.run("COMMIT", (err) => {
+              if (err) {
+                res.status(500).json({ error: err.message });
+              } else {
+                res.json({
+                  message: 'Model configs deleted successfully',
+                  count: completed
+                });
+              }
+            });
+          }
+        }
+      });
+    });
+  });
+});
+
 module.exports = router;

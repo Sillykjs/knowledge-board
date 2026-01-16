@@ -254,8 +254,9 @@ export default {
       newBoardTitle: '', // 新白板标题
       newBoardSystemPrompt: '', // 新白板系统提示词
       showEditJsonModal: false, // 控制编辑 JSON 模态框显示
-      modelsJson: '', // 模型配置 JSON 字符串
-      parsedModels: [], // 解析后的模型列表
+      modelsJson: '', // 模型配置 JSON 字符串（不含 id 和 _masked）
+      parsedModels: [], // 解析后的模型列表（不含 id）
+      fullModelConfigs: [], // 完整的模型配置（包含 id，用于保存时匹配）
       currentModelName: 'AI', // 当前选择的模型名称（响应式）
       rightSidebarCollapsed: true, // 右侧边栏是否收起
       currentNotes: [], // 当前白板的便签列表（用于右侧索引）
@@ -485,8 +486,15 @@ export default {
         const configs = response.data;
 
         if (configs && configs.length > 0) {
-          // 后端已返回掩码处理的数据，直接使用
-          this.modelsJson = JSON.stringify(configs, null, 2);
+          // 保存完整配置（包含 id），用于保存时匹配
+          this.fullModelConfigs = configs;
+
+          // 过滤掉内部字段（_masked、id），只显示用户需要的字段
+          const cleanedConfigs = configs.map(item => {
+            const { _masked, id, ...userFields } = item;  // 移除 _masked 和 id 字段
+            return userFields;
+          });
+          this.modelsJson = JSON.stringify(cleanedConfigs, null, 2);
           this.parseModelsJson();
         } else {
           // 后端没有配置，使用默认模板
@@ -583,21 +591,27 @@ export default {
           }
         }
 
-        // 处理掩码：如果 apiKey 是掩码格式（包含 ***），标记为保持原值
+        // 处理 API Key：如果 apiKey 是掩码格式（包含 ***），标记为保持原值
         const toSave = parsed.map(item => {
-          if (item._masked && item.apiKey && item.apiKey.includes('***')) {
-            // 用户没改密钥，告诉后端保持原值
+          const hasMaskedKey = item.apiKey && item.apiKey.includes('***');
+
+          // 通过 provider 从完整配置中找到对应的 id
+          const existingConfig = this.fullModelConfigs.find(c => c.provider === item.provider);
+          const recordId = existingConfig ? existingConfig.id : undefined;
+
+          if (hasMaskedKey && recordId) {
+            // 用户没改密钥（有掩码且存在对应记录），告诉后端保持原值
             return {
-              id: item.id,
+              id: recordId,
               provider: item.provider,
               apiBase: item.apiBase,
               models: item.models,
               _keepOriginalKey: true
             };
           } else {
-            // 用户新增或修改了密钥
+            // 用户新增或修改了密钥，保存新值
             return {
-              id: item.id,
+              id: recordId,  // 新增时 id 为 undefined
               provider: item.provider,
               apiBase: item.apiBase,
               apiKey: item.apiKey || '',
@@ -609,6 +623,18 @@ export default {
 
         // 保存到后端
         await axios.post('/api/model-config', toSave);
+
+        // 删除数据库中存在但用户 JSON 中不存在的厂商
+        const userProviders = new Set(parsed.map(item => item.provider));
+        const toDelete = this.fullModelConfigs
+          .filter(config => !userProviders.has(config.provider))
+          .map(config => config.id);
+
+        if (toDelete.length > 0) {
+          await axios.delete('/api/model-config', {
+            data: { ids: toDelete }
+          });
+        }
 
         // 重新加载配置以获取掩码后的数据
         await this.loadModelsJson();

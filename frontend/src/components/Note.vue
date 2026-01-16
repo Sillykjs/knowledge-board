@@ -299,7 +299,11 @@ export default {
       isAIGenerating: false,  // AI生成中
       aiError: null,  // AI错误信息
       streamingContent: '',  // 流式接收的内容
-      reasoningCollapsed: true  // 思考过程callout折叠状态（默认折叠）
+      reasoningCollapsed: true,  // 思考过程callout折叠状态（默认折叠）
+      // 记忆状态（分开存储查看和编辑的滚动位置）
+      viewScrollPositions: {},  // 存储查看模式的滚动位置 {noteId: scrollTop}
+      editScrollPositions: {},  // 存储编辑模式的滚动位置 {noteId: scrollTop}
+      contentEditingStates: {}  // 存储每个便签的编辑状态 {noteId: isEditing}
     };
   },
   computed: {
@@ -505,10 +509,43 @@ export default {
     openViewModal() {
       this.showContextMenu = false;
       this.showViewModal = true;
+
+      // 恢复记忆的状态
+      this.$nextTick(() => {
+        const viewBody = document.querySelector('.view-modal-content .view-body');
+        if (viewBody) {
+          // 恢复编辑状态
+          const savedEditingState = this.contentEditingStates[this.id] || false;
+          if (savedEditingState) {
+            this.startEditViewContent();
+          } else {
+            // 查看模式：恢复查看模式的滚动位置
+            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
+            viewBody.scrollTop = savedScrollTop;
+          }
+        }
+      });
     },
     closeViewModal() {
+      // 保存当前状态（根据当前模式保存到对应的存储）
+      const viewBody = document.querySelector('.view-modal-content .view-body');
+      if (viewBody) {
+        if (this.editingViewContent) {
+          // 编辑模式：保存编辑模式的滚动位置
+          const textarea = viewBody.querySelector('.view-content-input');
+          if (textarea) {
+            this.editScrollPositions[this.id] = textarea.scrollTop;
+          }
+        } else {
+          // 查看模式：保存查看模式的滚动位置
+          this.viewScrollPositions[this.id] = viewBody.scrollTop;
+        }
+      }
+      this.contentEditingStates[this.id] = this.editingViewContent;
+
       this.showViewModal = false;
       this.editingViewTitle = false;
+      this.editingViewContent = false;
     },
     startEditViewTitle() {
       this.viewEditTitle = this.title;
@@ -550,22 +587,50 @@ export default {
       this.viewEditTitle = this.title;
     },
     startEditViewContent() {
+      // 保存当前查看模式的滚动位置
+      const viewBody = document.querySelector('.view-modal-content .view-body');
+      if (viewBody) {
+        this.viewScrollPositions[this.id] = viewBody.scrollTop;
+      }
+
       this.viewEditContent = this.content;
       this.editingViewContent = true;
+      this.contentEditingStates[this.id] = true;  // 记录进入编辑状态
+
       this.$nextTick(() => {
         if (this.$refs.viewContentInput) {
           this.$refs.viewContentInput.focus();
           this.$refs.viewContentInput.setSelectionRange(0, 0);
-          this.$refs.viewContentInput.scrollTop = 0;
+
+          // 恢复编辑模式的滚动位置
+          const savedScrollTop = this.editScrollPositions[this.id] || 0;
+          this.$refs.viewContentInput.scrollTop = savedScrollTop;
         }
       });
     },
     async saveViewContent() {
       if (!this.editingViewContent) return;
+
+      // 保存编辑模式的滚动位置
+      if (this.$refs.viewContentInput) {
+        this.editScrollPositions[this.id] = this.$refs.viewContentInput.scrollTop;
+      }
+
       this.editingViewContent = false;
+      this.contentEditingStates[this.id] = false;  // 记录退出编辑状态
 
       // 如果内容没有变化，直接返回
-      if (this.viewEditContent === this.content) return;
+      if (this.viewEditContent === this.content) {
+        // 即使内容没变化，也要恢复查看模式的滚动位置
+        this.$nextTick(() => {
+          const viewBody = document.querySelector('.view-modal-content .view-body');
+          if (viewBody) {
+            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
+            viewBody.scrollTop = savedScrollTop;
+          }
+        });
+        return;
+      }
 
       try {
         await axios.put(`/api/notes/${this.id}`, {
@@ -582,13 +647,37 @@ export default {
           position_x: this.position_x,
           position_y: this.position_y
         });
+
+        // 恢复查看模式的滚动位置
+        this.$nextTick(() => {
+          const viewBody = document.querySelector('.view-modal-content .view-body');
+          if (viewBody) {
+            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
+            viewBody.scrollTop = savedScrollTop;
+          }
+        });
       } catch (error) {
         console.error('Failed to update note content:', error);
       }
     },
     cancelEditViewContent() {
+      // 保存编辑模式的滚动位置
+      if (this.$refs.viewContentInput) {
+        this.editScrollPositions[this.id] = this.$refs.viewContentInput.scrollTop;
+      }
+
       this.editingViewContent = false;
+      this.contentEditingStates[this.id] = false;  // 记录取消编辑状态
       this.viewEditContent = this.content;
+
+      // 恢复查看模式的滚动位置
+      this.$nextTick(() => {
+        const viewBody = document.querySelector('.view-modal-content .view-body');
+        if (viewBody) {
+          const savedScrollTop = this.viewScrollPositions[this.id] || 0;
+          viewBody.scrollTop = savedScrollTop;
+        }
+      });
     },
     onMouseDown(e) {
       // 只允许左键（button === 0）拖动便签，中键和右键不触发拖动
@@ -880,15 +969,69 @@ export default {
       } catch (error) {
         console.error('Mermaid rendering error:', error);
       }
+    },
+    // 保存滚动位置（实时记录，根据当前模式保存到对应的存储）
+    onViewBodyScroll(event) {
+      if (this.editingViewContent) {
+        // 编辑模式：保存到编辑模式的存储
+        this.editScrollPositions[this.id] = event.target.scrollTop;
+      } else {
+        // 查看模式：保存到查看模式的存储
+        this.viewScrollPositions[this.id] = event.target.scrollTop;
+      }
+    },
+    // 附加滚动监听器（根据当前模式选择正确的元素）
+    attachScrollListener() {
+      const viewBody = document.querySelector('.view-modal-content .view-body');
+      if (!viewBody) return;
+
+      if (this.editingViewContent) {
+        // 编辑模式：监听 textarea 的滚动
+        const textarea = viewBody.querySelector('.view-content-input');
+        if (textarea) {
+          textarea.addEventListener('scroll', this.onViewBodyScroll);
+        }
+      } else {
+        // 查看模式：监听 view-body 的滚动
+        viewBody.addEventListener('scroll', this.onViewBodyScroll);
+      }
+    },
+    // 分离滚动监听器（移除所有可能的监听器）
+    detachScrollListener() {
+      const viewBody = document.querySelector('.view-modal-content .view-body');
+      if (!viewBody) return;
+
+      // 移除 view-body 的滚动监听
+      viewBody.removeEventListener('scroll', this.onViewBodyScroll);
+
+      // 移除 textarea 的滚动监听
+      const textarea = viewBody.querySelector('.view-content-input');
+      if (textarea) {
+        textarea.removeEventListener('scroll', this.onViewBodyScroll);
+      }
     }
 
   },
   watch: {
-    // 监听模态框打开状态，渲染 mermaid
+    // 监听模态框打开状态，渲染 mermaid 和处理滚动记忆
     showViewModal(newVal) {
       if (newVal) {
         this.renderMermaid();
+        // 模态框打开时，添加滚动事件监听
+        this.$nextTick(() => {
+          this.attachScrollListener();
+        });
+      } else {
+        // 模态框关闭时，移除滚动事件监听
+        this.detachScrollListener();
       }
+    },
+    // 监听编辑状态变化，切换滚动事件监听
+    editingViewContent(newVal) {
+      this.$nextTick(() => {
+        this.detachScrollListener();  // 先移除所有监听
+        this.attachScrollListener();  // 重新添加正确的监听（不再同步位置）
+      });
     },
     // 监听内容变化，重新渲染 mermaid
     content() {

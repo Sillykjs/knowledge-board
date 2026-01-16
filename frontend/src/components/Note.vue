@@ -82,6 +82,13 @@
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
+            <!-- 前缀内容（模型名称等，显示在推理 callout 之前） -->
+            <div
+              v-if="prefixContent && !editingViewContent"
+              class="prefix-content markdown-body"
+              v-html="renderedPrefixContent"
+            ></div>
+
             <!-- Reasoning Callout（仅当有reasoning且非编辑模式时显示） -->
             <div
               v-if="parsedReasoning && !editingViewContent"
@@ -298,6 +305,51 @@ export default {
   computed: {
     truncatedContent() {
       return this.content || '';
+    },
+    // 解析前缀内容（<!-- REASONING --> 之前的内容，如模型名称）
+    prefixContent() {
+      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
+      if (!contentToParse) return '';
+
+      // 检查是否包含reasoning标记
+      const reasoningStartMatch = contentToParse.match(/<!--\s*REASONING\s*-->/i);
+
+      // 如果没有reasoning标记，返回空
+      if (!reasoningStartMatch) return '';
+
+      // 返回reasoning标记之前的内容
+      return contentToParse.substring(0, reasoningStartMatch.index).trim();
+    },
+    // 渲染前缀内容（Markdown格式）
+    renderedPrefixContent() {
+      const prefix = this.prefixContent;
+      if (!prefix) return '';
+      try {
+        const renderedMarkdown = md.render(prefix);
+        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
+          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
+                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
+                         'span', 'annotation', 'semantics', 'mtext', 'mn',
+                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
+                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
+                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
+          ALLOWED_ATTR: ['href', 'title', 'class', 'style', 'xmlns',
+                         'width', 'height', 'viewbox', 'preserveaspectratio',
+                         'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
+                         'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points',
+                         'text-anchor', 'font-size', 'font-family', 'transform',
+                         'data-mermaid', 'linebreak', 'indentalign',
+                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
+                         'columnspacing', 'displaystyle', 'scriptlevel',
+                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
+          ALLOW_DATA_ATTR: false
+        });
+        return cleanHtml;
+      } catch (error) {
+        console.error('Prefix content rendering error:', error);
+        return prefix;
+      }
     },
     // 解析思考过程内容
     parsedReasoning() {
@@ -1286,6 +1338,15 @@ export default {
   background: #ffebee;
   margin-top: 8px;
 }
+</style>
+
+<style>
+/* 前缀内容样式（模型名称等） */
+.prefix-content {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
 </style>
 
 <style>

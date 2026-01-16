@@ -421,6 +421,7 @@ router.post('/ai-generate', async (req, res) => {
 
       let hasReasoning = false;
       let reasoningEnded = false;
+      let hasSentModelName = false;  // 标记是否已发送模型名称
 
       // 处理流式数据
       response.data.on('data', (chunk) => {
@@ -448,6 +449,13 @@ router.post('/ai-generate', async (req, res) => {
                   // 如果是第一次接收到reasoning，发送开始标记
                   if (!hasReasoning && reasoningText) {
                     hasReasoning = true;
+
+                    // 推理模型：先发送模型名称，然后发送推理开始标记
+                    if (!hasSentModelName) {
+                      hasSentModelName = true;
+                      res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
+                    }
+
                     res.write(`data: ${JSON.stringify({ content: '<!-- REASONING -->\n' })}\n\n`);
                   }
 
@@ -463,6 +471,18 @@ router.post('/ai-generate', async (req, res) => {
                   if (hasReasoning && !reasoningEnded) {
                     res.write(`data: ${JSON.stringify({ content: '<!-- END_REASONING -->\n\n' })}\n\n`);
                     reasoningEnded = true;
+
+                    // 推理模型：在推理结束后、正式内容前发送模型名称
+                    if (!hasSentModelName) {
+                      hasSentModelName = true;
+                      res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
+                    }
+                  }
+
+                  // 非推理模型：第一次发送content时，先发送模型名称
+                  if (!hasReasoning && !hasSentModelName) {
+                    hasSentModelName = true;
+                    res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
                   }
 
                   res.write(`data: ${JSON.stringify({ content })}\n\n`);

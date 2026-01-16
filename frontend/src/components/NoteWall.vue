@@ -809,8 +809,8 @@ export default {
           wall_id: this.boardId
         });
 
-        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
-        this.notes.unshift(response.data.note);
+        // 将新便签添加到数组末尾（确保显示在最上面）
+        this.notes.push(response.data.note);
 
         // 通知父组件便签列表已更新
         this.$emit('notes-loaded', this.notes);
@@ -848,8 +848,11 @@ export default {
     onNoteUpdate(updatedNote) {
       const index = this.notes.findIndex(n => n.id === updatedNote.id);
       if (index !== -1) {
-        // 使用 Vue 3 的响应式方式更新数组
-        this.notes.splice(index, 1, { ...updatedNote });
+        // 保留原有的 created_at 等字段，只更新传入的字段
+        this.notes.splice(index, 1, {
+          ...this.notes[index],  // 保留原有所有字段
+          ...updatedNote          // 覆盖更新的字段
+        });
         // 强制连接线重新计算（通过重新触发响应式更新）
         this.$forceUpdate();
         // 通知父组件便签列表已更新
@@ -1116,8 +1119,8 @@ export default {
           }
         }
 
-        // 4. 将新便签添加到数组
-        newNotes.forEach(note => this.notes.unshift(note));
+        // 4. 将新便签添加到数组末尾
+        newNotes.forEach(note => this.notes.push(note));
 
         // 5. 重新加载连接线
         await this.loadConnections();
@@ -1519,8 +1522,8 @@ export default {
         const newNote = response.data.note;
         const newNoteId = newNote.id;
 
-        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
-        this.notes.unshift(newNote);
+        // 将新便签添加到数组末尾（确保显示在最上面）
+        this.notes.push(newNote);
 
         // 创建连接
         await this.createConnection(sourceId, newNoteId);
@@ -1573,8 +1576,8 @@ export default {
         const newNote = response.data.note;
         const newNoteId = newNote.id;
 
-        // 将新便签添加到数组开头（确保在便签索引中显示在最上面）
-        this.notes.unshift(newNote);
+        // 将新便签添加到数组末尾（确保显示在最上面）
+        this.notes.push(newNote);
 
         // 创建连接
         await this.createConnection(noteId, newNoteId);

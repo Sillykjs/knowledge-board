@@ -316,7 +316,7 @@ export default {
       wallContextMenuX: 0,
       wallContextMenuY: 0,
       wallContextMenuOpenedAt: 0,  // 记录菜单打开的时间戳
-      contextLevel: 1,  // 上文层数，默认1层
+      contextLevel: 5,  // 上文层数，默认5层
       connections: [],              // 所有连接关系
       isDraggingConnection: false,  // 是否正在拖拽连线
       dragStartNoteId: null,        // 拖拽起始便签ID

@@ -1,6 +1,3 @@
-// 加载环境变量
-require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');

@@ -504,30 +504,6 @@ export default {
               apiBase: 'https://api.openai.com/v1',
               apiKey: '',  // 空字符串表示未配置
               models: ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview']
-            },
-            {
-              provider: 'DeepSeek',
-              apiBase: 'https://api.deepseek.com/v1',
-              apiKey: '',
-              models: ['deepseek-chat', 'deepseek-coder']
-            },
-            {
-              provider: '智谱AI',
-              apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-              apiKey: '',
-              models: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4-air']
-            },
-            {
-              provider: 'Ollama',
-              apiBase: 'http://localhost:11434/v1',
-              apiKey: 'ollama',
-              models: ['llama2', 'llama3', 'mistral', 'codellama']
-            },
-            {
-              provider: 'Anthropic',
-              apiBase: 'https://api.anthropic.com/v1',
-              apiKey: '',
-              models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku']
             }
           ];
           this.modelsJson = JSON.stringify(defaultModels, null, 2);

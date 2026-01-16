@@ -253,7 +253,7 @@ router.post('/ai-generate', async (req, res) => {
   // 获取模型配置
   let apiKey, apiBase, modelName;
 
-  // 如果前端提供了 provider，从数据库读取配置
+  // 从数据库读取配置
   if (provider) {
     const config = await new Promise((resolve) => {
       db.get("SELECT * FROM model_configs WHERE provider = ?", [provider], (err, row) => {
@@ -270,27 +270,11 @@ router.post('/ai-generate', async (req, res) => {
       apiKey = config.api_key;
       apiBase = config.api_base;
       modelName = model || JSON.parse(config.models)[0]; // 使用指定的模型或第一个模型
-    } else {
-      // 数据库中没有配置，尝试使用环境变量
-      const envApiKey = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_API_KEY`];
-      const envApiBase = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_API_BASE`];
-      const envModel = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_MODEL`];
-
-      if (envApiKey) {
-        apiKey = envApiKey;
-        apiBase = envApiBase || process.env.OPENAI_API_BASE;
-        modelName = model || envModel || process.env.OPENAI_MODEL;
-      }
     }
-  } else {
-    // 没有提供 provider，使用默认环境变量
-    apiKey = process.env.OPENAI_API_KEY;
-    apiBase = process.env.OPENAI_API_BASE;
-    modelName = model || process.env.OPENAI_MODEL;
   }
 
   if (!apiKey || !apiBase || !modelName) {
-    res.status(500).json({ error: 'Model configuration is missing. Please configure the model in the sidebar or set up environment variables.' });
+    res.status(500).json({ error: '请先在左侧边栏配置模型（点击"模型管理"按钮）' });
     return;
   }
 

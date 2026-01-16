@@ -7,10 +7,6 @@ dist/
 build/
 public/dist/
 
-# Environment variables
-.env*
-!.env.example
-
 # Logs
 logs/
 *.log

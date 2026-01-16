@@ -55,19 +55,28 @@ npm install
 
 ### 配置 AI（可选）
 
-如需使用 AI 生成功能，配置环境变量：
+如需使用 AI 生成功能，启动后通过左侧边栏的"模型管理 JSON"按钮配置大模型：
 
-```bash
-cd backend
-cp .env.example .env
-```
+1. 启动应用后，点击左侧边栏右上角的"模型管理 JSON"按钮
+2. 编辑模型配置 JSON（支持多个厂商）
+3. 点击"保存"按钮
 
-编辑 `.env` 文件：
-
-```env
-OPENAI_API_KEY=your_api_key_here
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_MODEL=gpt-3.5-turbo
+配置示例：
+```json
+[
+  {
+    "provider": "OpenAI",
+    "apiBase": "https://api.openai.com/v1",
+    "apiKey": "sk-xxx",
+    "models": ["gpt-4o", "gpt-3.5-turbo"]
+  },
+  {
+    "provider": "DeepSeek",
+    "apiBase": "https://api.deepseek.com",
+    "apiKey": "sk-xxx",
+    "models": ["deepseek-chat"]
+  }
+]
 ```
 
 ### 启动
@@ -140,7 +149,6 @@ npm run dev
 - **Express.js** - Web 应用框架
 - **SQLite3** - 轻量级数据库
 - **Axios** - HTTP 客户端（调用 OpenAI API）
-- **dotenv** - 环境变量管理
 
 ### 特色技术
 - **原生 HTML5 Drag & Drop** - 拖拽实现

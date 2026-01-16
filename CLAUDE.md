@@ -5,12 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 快速参考
 
 **核心命令:**
+
 - 启动全部（推荐）: 在 VS Code 中使用 "启动全部 (Full Stack)" 调试配置
 - 启动后端: `cd backend && npm run dev` (使用 nodemon 自动重启)
 - 启动前端: `cd frontend && npm run dev` (Vite 开发服务器)
 - 构建前端: `cd frontend && npm run build`
 
 **常见任务:**
+
 - 添加新路由: 在 `backend/routes/notes.js` 中添加，具体路径必须在参数化路径之前
 - 添加数据库字段: 在 `backend/database.js` 的 `initDb()` 中添加迁移逻辑
 - 添加模态框: 遵循"控制变量→触发方法→确认方法→取消方法"模式
@@ -19,8 +21,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 添加便签右键菜单项: 在 Note.vue 的右键菜单中添加选项，通过 emit 事件通知父组件处理
 - 实现框选功能: 参考 NoteWall.vue 的 `boxSelection` 状态管理和鼠标事件处理逻辑
 - 实现高亮效果: 使用 Set 维护高亮元素 ID，配合 CSS 动画和定时器清理实现
+- 实现批量复制粘贴: 参考多便签复制粘贴功能，使用相对偏移和 ID 映射保持连接关系
 
 **关键文件:**
+
 - `backend/server.js`: Express 服务器入口
 - `backend/database.js`: 数据库初始化和迁移
 - `backend/routes/notes.js`: 便签和连接 API 路由（注意路由顺序）
@@ -31,6 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `frontend/vite.config.js`: Vite 配置（API proxy）
 
 **重要概念:**
+
 - 软删除机制: `deleted_at` 字段标记删除状态
 - 路由顺序: Express 按定义顺序匹配，具体路径必须在参数化路径之前
 - 坐标系统: 白板支持缩放平移，所有位置操作需使用坐标转换
@@ -40,11 +45,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 双击编辑: 查看模态框中的标题和内容都支持双击进入编辑模式，失焦自动保存
 - 快速创建: 双击便签的引出点（下中心连接点）可在正下方快速创建新便签并自动连接
 - 便签多选: 支持框选（拖拽空白区域）和 Shift/Ctrl+点击选择多个便签
+- 多便签复制粘贴: 框选多个便签后，右键点击任意便签复制/剪切，该便签作为粘贴基准点
 - 上文追溯: 右键菜单支持多层父节点追溯，可追溯层数通过界面左上角控制（1-24层）
 
 ## 项目概述
 
-便签墙是一个单页应用(SPA)，提供多个独立的大型白板，每个白板包含自己的便签、连接和配置。用户可以在白板之间切换，每个白板支持创建、编辑、删除和拖拽便签。包含软删除和回收站功能。支持白板标题和备注的自定义配置、Markdown 渲染，以及便签间的可视化连接功能。**核心特性：多白板管理、白板独立状态保持（缩放平移）、数据隔离。**
+知识白板是一个创新的知识管理和 AI 对话工具，将大模型的问答作为便签贴在无限白板中，并通过连接线灵活地构建知识网络。
+
+**核心特色：**
+
+1. **AI 对话作为便签**：每次与大模型的对话都成为可拖拽、可编辑的便签，永久保存在无限白板中
+2. **连接线即上下文**：通过连接线指定 AI 回答的上下文，上文追溯功能沿着连接线获取多轮对话历史
+3. **无限白板空间**：支持缩放和平移，在无限画布上自由组织知识节点
+4. **多白板隔离**：每个白板独立管理，支持不同主题的知识空间
+
+**应用场景：**
+- 知识图谱构建：将相关概念通过连接线组织成知识网络
+- AI 对话管理：保存和复用与大模型的多轮对话
+- 思维导图：可视化思路和知识关联
+- 研究笔记：整理研究资料和文献关联
 
 ## 技术栈
 
@@ -56,12 +75,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 开发命令
 
 ### VS Code 调试
+
 项目包含 VS Code 调试配置 (`.vscode/launch.json`)，可以直接使用调试功能：
+
 - **启动后端 (Backend)**: 使用 nodemon 自动重启，支持断点调试
 - **启动前端 (Frontend)**: 启动 Vite 开发服务器，自动打开浏览器
 - **启动全部 (Full Stack)**: 同时启动前后端（推荐）
 
 ### 后端启动
+
 ```bash
 cd backend
 npm install
@@ -75,6 +97,7 @@ npm run dev
 **重要**: 使用 `npm start` 时，任何代码修改都需要手动重启后端。使用 `npm run dev`（nodemon）会自动重启，但数据库迁移逻辑可能不会重新触发。
 
 ### 前端启动
+
 ```bash
 cd frontend
 npm install
@@ -84,12 +107,14 @@ npm run dev
 前端开发服务器运行在 `http://localhost:5173`，支持热模块替换（HMR）。
 
 ### 构建前端
+
 ```bash
 cd frontend
 npm run build
 ```
 
 ### 预览生产构建
+
 ```bash
 cd frontend
 npm run preview
@@ -98,6 +123,7 @@ npm run preview
 ## 项目架构
 
 ### 目录结构
+
 ```
 ChatBranch2/
 ├── backend/               # Express后端
@@ -122,7 +148,9 @@ ChatBranch2/
 ## 后端架构
 
 ### 数据库设计 (SQLite)
+
 **boards表结构（白板表）:**
+
 - `id`: 主键，自增
 - `title`: 白板标题
 - `system_prompt`: AI系统提示词（用于AI生成功能）
@@ -130,6 +158,7 @@ ChatBranch2/
 - `updated_at`: 更新时间
 
 **notes表结构:**
+
 - `id`: 主键，自增
 - `title`: 便签标题
 - `content`: 便签内容
@@ -141,6 +170,7 @@ ChatBranch2/
 - `deleted_at`: 删除时间（软删除标记，NULL表示未删除）
 
 **note_connections表结构:**
+
 - `id`: 主键，自增
 - `source_note_id`: 源便签ID（外键）
 - `target_note_id`: 目标便签ID（外键）
@@ -150,6 +180,7 @@ ChatBranch2/
 - 唯一约束：`(source_note_id, target_note_id)` 组合必须唯一
 
 ### 软删除机制
+
 - **软删除**: 删除便签时设置 `deleted_at = CURRENT_TIMESTAMP`，数据仍在数据库中
 - **恢复**: 恢复便签时设置 `deleted_at = NULL`
 - **真删除**: 只在回收站中点击"永久删除"或"清空回收站"时执行 `DELETE FROM`
@@ -159,6 +190,7 @@ ChatBranch2/
 ### API接口
 
 **白板管理操作:**
+
 - `GET /api/notes/boards` - 获取所有白板列表（包含便签计数）
 - `POST /api/notes/boards` - 创建新白板
 - `GET /api/notes/boards/:id` - 获取单个白板配置
@@ -166,29 +198,34 @@ ChatBranch2/
 - `DELETE /api/notes/boards/:id` - 删除白板（禁止删除 id=1 的默认白板）
 
 **便签基本操作:**
+
 - `GET /api/notes?wall_id=1` - 获取指定白板的便签（未删除）
 - `POST /api/notes` - 创建便签（需要传递 wall_id）
 - `PUT /api/notes/:id` - 更新便签(标题、内容、位置)
 - `DELETE /api/notes/:id` - 软删除便签（移入回收站）
 
 **便签连接操作:**
+
 - `GET /api/notes/connections?wall_id=1` - 获取指定白板的便签连接关系
 - `POST /api/notes/connections` - 创建便签之间的连接（需要传递 wall_id）
 - `DELETE /api/notes/connections/:connectionId` - 删除指定连接
 
 **回收站操作（路由必须在 /:id 之前定义）:**
+
 - `GET /api/notes/recycle-bin` - 获取回收站中的已删除便签
 - `POST /api/notes/recycle-bin/restore/:id` - 恢复便签
 - `DELETE /api/notes/recycle-bin/:id` - 永久删除单个便签
 - `DELETE /api/notes/recycle-bin` - 清空回收站（永久删除所有）
 
 **AI生成操作（路由必须在 /:id 之前定义）:**
+
 - `POST /api/notes/ai-generate` - 使用AI生成内容（需要配置环境变量）
   - 请求体: `{ prompt: string, wall_id?: number }`
   - 响应: Server-Sent Events (SSE) 格式的流式数据
   - 使用白板的 `system_prompt` 作为 system 消息
 
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
+
 1. 引入白板路由：`router.use('/boards', boardsRouter)`
 2. 具体路径（如 `/recycle-bin`, `/connections`, `/ai-generate`）
 3. 嵌套路径（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
@@ -201,6 +238,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ### 关键工作流程
 
 **创建新便签流程:**
+
 1. 用户点击"+"按钮 → `addNote()` 被调用
 2. 计算新便签位置（基于现有便签数量的网格布局）
 3. POST请求到 `/api/notes`
@@ -208,6 +246,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 5. 将新便签添加到 `notes` 数组
 
 **编辑便签流程:**
+
 1. 用户双击便签 → 打开查看模态框
 2. 双击标题或内容 → 进入编辑模式（切换为 input/textarea）
 3. 用户修改标题/内容 → 修改临时变量 `viewEditTitle` 和 `viewEditContent`
@@ -215,6 +254,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 5. 通过 `@update` 事件通知父组件NoteWall更新本地数据
 
 **删除便签流程（软删除）:**
+
 1. 用户在右键菜单点击"删除"
 2. DELETE请求到 `/api/notes/:id`
 3. 后端设置 `deleted_at = CURRENT_TIMESTAMP`
@@ -222,6 +262,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 5. 调用 `loadRecycleNotes()` 更新回收站计数
 
 **恢复便签流程:**
+
 1. 用户在回收站点击"恢复"
 2. POST请求到 `/api/notes/recycle-bin/restore/:id`
 3. 后端设置 `deleted_at = NULL`
@@ -229,6 +270,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 5. 调用 `loadNotes()` 重新加载主便签墙
 
 **永久删除流程:**
+
 1. 用户在回收站点击"永久删除" → `permanentDelete(noteId)` 被调用
 2. 设置 `pendingDeleteNoteId = noteId` 和 `showDeleteConfirm = true`
 3. 显示确认模态框
@@ -238,6 +280,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ### 组件结构
 
 **NoteWall.vue** (便签墙容器)
+
 - **Props**: 接收 `boardId`、`boardTitle`、`boardRemark` 从父组件传入
 - 管理单个白板的所有便签和回收站的状态
 - 处理便签的添加、更新、删除（所有 API 调用都带上 `wall_id` 参数）
@@ -256,6 +299,13 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - 支持框选（拖拽空白区域绘制矩形选框）
   - 选中状态在 `selectedNoteIds` Set 中维护
   - 框选状态在 `boxSelection` 对象中管理（包含起始坐标、当前坐标、选择模式等）
+- **多便签复制粘贴**:
+  - 框选多个便签后，右键点击任意便签复制/剪切
+  - 右键点击的便签作为粘贴基准点
+  - 白板右键菜单支持粘贴操作（显示剪切板便签数量）
+  - 粘贴时保持便签之间的相对位置和连接关系
+  - 剪切板数据保存在 localStorage，支持跨白板粘贴
+  - 剪切模式粘贴后清空剪切板，复制模式可重复粘贴
 - **上文追溯**:
   - 右键菜单触发，使用 BFS 算法追溯父节点
   - 可追溯层数通过 `contextLevel` 控制（1-24层）
@@ -264,6 +314,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **上文层数控制组件**: 界面左上角显示和调整追溯层数（+/- 按钮或直接输入）
 
 **App.vue** (应用入口，新增多白板管理)
+
 - **左侧边栏**: 显示所有白板，点击切换，显示便签数量徽章，支持收起/展开
   - 展开状态：显示白板标题、便签数量徽章、删除按钮
   - 收起状态：只显示图标（当前白板为 📌，其他为 📄）
@@ -286,9 +337,11 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - 新建白板按钮在底部
 
 **Note.vue** (单个便签)
+
 - 显示便签标题和内容
 - 右键菜单支持：
-  - **复制**：在原便签右下方（偏移 30px）创建新的便签，标题和内容相同
+  - **复制**：将便签复制到剪切板，支持单便签和多便签复制
+  - **剪切**：将便签剪切到剪切板，支持单便签和多便签剪切
   - **上文追溯**：追溯父节点，根据设定的层数高亮显示所有上游便签和连接线
   - **删除**：软删除便签到回收站
 - 查看模态框（双击打开，支持 Markdown 渲染，支持点击外部关闭）
@@ -305,6 +358,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **AI 生成状态显示**：当 AI 正在生成内容时，便签背景变为浅黄色并带有脉冲动画效果
 
 ### 数据流和状态管理
+
 - 便签数据存储在 `NoteWall.vue` 的 `notes` 数组中
 - 回收站数据存储在 `recycleNotes` 数组中
 - 使用 Vue 3 响应式系统，数据变化自动触发UI更新
@@ -312,7 +366,9 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 删除便签后自动调用 `loadRecycleNotes()` 更新回收站计数
 
 ### 模态框状态管理模式
+
 项目使用统一的状态管理模式来控制模态框：
+
 1. **控制变量**: 使用布尔值（如 `showDeleteConfirm`、`showClearConfirm`）控制模态框显示
 2. **触发方法**: 设置控制变量为 `true` 来显示模态框（如 `permanentDelete()` 只设置状态）
 3. **确认方法**: 执行实际操作并关闭模态框（如 `confirmPermanentDelete()`）
@@ -321,7 +377,9 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 这种模式确保模态框只在用户明确确认后才执行操作，避免使用浏览器原生的 `confirm()` 对话框。
 
 ### 点击外部关闭模态框
+
 项目中的模态框支持点击外部区域关闭（如查看模态框、回收站模态框），实现方式：
+
 ```html
 <!-- 外层遮罩添加点击事件 -->
 <div class="modal-overlay" @click="closeModal">
@@ -331,11 +389,14 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   </div>
 </div>
 ```
+
 - 外层遮罩：`@click="closeModal"` - 点击半透明背景时关闭
 - 内层内容：`@click.stop` - 阻止点击事件冒泡，点击内容区域不关闭
 
 ### 拖拽实现
+
 使用原生HTML5 Drag & Drop API:
+
 - `dragstart`: 记录拖拽偏移量
 - `dragover`: 允许放置（在 NoteWall 容器上）
 - `dragend`: 计算新位置并更新到后端
@@ -343,14 +404,17 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 拖拽时自动禁用：当编辑或查看模态框打开时，拖拽功能会被禁用以防止冲突。
 
 ### Teleport 使用（重要）
+
 项目中所有模态框（右键菜单、查看模态框）都使用 Vue 3 的 Teleport 功能传送到 `body`：
 
 **为什么需要 Teleport？**
+
 - 白板使用 `transform: scale()` 进行缩放，子元素会继承缩放变换
 - 如果模态框放在 `.wall-content` 内，会随白板缩放而变形、模糊或位置错误
 - Teleport 将模态框传送到 `body`，完全脱离白板的变换影响
 
 **实现方式：**
+
 ```html
 <Teleport to="body">
   <div v-if="showModal" class="modal-overlay">
@@ -360,12 +424,15 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ```
 
 **关键要点：**
+
 - 所有 Note.vue 中的模态框都使用 Teleport 包装
 - 模态框样式使用 `position: fixed`，相对于视口定位
 - 这样无论白板如何缩放平移，模态框都保持正常显示
 
 ### 便签墙配置功能
+
 便签墙支持自定义标题和系统提示词，实现位于 `NoteWall.vue`：
+
 - **标题显示**: 页面顶部显示大标题
 - **编辑功能**: 双击标题打开编辑模态框，可修改标题和系统提示词
 - **数据持久化**: 配置保存在 `boards` 表中（每个白板独立存储）
@@ -374,28 +441,32 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **加载时机**: 通过 props 响应式更新，无需手动加载
 
 ### Markdown 渲染实现
+
 查看便签模态框支持 Markdown 渲染，实现位于 `Note.vue`:
 
 **依赖库:**
+
 - `markdown-it`: 解析 Markdown 语法为 HTML
 - `dompurify`: 净化 HTML 防止 XSS 攻击
 
 **实现细节:**
+
 1. **初始化**: 在 `<script>` 顶部初始化 markdown-it 实例
+
    - `html: false`: 禁止 HTML 标签（安全）
    - `linkify: true`: 自动转换 URL 为链接
    - `breaks: true`: 转换换行符为 `<br>`
-
 2. **计算属性**: `renderedContent()` 方法
+
    - 使用 `md.render()` 解析 Markdown
    - 使用 `DOMPurify.sanitize()` 净化 HTML
    - 仅允许安全的标签和属性
    - 错误时回退到纯文本
-
 3. **模板渲染**: 使用 `v-html="renderedContent"`
-   - 元素同时有 `view-content` 和 `markdown-body` 两个 class
 
+   - 元素同时有 `view-content` 和 `markdown-body` 两个 class
 4. **样式实现（重要）**:
+
    - **使用两个 style 块**
    - `<style scoped>`: 组件特定样式
    - `<style>`: Markdown 样式（非 scoped，必须！）
@@ -403,12 +474,14 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 **关键实现要点:**
 
 **为什么需要非 scoped 样式？**
+
 - Vue 的 scoped 样式会给元素添加唯一的 `data-v-xxx` 属性
 - 通过 `v-html` 动态插入的 HTML 内容**没有**这些 data 属性
 - 因此 scoped 样式无法应用到 Markdown 渲染的 HTML 上
 - 必须将 `.markdown-body` 相关样式放在非 scoped 的 style 块中
 
 **避免样式冲突:**
+
 ```css
 /* 默认样式 - 同时应用于 markdown 和纯文本 */
 .view-content {
@@ -432,14 +505,17 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 ```
 
 **安全措施:**
+
 - 禁止在 Markdown 中使用 HTML 标签（`html: false`）
 - DOMPurify 白名单机制限制可用的 HTML 标签和属性
 - 错误处理防止渲染失败导致崩溃
 
 ### AI 内容生成功能
+
 查看便签模态框底部有"AI 生成内容"按钮，点击后使用便签标题作为prompt向AI请求内容：
 
 **环境配置**:
+
 - 复制 `backend/.env.example` 为 `backend/.env`
 - 配置环境变量：
   - `OPENAI_API_KEY`: OpenAI API密钥或兼容服务的密钥（必需）
@@ -447,6 +523,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - `OPENAI_MODEL`: 模型名称（必需）
 
 **API接口**:
+
 - `POST /api/notes/ai-generate` - AI生成内容接口（支持流式输出，使用SSE）
   - 请求体: `{ prompt: string, wall_id?: number }`
   - 响应: Server-Sent Events (SSE) 格式的流式数据
@@ -455,6 +532,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - **System Prompt**: 从白板的 `system_prompt` 字段获取，作为 system 消息发送给 AI
 
 **前端实现**（Note.vue）:
+
 - **流式输出**: 使用 fetch API 和 ReadableStream 接收SSE数据，逐步显示在模态框中
 - 按钮状态：生成中显示"⏳ 生成中..."并禁用
 - 实时渲染：生成过程中实时渲染 Markdown，内容逐步显示
@@ -466,6 +544,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - 状态保持：即使关闭模态框，便签仍保持生成状态，直到完成或失败
 
 **技术实现细节**:
+
 - 后端使用 axios 的 `responseType: 'stream'` 接收 OpenAI 的流式响应
 - 后端设置 SSE 响应头（`Content-Type: text/event-stream`）
 - 前端使用 `fetch` API 和 `ReadableStream` 读取流式数据
@@ -473,38 +552,44 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - 每次接收到内容块时更新 `streamingContent`，触发响应式更新
 
 ### 位置计算
+
 便签使用 `position: absolute` 定位，坐标相对于 `.note-wall` 容器。新便签默认位置按网格布局计算（每行5个，间距270px水平、200px垂直）。
 
 ### 白板缩放和平移功能
+
 便签墙支持缩放和平移操作，实现位于 `NoteWall.vue`：
 
 **视图状态管理:**
+
 - `viewport.scale`: 缩放比例（范围 0.25 ~ 3.0，默认 1.0）
 - `viewport.translateX`: X轴平移偏移量
 - `viewport.translateY`: Y轴平移偏移量
 - `zoomLimits`: 定义缩放限制（min: 0.25, max: 3.0, step: 0.1）
 
 **实现方式:**
+
 1. **CSS Transform**: 使用 `transform: translate() scale()` 应用缩放和平移
+
    - 变换原点固定为左上角（`transformOrigin: '0 0'`）
    - `.wall-content` 容器承载变换，标题和按钮在容器外不受影响
-
 2. **坐标转换系统**:
+
    - `screenToWorld()`: 屏幕坐标 → 白板世界坐标（除以 scale 再减去偏移）
    - `worldToScreen()`: 白板世界坐标 → 屏幕坐标（乘以 scale 再加上偏移）
    - 所有拖拽和连接操作都通过坐标转换确保位置准确
-
 3. **缩放操作**:
+
    - **鼠标滚轮**: `onWheel()` 事件，调用 `zoomAtPoint()` 实现以鼠标位置为中心的缩放
    - **缩放按钮**: 右下角控制面板提供放大(+)/缩小(-)/重置(⟲)按钮
    - **缩放算法**: 先计算缩放前鼠标指向的世界坐标，缩放后调整平移偏移使该点保持在鼠标下
-
 4. **平移操作**:
+
    - **鼠标拖拽**: `onWallMouseDown/Move/Up` 事件处理
    - 通过 `isPanning` 状态标志区分平移和便签拖拽
    - 按住空白处拖拽可平移白板
 
 **关键实现细节**:
+
 1. NoteWall.vue - 监听 `@wheel.prevent` 禁用默认滚动
 2. NoteWall.vue - `wallTransformStyle` 计算属性生成 CSS transform
 3. NoteWall.vue - `zoomAtPoint()` 方法实现以鼠标为中心的缩放
@@ -514,6 +599,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 **注意**: 具体行号可能随代码更新而变化，建议使用编辑器的搜索功能查找相关代码。
 
 **交互冲突处理**:
+
 - 平移操作 (`isPanning`) 和便签拖拽互斥，通过事件目标判断
 - 连接操作 (`isConnecting`) 会禁用便签拖拽
 - 缩放操作通过滚轮独立触发，不影响拖拽
@@ -522,6 +608,7 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 为解决缩放时文字模糊的问题，使用了以下 CSS 优化：
 
 在 `.wall-content` 和 `.note` 样式中添加：
+
 ```css
 /* 启用 GPU 加速和优化渲染质量 */
 transform-style: preserve-3d;
@@ -531,6 +618,7 @@ backface-visibility: hidden;
 ```
 
 **为什么需要这些优化？**
+
 - `transform-style: preserve-3d`: 启用 3D 变换上下文，强制使用 GPU 渲染
 - `backface-visibility: hidden`: 隐藏元素背面，进一步优化 GPU 渲染
 - `-webkit-font-smoothing: antialiased`: 启用次像素抗锯齿，使文字边缘更平滑
@@ -539,9 +627,11 @@ backface-visibility: hidden;
 这些属性确保白板缩放时，便签中的文字保持清晰锐利，不会出现锯齿或模糊。
 
 ### 便签多选和框选功能
+
 便签墙支持多种选择模式，方便批量操作：
 
 **选择方式:**
+
 1. **单击选择**: 点击便签即可选中（取消其他已选便签）
 2. **Shift/Ctrl+点击**: 切换模式，追加或取消选择该便签，不影响其他已选便签
 3. **框选**: 在空白处按住鼠标拖拽，绘制矩形选框，框内的所有便签会被选中
@@ -551,53 +641,63 @@ backface-visibility: hidden;
      - 切换模式（Shift/Ctrl）：框选结果追加到当前选择
 
 **视觉反馈:**
+
 - 选中的便签显示蓝色边框和阴影效果
 - 框选矩形显示为半透明蓝色边框
 - 选中状态在 `selectedNoteIds` Set 中维护
 
 **使用场景:**
+
 - 批量移动便签（未来功能）
 - 批量删除便签（未来功能）
 - 批量建立连接（未来功能）
 
 **实现位置:**
+
 - 状态管理: NoteWall.vue `boxSelection` 对象和 `selectedNoteIds` Set
 - 框选逻辑: `onWallMouseDown`, `onWallMouseMove`, `onWallMouseUp`
 - 样式渲染: Note.vue 接收 `isSelected` prop
 
 ### 上文追溯功能
+
 支持多层父节点追溯，用于查看便签的上下文关系：
 
 **功能说明:**
+
 - 通过右键菜单触发"上文追溯"
 - 使用广度优先搜索（BFS）算法遍历父节点
 - 可追溯层数通过界面左上角控制组件调整（1-24层）
 - 追溯时高亮显示相关便签和连接线
 
 **追溯算法:**
+
 1. 从当前便签开始，向上查找所有父节点（通过 `target_note_id` 反向查找）
 2. 按层数逐级扩展，直到达到设定的层数或没有更多父节点
 3. 高亮显示所有追溯到的便签和连接线
 4. 高亮效果在 3 秒后自动消失（防止内存泄漏）
 
 **视觉效果:**
+
 - 追溯到的便签显示黄色边框和脉冲动画
 - 追溯路径上的连接线闪烁高亮
 - 高亮效果使用 `highlight-flash` class 实现
 
 **控制组件:**
+
 - 位置: 白板左上角（缩放控制下方）
 - 显示: 当前层数（如"上文层数: 3"）
 - 操作: +/- 按钮调整层数，或直接输入数字
 - 范围: 1-24 层
 
 **实现位置:**
+
 - 状态管理: NoteWall.vue `contextLevel` 变量和 `highlightedNoteIds`, `highlightedConnectionIds` Set
 - 追溯逻辑: `onTraceParent` 和 BFS 算法实现
 - 高亮清除: `clearHighlights` 方法和定时器清理
 - 控制组件: 模板中的 `context-level-control` 区域
 
 **注意事项:**
+
 - 高亮定时器会在组件销毁或下次追溯时自动清理，防止内存泄漏
 - 追溯算法使用 Set 避免重复访问，提高性能
 - 连接线闪烁动画使用 CSS `@keyframes` 实现
@@ -605,6 +705,7 @@ backface-visibility: hidden;
 ## 数据库迁移
 
 数据库迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中：
+
 - 创建 `boards` 表（白板表）
 - 从 `wall_config` 表迁移数据到 `boards` 表（id=1 为默认白板），然后删除 `wall_config` 表
 - 为 `notes` 表添加 `wall_id` 外键字段（默认值 1），并创建索引
@@ -614,12 +715,14 @@ backface-visibility: hidden;
 - 如果后端已在运行且数据库已创建，需要重启后端以触发迁移
 
 **多白板迁移步骤**:
+
 1. 创建 `boards` 表
 2. 检查 `wall_config` 表是否存在，如果存在则迁移数据到 `boards` 表（id=1）
 3. 为 `notes` 表添加 `wall_id` 字段（如果不存在）
 4. 为 `note_connections` 表添加 `wall_id` 字段（如果不存在）
 
 手动迁移命令（仅在自动迁移失败时使用）:
+
 ```bash
 cd backend
 
@@ -639,11 +742,13 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 ## 后端架构细节
 
 ### 数据库连接
+
 - 使用单例模式：`database.js` 导出单个数据库连接
 - 连接建立后自动执行 `initDb()` 进行表初始化和迁移
 - 所有路由通过 `require('../database')` 获取同一数据库实例
 
 ### 环境变量配置
+
 - 使用 `dotenv` 加载环境变量（在 `server.js` 顶部配置）
 - 环境变量文件：`backend/.env`（需要手动创建，参考 `.env.example`）
 - AI生成功能依赖的环境变量（全部必需）：
@@ -653,11 +758,14 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - 环境变量文件已添加到 `.gitignore`，不会被提交到版本控制
 
 ### 路由设计模式
+
 **主要路由文件**:
+
 - `backend/routes/boards.js`: 白板管理路由（新建）
 - `backend/routes/notes.js`: 便签和连接路由（已修改）
 
 **boards.js 路由**（白板管理）:
+
 - `GET /` - 获取所有白板（包含便签计数，按更新时间倒序）
 - `POST /` - 创建新白板（需要 `title`，可选 `system_prompt`）
 - `GET /:id` - 获取单个白板配置
@@ -665,6 +773,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - `DELETE /:id` - 删除白板（禁止删除 id=1）
 
 **notes.js 路由顺序**:
+
 1. 引入白板路由：`router.use('/boards', boardsRouter)`
 2. **具体路径路由**（如 `/recycle-bin`, `/connections`）
 3. **嵌套路径路由**（如 `/recycle-bin/restore/:id`, `/connections/:connectionId`）
@@ -673,13 +782,16 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 **关键**: Express路由按定义顺序匹配，更具体的路由必须在更通用的路由之前定义，否则会被错误匹配。
 
 **多白板支持**:
+
 - 所有便签相关 API 必须传递 `wall_id` 参数（默认值 1）
 - 所有连接相关 API 必须传递 `wall_id` 参数（默认值 1）
 - 使用 `req.query.wall_id || 1` 获取白板ID
 - 使用 `req.body.wall_id || 1` 获取请求体中的白板ID
 
 ### 便签连接功能
+
 后端实现了便签之间的连接关系管理：
+
 - **连接表**: `note_connections` 表存储便签之间的关系
 - **级联删除**: 当便签被删除时，相关的连接会自动删除（外键约束）
 - **唯一约束**: 同一对便签之间只能存在一个连接
@@ -687,6 +799,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - **软删除过滤**: 获取连接时会自动过滤掉已删除便签的连接
 
 前端实现便签间的可视化连接：
+
 - **SVG 连线层**: 在 NoteWall 组件中使用 SVG 绘制连接线和箭头，位于 `.wall-content` 内随白板缩放平移
 - **连接点**: 每个便签顶部（引入点）和底部（引出点）各有一个连接点
 - **拖拽创建**: 从引出点拖拽到引入点可创建新连接
@@ -695,6 +808,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - **拖拽冲突处理**: 创建连接时会禁用便签拖拽（通过 `isConnecting` 状态标志）
 
 **关键实现细节**:
+
 1. Note.vue:4 - 便签元素添加 `data-note-id` 属性用于 DOM 查询
 2. NoteWall.vue - `getConnectionStartPoint` 和 `getConnectionEndPoint` 方法动态获取便签高度
 3. NoteWall.vue - 拖拽开始时优先使用 DOM API 获取连接点精确位置
@@ -706,6 +820,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 ## 依赖说明
 
 ### 后端依赖
+
 - `express`: Web服务器框架
 - `cors`: 跨域资源共享
 - `sqlite3`: SQLite数据库驱动
@@ -715,6 +830,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - `nodemon` (devDependencies): 开发时自动重启服务器
 
 ### 前端依赖
+
 - `vue`: Vue 3框架
 - `axios`: HTTP客户端
 - `vite`: 构建工具和开发服务器
@@ -725,7 +841,9 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 ## 前端配置
 
 ### Vite Proxy配置
+
 前端通过Vite的proxy功能将 `/api` 请求代理到后端：
+
 - 前端开发服务器：`http://localhost:5173`
 - API请求：`/api/*` → `http://localhost:3001/api/*`
 - 配置文件：`frontend/vite.config.js`
@@ -742,7 +860,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 8. **点击外部关闭模态框**: 查看模态框和回收站模态框支持点击外部区域关闭，使用 `@click` 和 `@click.stop` 实现事件处理
 9. **v-html 与 scoped 样式（重要）**: 使用 `v-html` 渲染动态内容时，相关样式必须放在**非 scoped** 的 `<style>` 块中。因为 Vue 的 scoped 样式通过添加唯一的 `data-v-xxx` 属性来实现样式隔离，而通过 `v-html` 插入的内容不会有这些属性，导致 scoped 样式无法生效
 10. **样式冲突处理**: 当元素有多个 class 时（如 `class="view-content markdown-body"`），使用 `:not()` 伪类选择器来条件性地应用样式，避免样式冲突。例如：`.view-content:not(.markdown-body)` 只在元素没有 `markdown-body` class 时才应用样式
-11. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据
+11. **数据存储（重要）**: 不要在前端使用 localStorage 存储业务数据。所有数据持久化应该通过后端 API 与数据库交互。前端只使用 Vue 3 的响应式状态管理组件内的临时数据。**例外**: 剪切板数据（clipboardData）使用 localStorage 存储，以支持跨白板粘贴和页面刷新后保持剪切板内容
 12. **拖拽禁用**: 当编辑或查看模态框打开时，拖拽功能会被自动禁用以防止冲突
 13. **缩放平移状态（重要）**: 白板支持缩放和平移，所有涉及位置计算的操作（拖拽便签、连接线绘制）都必须使用坐标转换方法 `screenToWorld()` 和 `worldToScreen()` 来确保位置准确
 14. **多白板状态管理（重要）**: 每个白板的视口状态（scale、translateX、translateY）独立保存在 App.vue 的 `boardViewports` 对象中。切换白板时，先保存当前状态到 `boardViewports[currentBoardId]`，再恢复目标白板的状态
@@ -753,6 +871,7 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 19. **AI 生成状态（重要）**: 便签在 AI 生成时会显示浅黄色背景和脉冲动画（通过 `isAIGenerating` 状态控制）。即使关闭查看模态框，生成状态仍会保持，直到完成或失败
 20. **右键菜单高度计算**: 添加新的右键菜单项后，需要调整 `onContextMenu` 方法中的 `menuHeight` 值，确保菜单不会被屏幕底部裁剪（每个菜单项约 50px）
 21. **Vue 事件处理陷阱（重要）**: 在 Vue 模板中绑定事件时，如果方法不需要接收事件参数，务必使用**显式调用**（带括号）。
+
     - ✅ **正确写法**: `@click="addNote()"` - 显式调用方法，不传递任何参数
     - ❌ **错误写法**: `@click="addNote"` - Vue 会自动将 `$event`（事件对象）作为第一个参数传递
     - **示例场景**:
@@ -765,8 +884,8 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
       ```
     - **问题症状**: 如果方法中有类似 `customPosition || this.calculateNewPosition()` 的逻辑，使用错误写法会导致事件对象（truthy 值）覆盖默认值，使得备用逻辑永远不会执行
     - **调试技巧**: 当方法接收到意外参数时，检查事件绑定是否使用了显式调用。可以通过在方法开头添加 `console.log('参数:', parameter)` 来验证
-
 22. **定时器内存管理（重要）**: 使用定时器时必须在适当时机清理，防止内存泄漏。
+
     - **组件销毁时清理**: 在 `beforeUnmount` 生命周期钩子中清除所有活动定时器
     - **重新设置前清理**: 在创建新定时器前，先清除已有的定时器（如高亮效果）
     - **示例模式**:
@@ -788,19 +907,24 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 ## 数据库管理
 
 ### 数据库文件位置
+
 - SQLite数据库文件位于 `backend/notes.db`
 - 数据库文件已添加到 `.gitignore`，不会被提交到版本控制
 - 每个开发者需要在本地首次运行后端时自动创建数据库
 
 ### 数据库迁移机制
+
 项目使用自动迁移机制：
+
 - 启动后端时自动检查并创建表
 - 使用 `PRAGMA table_info` 检查字段是否存在
 - 如果字段不存在，使用 `ALTER TABLE` 添加新字段
 - 迁移逻辑在 `backend/database.js` 的 `initDb()` 函数中
 
 ### 查询数据库
+
 使用 SQLite 命令行工具查询数据库：
+
 ```bash
 cd backend
 sqlite3 notes.db
@@ -832,33 +956,43 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 ## 常见问题排查
 
 ### 后端路由404错误
+
 如果新添加的路由返回404，检查路由定义顺序。确保具体路径在参数化路径之前。
 
 ### 数据库字段不存在
+
 如果看到 "no such column: deleted_at" 错误，重启后端服务器以触发数据库迁移。
 
 ### 数据库锁定错误
+
 如果看到 "database is locked" 错误：
+
 1. 检查是否有多个后端进程在运行（使用 `ps aux | grep node` 或任务管理器）
 2. 确保没有其他程序正在访问 `backend/notes.db` 文件
 3. 重启后端服务器
 4. 如果问题持续，删除 `backend/notes.db` 文件并重新启动后端（会自动创建新数据库）
 
 ### CORS错误
+
 确保前端Vite开发服务器正在运行（npm run dev），它通过proxy处理API请求。不要直接在前端代码中使用完整的 `http://localhost:3001` URL。
 
 ### 前端无法连接后端
+
 如果前端显示 "Network Error" 或无法连接到后端：
+
 1. 确认后端正在运行（访问 http://localhost:3001/api/health）
 2. 检查端口3001是否被其他程序占用
 3. 确认 Vite proxy 配置正确（`frontend/vite.config.js`）
 4. 检查浏览器控制台的 Network 面板查看请求详情
 
 ### 拖拽不工作
+
 检查是否在编辑或查看模态框打开时尝试拖拽。模态框打开时拖拽会被自动禁用以防止冲突。
 
 ### 连接线位置不正确
+
 如果连接线的起点或终点没有对准连接点：
+
 1. **便签高度变化**: 当便签内容增加时高度会增长，连接线位置会自动调整（通过 `offsetHeight / scale` 动态获取）
 2. **缩放影响**: 如果白板被缩放，连接线计算需要考虑缩放比例。检查是否正确使用了 `offsetHeight / viewport.scale`
 3. **强制刷新**: 修改便签内容后，如果连接线位置未更新，尝试刷新页面或重新加载
@@ -866,27 +1000,35 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 5. **浏览器缓存**: 使用 `Ctrl+Shift+R`（Windows/Linux）或 `Cmd+Shift+R`（Mac）硬刷新浏览器清除缓存
 
 ### 连接操作触发便签移动
+
 如果在连接点上拖拽时触发了便签的移动，检查：
+
 1. Note.vue:206 - 确保 `onDragStart` 中检查了 `isConnecting` 标志
 2. 事件冒泡：连接点事件使用 `@mousedown.stop` 阻止冒泡
 3. 状态标志：确保父组件正确传递了 `isConnecting` 状态
 
 ### 缩放或平移后便签位置错误
+
 如果白板缩放或平移后，便签位置显示不正确：
+
 1. **坐标转换**: 确保所有位置相关操作都使用了 `screenToWorld()` 和 `worldToScreen()` 方法
 2. **拖拽计算**: 检查便签拖拽时的位置计算是否考虑了当前缩放比例 `viewport.scale`
 3. **新便签位置**: 创建新便签时，确保网格布局计算使用的是世界坐标系
 4. **CSS transform**: 检查 `.wall-content` 的 transform 样式是否正确应用
 
 ### 缩放控制不工作
+
 如果缩放功能无法使用：
+
 1. **事件监听**: 检查 NoteWall.vue:10 的 `@wheel.prevent` 事件是否正确绑定
 2. **缩放限制**: 确认缩放值在 0.25 ~ 3.0 范围内
 3. **CSS 性能**: 检查 `.wall-content` 是否有 `will-change: transform` 属性以优化性能
 4. **浏览器兼容**: 确保浏览器支持 CSS transform 和 wheel 事件
 
 ### 缩放时文字模糊
+
 如果白板放大后便签中的文字变模糊：
+
 1. **检查渲染优化属性**: 确认 `.wall-content` 和 `.note` 样式中包含以下属性：
    - `transform-style: preserve-3d`
    - `backface-visibility: hidden`
@@ -897,14 +1039,18 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 4. **检查样式优先级**: 使用开发者工具确认优化属性没有被其他样式覆盖
 
 ### 模态框显示异常（变形、模糊、位置错误）
+
 如果模态框在白板缩放或平移后显示异常：
+
 1. **检查 Teleport**: 确认所有模态框都使用 `<Teleport to="body">` 传送到 body
 2. **检查定位**: 模态框应该使用 `position: fixed` 而不是 `absolute`
 3. **检查父元素**: 确保模态框不在 `.wall-content` 内部
 4. **参考现有实现**: 查看 Note.vue 中右键菜单、查看模态框的实现
 
 ### v-html 渲染的内容样式不生效
+
 如果通过 `v-html` 渲染的内容（如 Markdown）样式不生效或被覆盖：
+
 1. **检查 scoped 样式**: 相关样式是否在 `<style scoped>` 块中？如果是，移到非 scoped 的 `<style>` 块
 2. **检查样式冲突**: 是否有其他 class 的样式覆盖？使用浏览器开发者工具检查实际应用的样式
 3. **使用条件选择器**: 如 `.class-a:not(.class-b)` 来避免多个 class 时的样式冲突
@@ -912,14 +1058,18 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 5. **硬刷新浏览器**: 使用 `Ctrl+Shift+R`（Windows/Linux）或 `Cmd+Shift+R`（Mac）清除缓存并刷新
 
 ### 依赖安装失败
+
 如果在 `npm install` 时遇到错误：
+
 1. 删除 `node_modules` 文件夹和 `package-lock.json`
 2. 清除 npm 缓存：`npm cache clean --force`
 3. 重新安装：`npm install`
 4. 如果是网络问题，考虑使用国内镜像：`npm config set registry https://registry.npmmirror.com`
 
 ### AI生成功能不工作
+
 如果点击"AI 生成内容"按钮后出现错误：
+
 1. **检查环境变量**: 确认 `backend/.env` 文件存在且配置正确
 2. **检查API密钥**: 确认 `OPENAI_API_KEY` 已设置且有效
 3. **重启后端**: 修改环境变量后必须重启后端服务
@@ -932,6 +1082,7 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
 ### 添加与白板相关的新功能
 
 **创建新的白板级别功能**:
+
 1. 在 `boards` 表中添加新字段（如颜色、图标、排序等）
    - 在 `backend/database.js` 的 `initDb()` 中添加字段迁移逻辑
    - 修改 `backend/routes/boards.js` 中的 API 以处理新字段
@@ -939,6 +1090,7 @@ SELECT * FROM notes WHERE deleted_at IS NOT NULL;
    - 更新 `frontend/src/components/NoteWall.vue` 中的白板配置显示
 
 **示例：为白板添加颜色功能**
+
 ```javascript
 // 1. 数据库迁移 (database.js)
 db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
@@ -952,20 +1104,24 @@ db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
 ```
 
 **修改 NoteWall.vue 以使用新的白板属性**:
+
 1. 添加新的 prop：`boardColor: { type: String, default: '#2196F3' }`
 2. 添加计算属性：`currentBoardColor() { return this.boardColor; }`
 3. 在模板中使用：`:style="{ borderColor: currentBoardColor }"`
 4. 确保通过 `@board-updated` 事件通知父组件更新
 
 ### 添加新的数据库字段
+
 1. 在 `backend/database.js` 的 `initDb()` 函数中添加迁移逻辑（参考 `deleted_at` 字段的迁移方式）
 2. 更新 `backend/routes/notes.js` 中的相关路由以处理新字段
 3. 更新前端组件以支持新字段的显示和编辑
 
 ### 添加便签右键菜单功能
+
 项目中实现了便签复制功能，可作为参考模式：
 
 **1. Note.vue 中添加菜单项**:
+
 ```vue
 <div class="context-menu-item" @click="copyNote">
   <span class="menu-icon">📋</span>
@@ -974,6 +1130,7 @@ db.run("ALTER TABLE boards ADD COLUMN color TEXT NOT NULL DEFAULT '#2196F3'");
 ```
 
 **2. Note.vue 中实现方法**:
+
 ```javascript
 copyNote() {
   this.showContextMenu = false;
@@ -990,6 +1147,7 @@ copyNote() {
 ```
 
 **3. NoteWall.vue 中监听事件**:
+
 ```vue
 <Note
   @copy="onNoteCopy"
@@ -998,6 +1156,7 @@ copyNote() {
 ```
 
 **4. NoteWall.vue 中实现处理方法**:
+
 ```javascript
 async onNoteCopy(sourceNote) {
   try {
@@ -1021,12 +1180,14 @@ async onNoteCopy(sourceNote) {
 ```
 
 **关键要点**:
+
 - 使用 emit 事件模式进行子父组件通信
 - 位置偏移避免新便签完全覆盖原便签
 - 记得更新便签数量（触发 `note-count-changed` 事件）
 - 调整右键菜单高度计算以适应新的菜单项数量
 
 ### 添加新的 API 路由
+
 1. 在 `backend/routes/notes.js` 中添加新路由
 2. **关键**: 将具体路径放在参数化路径（如 `/:id`）之前
 3. 如果需要数据库支持，在 `backend/database.js` 的 `initDb()` 中添加表创建和迁移逻辑
@@ -1034,7 +1195,9 @@ async onNoteCopy(sourceNote) {
 5. 更新 API 接口文档（上述 API 接口部分）
 
 ### 添加新的模态框
+
 遵循项目的模态框模式：
+
 1. **控制变量**: 添加 `showXxxModal` 布尔变量
 2. **触发方法**: 设置控制变量为 `true`
 3. **确认方法**: 执行操作并关闭模态框
@@ -1043,6 +1206,7 @@ async onNoteCopy(sourceNote) {
 6. **使用 Teleport（重要）**: 如果在 Note.vue 中添加模态框，必须使用 `<Teleport to="body">` 传送到 body
 
 示例：
+
 ```html
 <!-- 在 Note.vue 中添加模态框 -->
 <Teleport to="body">
@@ -1057,19 +1221,23 @@ async onNoteCopy(sourceNote) {
 ```
 
 **为什么必须使用 Teleport？**
+
 - 白板使用 `transform: scale()` 进行缩放
 - 如果模态框在 `.wall-content` 内，会继承缩放变换导致显示异常
 - Teleport 将模态框传送到 body，完全脱离白板变换影响
 
 ### 修改 Markdown 渲染样式
+
 1. 在 `Note.vue` 的非 scoped `<style>` 块中修改 `.markdown-body` 样式
 2. 如需添加新的 Markdown 元素样式，在同一个非 scoped 块中添加
 3. 确保 DOMPurify 的 `ALLOWED_TAGS` 包含新元素（如果需要）
 
 ### 实现类似的可视化连接功能
+
 如果需要在项目中添加类似的元素间连接功能（如节点编辑器、流程图等），参考以下实现模式：
 
 **1. 数据结构设计**:
+
 ```javascript
 // 连接表包含源节点ID、目标节点ID和外键约束
 FOREIGN KEY (source_note_id) REFERENCES notes(id) ON DELETE CASCADE
@@ -1078,11 +1246,13 @@ UNIQUE(source_note_id, target_note_id)
 ```
 
 **2. 前端渲染层**:
+
 - 使用 SVG 或 Canvas 作为连接线层，设置 `pointer-events: none` 允许点击穿透
 - 连接线使用 `pointer-events: stroke` 只在线条上响应点击
 - 连接层放在元素下方（`z-index: 1`），元素在上方（`z-index: 10`）
 
 **3. 动态位置计算**:
+
 ```javascript
 // 给每个元素添加唯一标识，方便 DOM 查询
 :data-element-id="id"
@@ -1097,25 +1267,30 @@ const y = elementY + height + offset;  // 垂直位置基于实际高度
 ```
 
 **缩放和平移支持（重要）**:
+
 - 如果容器支持缩放和平移，所有位置计算都必须使用坐标转换方法
 - DOM 获取的尺寸（`offsetHeight`/`offsetWidth`）是屏幕空间值，需除以 `scale` 得到世界坐标值
 - 连接线层应该在变换容器内部，随缩放平移一起变换
 
 **4. 拖拽创建连接**:
+
 - 使用全局 `mousemove` 和 `mouseup` 事件监听器
 - 拖拽开始时获取连接点精确位置（使用 `getBoundingClientRect()`）
 - 使用 `document.elementFromPoint()` 检测释放目标
 - 通过状态标志（如 `isConnecting`）防止冲突操作
 
 **5. 冲突处理**:
+
 - 在拖拽开始时设置状态标志，禁用其他交互
 - 在事件处理函数中检查状态标志
 - 在 `mouseup` 时重置状态并移除事件监听器
 
 ### 实现框选功能
+
 如果需要在项目中添加框选功能（如选区工具、批量操作等），参考以下实现模式：
 
 **1. 状态管理**:
+
 ```javascript
 // 框选状态对象
 boxSelection: {
@@ -1130,6 +1305,7 @@ selectedNoteIds: new Set(),  // 选中的便签ID集合
 ```
 
 **2. 事件处理逻辑**:
+
 ```javascript
 // 鼠标按下：开始框选
 onWallMouseDown(event) {
@@ -1179,6 +1355,7 @@ onWallMouseUp() {
 ```
 
 **3. 框选检测算法**:
+
 ```javascript
 updateBoxSelection() {
   const { startX, startY, currentX, currentY } = this.boxSelection;
@@ -1214,6 +1391,7 @@ updateBoxSelection() {
 ```
 
 **4. 视觉渲染**:
+
 ```css
 /* 框选矩形样式 */
 .selection-box {
@@ -1232,6 +1410,7 @@ updateBoxSelection() {
 ```
 
 **5. 坐标转换（重要）**:
+
 ```javascript
 // 屏幕坐标 → 世界坐标
 screenToWorld(screenX, screenY) {
@@ -1246,12 +1425,128 @@ screenToWorld(screenX, screenY) {
 ```
 
 **关键要点**:
+
 - 使用世界坐标系进行所有计算，避免缩放平移影响
 - 框选矩形使用 `pointer-events: none` 避免干扰鼠标事件
 - 切换模式允许用户追加选择，提升交互体验
 - 使用 Set 数据结构维护选中状态，确保唯一性
 
+### 实现多便签复制粘贴功能
+
+项目支持框选多个便签后进行批量复制/剪切粘贴，并保持连接关系：
+
+**数据结构设计:**
+
+```javascript
+// NoteWall.vue - 剪切板数据结构
+clipboardData: {
+  notes: [],           // 便签数组（包含相对位置偏移）
+  connections: [],     // 连接线数组（只包含选中便签之间的连接）
+  sourceWallId: null,  // 来源白板ID
+  isCutMode: false,    // 剪切/复制模式
+  baseNoteId: null,    // 基准便签ID（右键点击的便签）
+  basePosition: { x: 0, y: 0 }  // 基准便签的原始位置
+}
+```
+
+**实现要点:**
+
+1. **基准点选择**: 右键点击触发复制/剪切的便签作为基准点（而不是第一个选中的便签）
+
+   - 便于用户控制粘贴位置
+   - 基准便签在粘贴时对准鼠标位置
+2. **相对位置计算**: 每个便签存储相对于基准点的偏移量
+
+   ```javascript
+   // 复制时计算偏移
+   offsetX = note.position_x - baseNote.position_x
+   offsetY = note.position_y - baseNote.position_y
+
+   // 粘贴时恢复位置
+   pasteX = mouseX - 125;  // 基准便签对准鼠标（考虑便签宽度）
+   pasteY = mouseY - 75;
+   position_x = pasteX + noteData.offsetX
+   position_y = pasteY + noteData.offsetY
+   ```
+3. **连接线处理**: 只复制选中便签之间的连接关系
+
+   ```javascript
+   // 筛选连接线
+   const selectedNoteIdsSet = new Set(selectedNotes.map(n => n.id));
+   const relatedConnections = this.connections.filter(conn =>
+     selectedNoteIdsSet.has(conn.source_note_id) &&
+     selectedNoteIdsSet.has(conn.target_note_id)
+   );
+   ```
+4. **ID 映射**: 粘贴后新便签ID改变，需要更新连接线的 source_note_id 和 target_note_id
+
+   ```javascript
+   // 创建所有便签，记录 ID 映射
+   const idMapping = {};
+   for (const noteData of clipboardData.notes) {
+     const response = await axios.post('/api/notes', {...});
+     idMapping[noteData.id] = response.data.note.id;
+   }
+
+   // 使用映射后的 ID 创建连接线
+   for (const conn of clipboardData.connections) {
+     const newSourceId = idMapping[conn.source_note_id];
+     const newTargetId = idMapping[conn.target_note_id];
+     await axios.post('/api/notes/connections', {
+       source_note_id: newSourceId,
+       target_note_id: newTargetId
+     });
+   }
+   ```
+5. **剪切模式**: 剪切后粘贴一次性清空剪切板，复制模式可重复粘贴
+
+   ```javascript
+   if (this.clipboardData.isCutMode) {
+     this.clipboardData = null;  // 剪切模式：一次性
+   }
+   // 复制模式：保留 clipboardData，可重复粘贴
+   ```
+6. **localStorage 持久化**: 剪切板数据保存在 localStorage，支持跨白板粘贴
+
+**方法调用链:**
+
+```
+用户右键点击便签B → onNoteCopy(noteB)
+  → 检测 selectedNoteIds.size > 1
+  → copyMultipleNotes(noteB)  // 传入右键点击的便签作为基准
+    → 计算偏移量、筛选连接线
+    → 保存到 clipboardData 和 localStorage
+```
+
+**粘贴流程:**
+
+```
+用户右键白板粘贴 → pasteNote()
+  → 从 clipboardData 读取数据
+  → 计算鼠标位置作为粘贴点
+  → 批量创建便签（ID映射）
+  → 批量创建连接线（使用映射后的ID）
+  → 根据模式决定是否清空剪切板
+```
+
+**关键文件位置:**
+
+- NoteWall.vue:869 - `onNoteCopy()` 复制入口
+- NoteWall.vue:893 - `onNoteCut()` 剪切入口
+- NoteWall.vue:931 - `copyMultipleNotes(baseNote)` 多便签复制
+- NoteWall.vue:964 - `cutMultipleNotes(baseNote)` 多便签剪切
+- NoteWall.vue:1060 - `pasteNote()` 粘贴方法
+- NoteWall.vue:1139 - `loadClipboardFromStorage()` 加载剪切板
+- NoteWall.vue:1150 - `saveClipboardToStorage()` 保存剪切板
+
+**使用场景:**
+
+- 框选多个相关便签后复制到另一个位置
+- 框选多个便签后剪切粘贴到另一个白板
+- 保持便签之间的相对位置和连接关系
+
 ### 调试技巧
+
 1. 使用 VS Code 的调试配置（`.vscode/launch.json`）进行断点调试
 2. 前端：在组件方法中添加 `debugger` 语句或使用 Vue DevTools
 3. 后端：使用 `console.log()` 或 VS Code 的 Node.js 调试器
@@ -1259,9 +1554,11 @@ screenToWorld(screenX, screenY) {
 5. 网络请求：使用浏览器开发者工具的 Network 面板查看 API 请求
 
 ### 测试 API
+
 项目不包含自动化测试，但可以通过以下方式手动测试 API：
 
 **使用 curl 测试后端:**
+
 ```bash
 # 健康检查
 curl http://localhost:3001/api/health
@@ -1303,9 +1600,11 @@ curl -X POST http://localhost:3001/api/notes/ai-generate \
 ```
 
 **使用浏览器开发者工具:**
+
 1. 打开浏览器开发者工具（F12）
 2. 切换到 Console 面板
 3. 使用 `fetch` API 测试：
+
 ```javascript
 // 获取所有便签
 fetch('/api/notes')
@@ -1337,4 +1636,3 @@ fetch('/api/notes/ai-generate', {
 .then(res => res.json())
 .then(data => console.log(data));
 ```
-

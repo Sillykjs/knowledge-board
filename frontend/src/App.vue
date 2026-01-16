@@ -90,6 +90,7 @@
         :board-title="currentBoard?.title"
         :board-system-prompt="currentBoard?.system_prompt"
         :current-model-name="currentModelName"
+        :available-models="parsedModels"
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
         @note-count-changed="onNoteCountChanged"
@@ -477,44 +478,62 @@ export default {
       }
     },
 
-    // 加载模型 JSON 配置
-    loadModelsJson() {
-      const savedJson = localStorage.getItem('modelsJson');
-      if (savedJson) {
-        this.modelsJson = savedJson;
-        this.parseModelsJson();
-      } else {
-        // 使用默认配置
+    // 加载模型 JSON 配置（从后端获取）
+    async loadModelsJson() {
+      try {
+        const response = await axios.get('/api/model-config');
+        const configs = response.data;
+
+        if (configs && configs.length > 0) {
+          // 后端已返回掩码处理的数据，直接使用
+          this.modelsJson = JSON.stringify(configs, null, 2);
+          this.parseModelsJson();
+        } else {
+          // 后端没有配置，使用默认模板
+          const defaultModels = [
+            {
+              provider: 'OpenAI',
+              apiBase: 'https://api.openai.com/v1',
+              apiKey: '',  // 空字符串表示未配置
+              models: ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview']
+            },
+            {
+              provider: 'DeepSeek',
+              apiBase: 'https://api.deepseek.com/v1',
+              apiKey: '',
+              models: ['deepseek-chat', 'deepseek-coder']
+            },
+            {
+              provider: '智谱AI',
+              apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+              apiKey: '',
+              models: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4-air']
+            },
+            {
+              provider: 'Ollama',
+              apiBase: 'http://localhost:11434/v1',
+              apiKey: 'ollama',
+              models: ['llama2', 'llama3', 'mistral', 'codellama']
+            },
+            {
+              provider: 'Anthropic',
+              apiBase: 'https://api.anthropic.com/v1',
+              apiKey: '',
+              models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku']
+            }
+          ];
+          this.modelsJson = JSON.stringify(defaultModels, null, 2);
+          this.parseModelsJson();
+        }
+      } catch (error) {
+        console.error('Failed to load model configs:', error);
+        // 加载失败时使用默认配置
         const defaultModels = [
           {
             provider: 'OpenAI',
             apiBase: 'https://api.openai.com/v1',
             apiKey: '',
             models: ['gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview']
-          },
-          {
-            provider: 'DeepSeek',
-            apiBase: 'https://api.deepseek.com/v1',
-            apiKey: '',
-            models: ['deepseek-chat', 'deepseek-coder']
-          },
-          {
-            provider: '智谱AI',
-            apiBase: 'https://open.bigmodel.cn/api/paas/v4',
-            apiKey: '',
-            models: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4-air']
-          },
-          {
-            provider: 'Ollama',
-            apiBase: 'http://localhost:11434/v1',
-            apiKey: 'ollama',
-            models: ['llama2', 'llama3', 'mistral', 'codellama']
-          },
-          {
-            provider: 'Anthropic',
-            apiBase: 'https://api.anthropic.com/v1',
-            apiKey: '',
-            models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku']
           }
         ];
         this.modelsJson = JSON.stringify(defaultModels, null, 2);
@@ -548,8 +567,8 @@ export default {
       }
     },
 
-    // 验证并保存 JSON
-    validateAndSaveJson() {
+    // 验证并保存 JSON（到后端）
+    async validateAndSaveJson() {
       try {
         const parsed = JSON.parse(this.modelsJson);
 
@@ -564,9 +583,35 @@ export default {
           }
         }
 
-        // 保存到 localStorage
-        localStorage.setItem('modelsJson', this.modelsJson);
-        this.parseModelsJson();
+        // 处理掩码：如果 apiKey 是掩码格式（包含 ***），标记为保持原值
+        const toSave = parsed.map(item => {
+          if (item._masked && item.apiKey && item.apiKey.includes('***')) {
+            // 用户没改密钥，告诉后端保持原值
+            return {
+              id: item.id,
+              provider: item.provider,
+              apiBase: item.apiBase,
+              models: item.models,
+              _keepOriginalKey: true
+            };
+          } else {
+            // 用户新增或修改了密钥
+            return {
+              id: item.id,
+              provider: item.provider,
+              apiBase: item.apiBase,
+              apiKey: item.apiKey || '',
+              models: item.models,
+              _keepOriginalKey: false
+            };
+          }
+        });
+
+        // 保存到后端
+        await axios.post('/api/model-config', toSave);
+
+        // 重新加载配置以获取掩码后的数据
+        await this.loadModelsJson();
 
         // 通知 NoteWall 重新加载模型配置
         if (this.$refs.noteWall && this.$refs.noteWall.loadModelConfig) {
@@ -578,7 +623,7 @@ export default {
 
         alert('模型配置已保存');
       } catch (e) {
-        alert('JSON 格式错误: ' + e.message);
+        alert('保存失败: ' + (e.response?.data?.error || e.message));
       }
     },
 

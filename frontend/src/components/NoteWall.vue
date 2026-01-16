@@ -292,6 +292,10 @@ export default {
     currentModelName: {
       type: String,
       default: 'AI'
+    },
+    availableModels: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
@@ -358,7 +362,6 @@ export default {
         step: 0.1
       },
       // 模型选择相关
-      availableModels: [],    // 可用的模型列表（从 localStorage 读取）
       selectedModel: ''       // 当前选中的模型（格式：provider|model）
     };
   },
@@ -1860,23 +1863,11 @@ export default {
 
     // 加载模型配置
     loadModelConfig() {
-      try {
-        const modelsJson = localStorage.getItem('modelsJson');
-        if (modelsJson) {
-          this.availableModels = JSON.parse(modelsJson);
-        } else {
-          // 如果没有配置，使用默认空列表
-          this.availableModels = [];
-        }
-
-        // 加载当前选中的模型
-        const lastUsedModel = localStorage.getItem('lastUsedModel');
-        if (lastUsedModel) {
-          this.selectedModel = lastUsedModel;
-        }
-      } catch (error) {
-        console.error('Failed to load model config:', error);
-        this.availableModels = [];
+      // availableModels 现在从 props 传入（由 App.vue 从后端加载）
+      // 这里只处理用户上次选择的模型
+      const lastUsedModel = localStorage.getItem('lastUsedModel');
+      if (lastUsedModel) {
+        this.selectedModel = lastUsedModel;
       }
     },
 

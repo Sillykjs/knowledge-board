@@ -126,6 +126,32 @@ function initDb() {
   migrateConnectionsToBoards();
   migrateBoardsRemarkToSystemPrompt();
   migrateBoardsSortOrder();
+
+  // 模型配置表
+  migrateModelConfigs();
+}
+
+// 创建模型配置表
+function migrateModelConfigs() {
+  const createModelConfigsTableSQL = `
+    CREATE TABLE IF NOT EXISTS model_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL UNIQUE,
+      api_base TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      models TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  db.run(createModelConfigsTableSQL, (err) => {
+    if (err) {
+      console.error('Error creating model_configs table:', err.message);
+    } else {
+      console.log('Model configs table ready');
+    }
+  });
 }
 
 // ========== 多白板功能迁移函数 ==========

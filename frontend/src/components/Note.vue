@@ -679,31 +679,20 @@ export default {
       this.streamingContent = '';  // 重置流式内容
 
       try {
-        // 从 localStorage 读取最后使用的模型配置
-        let modelConfig = null;
+        // 从 localStorage 读取最后使用的模型配置（只需要 provider 和 model）
+        let provider = null;
+        let model = null;
         const lastUsedModel = localStorage.getItem('lastUsedModel');
-        const modelsJson = localStorage.getItem('modelsJson');
 
-        if (modelsJson && lastUsedModel) {
+        if (lastUsedModel) {
           try {
             const parts = lastUsedModel.split('|');
             if (parts.length === 2) {
-              const providerName = parts[0];
-              const modelName = parts[1];
-
-              const models = JSON.parse(modelsJson);
-              const provider = models.find(m => m.provider === providerName);
-
-              if (provider) {
-                modelConfig = {
-                  api_base: provider.apiBase,
-                  api_key: provider.apiKey || '',
-                  model: modelName
-                };
-              }
+              provider = parts[0];
+              model = parts[1];
             }
           } catch (e) {
-            console.error('Failed to parse model configs:', e);
+            console.error('Failed to parse lastUsedModel:', e);
           }
         }
 
@@ -719,7 +708,8 @@ export default {
             note_id: this.id,  // 传递当前便签ID，用于获取引入节点的上下文
             context_level: this.contextLevel,  // 传递上文层数
             include_reasoning: true,  // 请求推理模型的思考过程
-            model_config: modelConfig  // 传递前端配置的模型参数
+            provider,  // 传递 provider（后端会从数据库读取 API Key）
+            model     // 传递 model 名称
           })
         });
 

@@ -243,27 +243,61 @@ router.delete('/recycle-bin', (req, res) => {
 
 // AI生成内容（流式输出，支持推理模型）
 router.post('/ai-generate', async (req, res) => {
-  const { prompt, wall_id, note_id, context_level = 1, include_reasoning = false, model_config } = req.body;
+  const { prompt, wall_id, note_id, context_level = 1, include_reasoning = false, provider, model } = req.body;
 
   if (!prompt) {
     res.status(400).json({ error: 'Prompt is required' });
     return;
   }
 
-  // 优先使用前端传递的模型配置，否则使用环境变量
-  const apiKey = model_config?.api_key || process.env.OPENAI_API_KEY;
-  const apiBase = model_config?.api_base || process.env.OPENAI_API_BASE;
-  const model = model_config?.model || process.env.OPENAI_MODEL;
+  // 获取模型配置
+  let apiKey, apiBase, modelName;
 
-  if (!apiKey || !apiBase || !model) {
+  // 如果前端提供了 provider，从数据库读取配置
+  if (provider) {
+    const config = await new Promise((resolve) => {
+      db.get("SELECT * FROM model_configs WHERE provider = ?", [provider], (err, row) => {
+        if (err) {
+          console.error('Error fetching model config:', err);
+          resolve(null);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+
+    if (config) {
+      apiKey = config.api_key;
+      apiBase = config.api_base;
+      modelName = model || JSON.parse(config.models)[0]; // 使用指定的模型或第一个模型
+    } else {
+      // 数据库中没有配置，尝试使用环境变量
+      const envApiKey = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_API_KEY`];
+      const envApiBase = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_API_BASE`];
+      const envModel = process.env[`${provider.toUpperCase().replace(/[^A-Z]/g, '_')}_MODEL`];
+
+      if (envApiKey) {
+        apiKey = envApiKey;
+        apiBase = envApiBase || process.env.OPENAI_API_BASE;
+        modelName = model || envModel || process.env.OPENAI_MODEL;
+      }
+    }
+  } else {
+    // 没有提供 provider，使用默认环境变量
+    apiKey = process.env.OPENAI_API_KEY;
+    apiBase = process.env.OPENAI_API_BASE;
+    modelName = model || process.env.OPENAI_MODEL;
+  }
+
+  if (!apiKey || !apiBase || !modelName) {
     res.status(500).json({ error: 'Model configuration is missing. Please configure the model in the sidebar or set up environment variables.' });
     return;
   }
 
   // 检测是否为推理模型
   const isReasoningModel = include_reasoning && (
-    model?.startsWith('o1') ||
-    model?.startsWith('glm-4.7')
+    modelName?.startsWith('o1') ||
+    modelName?.startsWith('glm-4.7')
   );
 
   // 获取白板的 system_prompt
@@ -376,7 +410,7 @@ router.post('/ai-generate', async (req, res) => {
     try {
       // 构建请求体
       const requestBody = {
-        model: model,
+        model: modelName,
         messages: messages,
         stream: true  // 启用流式输出
       };

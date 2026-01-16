@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const notesRouter = require('./routes/notes');
+const modelConfigRouter = require('./routes/model-config');
 
 const app = express();
 const PORT = 3001;
@@ -16,6 +17,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // 路由
 app.use('/api/notes', notesRouter);
+app.use('/api/model-config', modelConfigRouter);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

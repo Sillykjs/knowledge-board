@@ -16,7 +16,7 @@
       class="connection-point input-point"
       @mousedown.stop="onInputPointMouseDown"
       @dblclick.stop="onInputPointDoubleClick"
-      title="引入连接（双击编辑便签）"
+      title="引入连接（双击编辑标题）"
     >
       <div class="point-inner"></div>
     </div>
@@ -492,11 +492,11 @@ export default {
       });
     },
 
-    // 引入点双击事件 - 打开查看模态框并编辑内容
+    // 引入点双击事件 - 打开查看模态框并编辑标题
     onInputPointDoubleClick(event) {
       this.openViewModal();
       this.$nextTick(() => {
-        this.startEditViewContent();
+        this.startEditViewTitle();
       });
     },
 
@@ -509,6 +509,15 @@ export default {
     openViewModal() {
       this.showContextMenu = false;
       this.showViewModal = true;
+
+      // 检查是否为新便签，如果是则自动进入标题编辑状态
+      const isNewNote = this.title === '新便签';
+      if (isNewNote) {
+        this.$nextTick(() => {
+          this.startEditViewTitle();
+        });
+        return;
+      }
 
       // 恢复记忆的状态
       this.$nextTick(() => {
@@ -553,11 +562,20 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.viewTitleInput) {
           this.$refs.viewTitleInput.focus();
+          this.$refs.viewTitleInput.select();
         }
       });
     },
     async saveViewTitle() {
       if (!this.editingViewTitle) return;
+
+      // 检查标题是否为空，如果为空则恢复原标题并取消编辑
+      if (!this.viewEditTitle || this.viewEditTitle.trim() === '') {
+        this.viewEditTitle = this.title;
+        this.editingViewTitle = false;
+        return;
+      }
+
       this.editingViewTitle = false;
 
       // 如果标题没有变化，直接返回

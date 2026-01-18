@@ -1963,17 +1963,15 @@ export default {
         noteHeight = noteElement.getBoundingClientRect().height / this.viewport.scale;
       }
 
-      // 便签的四个角
-      const noteLeft = note.position_x;
-      const noteRight = note.position_x + noteWidth;
-      const noteTop = note.position_y;
-      const noteBottom = note.position_y + noteHeight;
+      // 计算便签的中心点坐标
+      const centerX = note.position_x + noteWidth / 2;
+      const centerY = note.position_y + noteHeight / 2;
 
-      // 检查便签是否与选择框相交
-      return !(noteRight < box.x1 ||
-               noteLeft > box.x2 ||
-               noteBottom < box.y1 ||
-               noteTop > box.y2);
+      // 检查便签中心点是否在选择框内
+      return centerX >= box.x1 &&
+             centerX <= box.x2 &&
+             centerY >= box.y1 &&
+             centerY <= box.y2;
     },
 
     // 清空选择

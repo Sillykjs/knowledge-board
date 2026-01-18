@@ -1722,33 +1722,85 @@ export default {
 
     // 计算连接起点（引出点：便签底部下8px，水平居中）
     getConnectionStartPoint(connection) {
-      const note = this.notes.find(n => n.id === connection.source_note_id);
-      if (!note) return { x: 0, y: 0 };
+      const sourceNote = this.notes.find(n => n.id === connection.source_note_id);
+      const targetNote = this.notes.find(n => n.id === connection.target_note_id);
+      if (!sourceNote || !targetNote) return { x: 0, y: 0 };
 
-      // 尝试获取便签元素的实际高度
-      const noteElement = document.querySelector(`.note[data-note-id="${connection.source_note_id}"]`);
-      let noteHeight = 150; // 默认最小高度
+      // 获取源便签和目标便签的实际高度
+      const sourceNoteEl = document.querySelector(`.note[data-note-id="${sourceNote.id}"]`);
+      const targetNoteEl = document.querySelector(`.note[data-note-id="${targetNote.id}"]`);
+      const sourceHeight = sourceNoteEl ? sourceNoteEl.offsetHeight : 180;
+      const targetHeight = targetNoteEl ? targetNoteEl.offsetHeight : 180;
 
-      if (noteElement) {
-        // offsetHeight 返回布局尺寸（不包括 CSS transform）
-        // 直接使用即可，不需要除以 scale
-        noteHeight = noteElement.offsetHeight;
-      }
+      // 计算两个便签的中心点
+      const sourceCenterX = sourceNote.position_x + 125;  // 便签宽度一半
+      const sourceCenterY = sourceNote.position_y + sourceHeight / 2;
+      const targetCenterX = targetNote.position_x + 125;
+      const targetCenterY = targetNote.position_y + targetHeight / 2;
+
+      // 计算从源中心指向目标中心的方向向量
+      const dirX = targetCenterX - sourceCenterX;
+      const dirY = targetCenterY - sourceCenterY;
+
+      // 计算射线与源矩形边界的交点（起点）
+      const intersection = this.getRayIntersectionWithRect(
+        sourceCenterX, sourceCenterY,
+        dirX, dirY,
+        sourceNote.position_x, sourceNote.position_y,
+        250, sourceHeight  // NOTE_WIDTH = 250
+      );
+
+      // 沿着方向向量向外偏移 8px，留出空隙
+      const length = Math.sqrt(dirX * dirX + dirY * dirY);
+      const gap = 8;  // 空隙大小
+      const offsetX = (dirX / length) * gap;
+      const offsetY = (dirY / length) * gap;
 
       return {
-        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
-        y: note.position_y + noteHeight + 8  // 便签实际高度 + 连接点偏移8px
+        x: intersection.x + offsetX,
+        y: intersection.y + offsetY
       };
     },
 
     // 计算连接终点（引入点：便签顶部上8px，水平居中）
     getConnectionEndPoint(connection) {
-      const note = this.notes.find(n => n.id === connection.target_note_id);
-      if (!note) return { x: 0, y: 0 };
+      const sourceNote = this.notes.find(n => n.id === connection.source_note_id);
+      const targetNote = this.notes.find(n => n.id === connection.target_note_id);
+      if (!sourceNote || !targetNote) return { x: 0, y: 0 };
+
+      // 获取源便签和目标便签的实际高度
+      const sourceNoteEl = document.querySelector(`.note[data-note-id="${sourceNote.id}"]`);
+      const targetNoteEl = document.querySelector(`.note[data-note-id="${targetNote.id}"]`);
+      const sourceHeight = sourceNoteEl ? sourceNoteEl.offsetHeight : 180;
+      const targetHeight = targetNoteEl ? targetNoteEl.offsetHeight : 180;
+
+      // 计算两个便签的中心点
+      const sourceCenterX = sourceNote.position_x + 125;
+      const sourceCenterY = sourceNote.position_y + sourceHeight / 2;
+      const targetCenterX = targetNote.position_x + 125;
+      const targetCenterY = targetNote.position_y + targetHeight / 2;
+
+      // 计算从目标中心指向源中心的方向向量（反方向）
+      const dirX = sourceCenterX - targetCenterX;
+      const dirY = sourceCenterY - targetCenterY;
+
+      // 计算射线与目标矩形边界的交点（终点）
+      const intersection = this.getRayIntersectionWithRect(
+        targetCenterX, targetCenterY,
+        dirX, dirY,
+        targetNote.position_x, targetNote.position_y,
+        250, targetHeight  // NOTE_WIDTH = 250
+      );
+
+      // 沿着方向向量向外偏移 8px，留出空隙
+      const length = Math.sqrt(dirX * dirX + dirY * dirY);
+      const gap = 8;  // 空隙大小
+      const offsetX = (dirX / length) * gap;
+      const offsetY = (dirY / length) * gap;
 
       return {
-        x: note.position_x + 125,  // 便签宽度一半（250px / 2）
-        y: note.position_y - 8     // 负偏移8px（在便签顶部上方）
+        x: intersection.x + offsetX,
+        y: intersection.y + offsetY
       };
     },
 
@@ -1757,20 +1809,86 @@ export default {
       const endPoint = this.getConnectionEndPoint(connection);
       const startPoint = this.getConnectionStartPoint(connection);
 
-      const arrowSize = 10;
-      const angle = Math.PI / 6; // 30度
+      const arrowSize = 18;  // 增大箭头尺寸（从 10 改为 18）
+      const angle = Math.PI / 8; // 增大箭头角度（从 30度 改为 36度）
+      const arrowOffset = 3; // 向前移动避开连接线宽度（连接线宽度为 3px）
 
       // 计算直线角度
       const deltaX = endPoint.x - startPoint.x;
       const deltaY = endPoint.y - startPoint.y;
       const lineAngle = Math.atan2(deltaY, deltaX);
 
+      // 计算箭头尖端向前移动后的位置
+      const arrowTipX = endPoint.x + arrowOffset * Math.cos(lineAngle);
+      const arrowTipY = endPoint.y + arrowOffset * Math.sin(lineAngle);
+
       // 计算箭头三个顶点
-      const p1 = `${endPoint.x},${endPoint.y}`;
-      const p2 = `${endPoint.x - arrowSize * Math.cos(lineAngle - angle)},${endPoint.y - arrowSize * Math.sin(lineAngle - angle)}`;
-      const p3 = `${endPoint.x - arrowSize * Math.cos(lineAngle + angle)},${endPoint.y - arrowSize * Math.sin(lineAngle + angle)}`;
+      const p1 = `${arrowTipX},${arrowTipY}`;
+      const p2 = `${arrowTipX - arrowSize * Math.cos(lineAngle - angle)},${arrowTipY - arrowSize * Math.sin(lineAngle - angle)}`;
+      const p3 = `${arrowTipX - arrowSize * Math.cos(lineAngle + angle)},${arrowTipY - arrowSize * Math.sin(lineAngle + angle)}`;
 
       return `${p1} ${p2} ${p3}`;
+    },
+
+    // ========== 连接线边缘计算辅助方法 ==========
+
+    /**
+     * 计算从射线起点出发，沿方向向量到达矩形边界的交点
+     * @param {number} startX - 射线起点X
+     * @param {number} startY - 射线起点Y
+     * @param {number} dirX - 方向向量X（无需归一化）
+     * @param {number} dirY - 方向向量Y（无需归一化）
+     * @param {number} rectX - 矩形左上角X
+     * @param {number} rectY - 矩形左上角Y
+     * @param {number} rectWidth - 矩形宽度（250px）
+     * @param {number} rectHeight - 矩形高度（动态）
+     * @returns {Object} 交点坐标 {x, y}
+     */
+    getRayIntersectionWithRect(startX, startY, dirX, dirY, rectX, rectY, rectWidth, rectHeight) {
+      let minT = Infinity;
+      let intersection = { x: startX, y: startY };
+
+      // 辅助函数：尝试与垂直边相交
+      const tryVertical = (x, dirX) => {
+        if (Math.abs(dirX) < 0.0001) return null; // 平行于垂直边
+        const t = (x - startX) / dirX;
+        if (t <= 0.0001) return null; // t <= 0，射线向后或原地
+        const y = startY + t * dirY;
+        if (y >= rectY - 0.0001 && y <= rectY + rectHeight + 0.0001) {
+          return { t, x, y };
+        }
+        return null;
+      };
+
+      // 辅助函数：尝试与水平边相交
+      const tryHorizontal = (y, dirY) => {
+        if (Math.abs(dirY) < 0.0001) return null; // 平行于水平边
+        const t = (y - startY) / dirY;
+        if (t <= 0.0001) return null; // t <= 0，射线向后或原地
+        const x = startX + t * dirX;
+        if (x >= rectX - 0.0001 && x <= rectX + rectWidth + 0.0001) {
+          return { t, x, y };
+        }
+        return null;
+      };
+
+      // 尝试与四条边相交
+      const candidates = [
+        tryVertical(rectX, dirX),                    // 左边
+        tryVertical(rectX + rectWidth, dirX),        // 右边
+        tryHorizontal(rectY, dirY),                  // 上边
+        tryHorizontal(rectY + rectHeight, dirY)      // 下边
+      ].filter(Boolean); // 过滤掉 null
+
+      // 选择最小的正 t 值
+      for (const candidate of candidates) {
+        if (candidate.t < minT) {
+          minT = candidate.t;
+          intersection = { x: candidate.x, y: candidate.y };
+        }
+      }
+
+      return intersection;
     },
 
     // ========== 上文层数控制方法 ==========

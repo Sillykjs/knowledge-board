@@ -1959,7 +1959,8 @@ export default {
       // 尝试获取便签的实际高度
       const noteElement = document.querySelector(`.note[data-note-id="${note.id}"]`);
       if (noteElement) {
-        noteHeight = noteElement.offsetHeight / this.viewport.scale;
+        // getBoundingClientRect 返回屏幕空间的尺寸，需要除以 scale 得到世界坐标的尺寸
+        noteHeight = noteElement.getBoundingClientRect().height / this.viewport.scale;
       }
 
       // 便签的四个角

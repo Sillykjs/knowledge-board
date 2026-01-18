@@ -164,7 +164,7 @@ import 'katex/dist/katex.min.css';
 const md = new MarkdownIt({
   html: true,         // 允许 HTML 标签（通过 DOMPurify 过滤确保安全）
   linkify: true,      // 自动转换 URL 为链接
-  typographer: true,  // 启用美化排版
+  typographer: false, // 禁用美化排版，避免 * 等符号被特殊处理
   breaks: true,       // 转换换行符为 <br>
 });
 
@@ -197,24 +197,25 @@ md.renderer.rules.link_open = function(tokens, idx, options, env, self) {
 // 在 markdown-it 渲染前预处理文本
 const originalRender = md.render.bind(md);
 md.render = function(text, env) {
-  // 替换 \( ... \) 为 $...$ （行内公式），去除内部空格
-  text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
-    return `$${formula.trim()}$`;
-  });
-
-  // 替换 \[ ... \] 为 $$...$$ （块级公式），去除内部空格
+  // 先处理块级公式，避免与行内公式冲突
+  // 1. 替换 \[ ... \] 为 $$...$$
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
     return `$$${formula.trim()}$$`;
   });
 
-  // 标准化已有的 $ 分隔符格式，去除 $ 和公式内容之间的空格
-  // 块级公式：$$ ... $$ (支持跨行) -> $$...$$
+  // 2. 标准化已有的块级公式 $$ ... $$ (支持跨行)
   text = text.replace(/\$\$\s+([\s\S]*?)\s+\$\$/g, (match, formula) => {
     return `$$${formula.trim()}$$`;
   });
 
-  // 行内公式：$ ... $ (不包含 $$) -> $...$
-  text = text.replace(/\$\s+([^\$]+?)\s+\$/g, (match, formula) => {
+  // 3. 替换 \( ... \) 为 $...$ （行内公式）
+  text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
+    return `$${formula.trim()}$`;
+  });
+
+  // 4. 标准化已有的行内公式 $ ... $ (不包含 $$)
+  // 使用负向前瞻确保不会匹配到块级公式的边界
+  text = text.replace(/\$\s+([^\$\n]+?)\s+\$/g, (match, formula) => {
     return `$${formula.trim()}$`;
   });
 

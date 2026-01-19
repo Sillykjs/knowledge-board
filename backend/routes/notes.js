@@ -462,11 +462,11 @@ router.post('/ai-generate', async (req, res) => {
                     // 推理模型：先发送模型名称，然后发送推理开始标记
                     if (!hasSentModelName) {
                       hasSentModelName = true;
-                      res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
+                      res.write(`data: ${JSON.stringify({ content: `> **模型：${modelName}**\n\n` })}\n\n`);
                     }
 
                     // 直接输出推理内容标题（不加引用）
-                    res.write(`data: ${JSON.stringify({ content: '**🤔 思考过程：**\n\n' })}\n\n`);
+                    res.write(`data: ${JSON.stringify({ content: '**推理过程：**\n\n' })}\n\n`);
                   }
 
                   if (reasoningText) {
@@ -489,14 +489,14 @@ router.post('/ai-generate', async (req, res) => {
                     // 推理模型：在推理结束后、正式内容前发送模型名称
                     if (!hasSentModelName) {
                       hasSentModelName = true;
-                      res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
+                      res.write(`data: ${JSON.stringify({ content: `> **模型：${modelName}**\n\n` })}\n\n`);
                     }
                   }
 
                   // 非推理模型：第一次发送content时，先发送模型名称
                   if (!hasReasoning && !hasSentModelName) {
                     hasSentModelName = true;
-                    res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
+                    res.write(`data: ${JSON.stringify({ content: `> **模型：${modelName}**\n\n` })}\n\n`);
                   }
 
                   // 替换不支持的 KaTeX 命令

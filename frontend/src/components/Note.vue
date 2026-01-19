@@ -810,6 +810,8 @@ export default {
   align-items: center;
   padding: 16px 20px 8px;
   border-bottom: 1px solid #eee;
+  position: relative;
+  z-index: 10; /* 确保在 view-body 之上，防止 close-btn 被覆盖 */
 }
 
 .view-header h3 {

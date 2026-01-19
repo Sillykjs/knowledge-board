@@ -16,6 +16,7 @@ export const vditorOptions = {
     'list', 'ordered-list', 'check', '|',
     'quote', 'code', 'inline-code', '|',
     'link', 'table', '|',
+    'edit-mode', '|',  // 添加编辑模式切换按钮
     'undo', 'redo', '|',
     'preview', 'fullscreen'
   ],
@@ -46,11 +47,6 @@ export const vditorOptions = {
   // 代码块配置
   code: {
     lineNumber: true
-  },
-
-  // 快捷键
-  keydown: {
-    Tab: 'indent'
   },
 
   // 启用 typographer 模式（自动转换标点）

@@ -153,7 +153,8 @@ export default {
       viewEditTitle: this.title,  // 查看模态框中编辑的临时标题
       viewEditContent: this.content,  // 查看模态框中的内容（v-model 绑定）
       isAIGenerating: false,  // AI生成中
-      aiError: null  // AI错误信息
+      aiError: null,  // AI错误信息
+      streamingContent: ''  // AI流式生成过程中的原始内容累积
     };
   },
   computed: {
@@ -439,7 +440,8 @@ export default {
 
       this.isAIGenerating = true;
 
-      // 清空编辑器内容并聚焦，为流式输出做准备
+      // 清空编辑器内容和流式内容累积变量
+      this.streamingContent = '';
       if (this.$refs.vditorEditor) {
         this.$refs.vditorEditor.setValue('');
         this.$refs.vditorEditor.focus();
@@ -515,9 +517,22 @@ export default {
                   break;
                 }
 
-                // 使用 VditorEditor 的 appendContent 方法流式追加内容
+                // 累积原始内容，避免流式插入导致的层级问题
                 if (parsed.content) {
-                  this.$refs.vditorEditor?.appendContent(parsed.content);
+                  this.streamingContent += parsed.content;
+
+                  // 每接收到一部分内容，就渲染到编辑器（使用 setValue 而不是 insertValue）
+                  // 这样可以避免光标位置导致的列表嵌套问题
+                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+
+                  // 滚动到底部
+                  this.$nextTick(() => {
+                    const vditor = this.$refs.vditorEditor?.vditorInstance;
+                    if (vditor && vditor.vditor && vditor.vditor.ir) {
+                      const irElement = vditor.vditor.ir.element;
+                      irElement.scrollTop = irElement.scrollHeight;
+                    }
+                  });
                 }
               } catch (e) {
                 // 忽略JSON解析错误
@@ -527,7 +542,7 @@ export default {
         }
 
         // 流式接收完成后，获取最终内容并保存到数据库
-        const generatedContent = this.$refs.vditorEditor?.getValue() || this.viewEditContent;
+        const generatedContent = this.streamingContent || this.$refs.vditorEditor?.getValue() || this.viewEditContent;
 
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,

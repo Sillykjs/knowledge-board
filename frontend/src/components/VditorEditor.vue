@@ -69,7 +69,7 @@ export default {
       const options = {
         ...vditorOptions,
         placeholder: this.placeholder,
-        value: this.modelValue,
+        value: this.convertLatexDelimiters(this.modelValue || ''), // 初始化时转换分隔符
         after: () => {
           // 监听内容变化
           if (this.vditorInstance && this.vditorInstance.vditor && this.vditorInstance.vditor.ir) {
@@ -138,9 +138,34 @@ export default {
     onContentChange() {
       if (!this.vditorInstance) return;
 
-      const newValue = this.vditorInstance.getValue();
+      let newValue = this.vditorInstance.getValue();
+
+      // 将 LaTeX 风格的数学公式分隔符转换为 Vditor 支持的格式
+      // \(...\) -> $...$
+      // \[...\] -> $$...$$
+      newValue = this.convertLatexDelimiters(newValue);
+
       this.content = newValue;
       this.$emit('update:modelValue', newValue);
+    },
+
+    /**
+     * 转换 LaTeX 风格的数学公式分隔符为 Vditor 支持的格式
+     * @param {string} content - Markdown 内容
+     * @returns {string} 转换后的内容
+     */
+    convertLatexDelimiters(content) {
+      // 转换块级公式：\[...\] -> $$...$$
+      content = content.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (match, formula) => {
+        return `$$\n${formula.trim()}\n$$`;
+      });
+
+      // 转换行内公式：\(...\) -> $...$
+      content = content.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (match, formula) => {
+        return `$${formula.trim()}$`;
+      });
+
+      return content;
     },
 
     /**

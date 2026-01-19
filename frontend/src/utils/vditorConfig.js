@@ -36,7 +36,8 @@ export const vditorOptions = {
     inlineDigit: false,
     macros: {
       '\\RR': '\\mathbb{R}'
-    }
+    },
+    cdn: 'https://unpkg.com/katex@0.16.9/dist/'
   },
 
   // Mermaid 配置

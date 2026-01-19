@@ -294,6 +294,17 @@ router.post('/ai-generate', async (req, res) => {
 
     const systemPrompt = board?.system_prompt || 'You are a helpful assistant.';
 
+    // 上下文过滤函数：只移除模型名称标记，保留推理内容
+    const filterContextContent = (content) => {
+      if (!content) return content;
+
+      return content
+        // 移除引用格式的模型名称（> **模型：xxx**）
+        .replace(/^> \*\*模型[：:][^\*]+\*\*\s*\n\n/g, '')
+        // 移除非引用格式的模型名称（**模型：xxx**）- 兼容旧版本
+        .replace(/^\*\*模型[：:][^\*]+\*\*\s*\n\n/g, '');
+    };
+
     // 如果提供了 note_id，使用BFS获取多层父节点的便签内容作为上下文
     let contextMessages = [];
     if (note_id) {
@@ -359,7 +370,7 @@ router.post('/ai-generate', async (req, res) => {
           });
           contextMessages.push({
             role: 'assistant',
-            content: note.content || ''
+            content: filterContextContent(note.content) || ''
           });
         });
       }

@@ -11,6 +11,7 @@
   font-size: 20px !important;
   color: #555;
   line-height: 1.6;
+  padding: 10px 35px !important; /* 减少上下和左右内边距，拓宽显示区域 */
 }
 
 /* 确保编辑区域也应用相同的字体大小 */
@@ -151,7 +152,7 @@
 /* 调整工具栏样式 */
 .vditor-toolbar {
   border-bottom: 1px solid #eaecef;
-  padding: 8px 12px;
+  padding: 0px 12px;
   background-color: #f6f8fa;
 }
 
@@ -182,8 +183,8 @@
 
 /* 确保工具栏按钮有适当的尺寸 */
 .vditor-toolbar button {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 16px;
+  min-height: 16px;
   padding: 4px 8px;
 }
 

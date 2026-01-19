@@ -817,8 +817,8 @@ export default {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 70%;
-  height: 80%;
+  width: 75%;
+  height: 85%;
   display: flex;
   flex-direction: column;
   animation: modalAppear 0.2s ease-out;
@@ -842,14 +842,14 @@ export default {
 }
 
 .view-body {
-  padding: 80px 20px 20px 20px; /* 顶部留出足够空间给 tooltip */
+  padding: 60px 2px 2px 2px; /* 顶部留出足够空间给 tooltip */
   flex: 1;
   overflow-y: auto;
   margin-top: -60px; /* 向上偏移以保持实际内容位置不变 */
 }
 
 .view-title {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: bold;
   color: #1565c0;
   margin-bottom: 0px;
@@ -869,7 +869,7 @@ export default {
 }
 
 .view-title-input {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: bold;
   color: #1565c0;
   line-height: 1.5;
@@ -889,7 +889,7 @@ export default {
 .close-btn {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 30px;
   cursor: pointer;
   color: #999;
   width: 30px;
@@ -964,7 +964,7 @@ export default {
   display: flex;
   justify-content: flex-start;
   gap: 10px;
-  padding: 16px 20px;
+  padding: 8px 20px;
   border-top: 1px solid #eee;
 }
 

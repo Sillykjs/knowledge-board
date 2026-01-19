@@ -35,7 +35,7 @@ export default {
       default: '请输入内容...'
     }
   },
-  emits: ['update:modelValue', 'ready'],
+  emits: ['update:modelValue', 'ready', 'blur'],
   data() {
     return {
       vditorInstance: null,
@@ -80,6 +80,9 @@ export default {
               // 监听滚动事件，保存滚动位置
               irElement.addEventListener('scroll', this.onScroll);
 
+              // 监听失焦事件，触发自动保存
+              irElement.addEventListener('blur', this.onBlur, true);
+
               // 恢复之前保存的滚动位置
               this.restoreScrollPosition();
             }
@@ -119,6 +122,7 @@ export default {
             const irElement = this.vditorInstance.vditor.ir.element;
             irElement.removeEventListener('input', this.onContentChange);
             irElement.removeEventListener('scroll', this.onScroll);
+            irElement.removeEventListener('blur', this.onBlur, true);
           }
 
           // 销毁实例
@@ -241,6 +245,16 @@ export default {
       if (irElement) {
         this.scrollPosition = irElement.scrollTop;
       }
+    },
+
+    /**
+     * 失焦事件处理器 - 触发自动保存
+     */
+    onBlur() {
+      // 延迟触发，确保点击事件（如关闭按钮）能够正常处理
+      setTimeout(() => {
+        this.$emit('blur');
+      }, 100);
     },
 
     /**

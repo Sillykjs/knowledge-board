@@ -89,6 +89,7 @@
               :note-id="id"
               :is-generating="isAIGenerating"
               placeholder="开始编辑..."
+              @blur="saveViewContent"
             />
           </div>
           <div class="view-footer">

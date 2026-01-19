@@ -456,14 +456,13 @@ router.post('/ai-generate', async (req, res) => {
                       res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
                     }
 
-                    // 使用 Markdown 引用语法标记推理内容
-                    res.write(`data: ${JSON.stringify({ content: '\n> **🤔 思考过程：**\n>\n' })}\n\n`);
+                    // 直接输出推理内容标题（不加引用）
+                    res.write(`data: ${JSON.stringify({ content: '**🤔 思考过程：**\n\n' })}\n\n`);
                   }
 
                   if (reasoningText) {
-                    // 将推理内容的每行都添加引用标记
-                    const quotedText = reasoningText.split('\n').map(line => `> ${line}`).join('\n');
-                    res.write(`data: ${JSON.stringify({ content: quotedText + '\n' })}\n\n`);
+                    // 直接输出推理内容（不加引用标记）
+                    res.write(`data: ${JSON.stringify({ content: reasoningText })}\n\n`);
                   }
                 }
                 // 处理常规content
@@ -472,8 +471,8 @@ router.post('/ai-generate', async (req, res) => {
 
                   // 如果reasoning结束但还没发送结束标记
                   if (hasReasoning && !reasoningEnded) {
-                    // 空行结束引用块
-                    res.write(`data: ${JSON.stringify({ content: '\n\n' })}\n\n`);
+                    // 使用分割线分隔推理内容和正文
+                    res.write(`data: ${JSON.stringify({ content: '\n\n---\n\n' })}\n\n`);
                     reasoningEnded = true;
 
                     // 推理模型：在推理结束后、正式内容前发送模型名称

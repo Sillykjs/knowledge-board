@@ -39,7 +39,8 @@ export default {
   data() {
     return {
       vditorInstance: null,
-      content: this.modelValue
+      content: this.modelValue,
+      scrollPosition: 0
     };
   },
   watch: {
@@ -75,6 +76,12 @@ export default {
             const irElement = this.vditorInstance.vditor.ir.element;
             if (irElement) {
               irElement.addEventListener('input', this.onContentChange);
+
+              // 监听滚动事件，保存滚动位置
+              irElement.addEventListener('scroll', this.onScroll);
+
+              // 恢复之前保存的滚动位置
+              this.restoreScrollPosition();
             }
           }
 
@@ -104,10 +111,14 @@ export default {
     destroyVditor() {
       if (this.vditorInstance) {
         try {
+          // 保存当前滚动位置
+          this.saveScrollPosition();
+
           // 移除事件监听
           if (this.vditorInstance.vditor && this.vditorInstance.vditor.ir && this.vditorInstance.vditor.ir.element) {
             const irElement = this.vditorInstance.vditor.ir.element;
             irElement.removeEventListener('input', this.onContentChange);
+            irElement.removeEventListener('scroll', this.onScroll);
           }
 
           // 销毁实例
@@ -215,6 +226,69 @@ export default {
         }
       } catch (error) {
         console.error('[VditorEditor] Failed to update disabled state:', error);
+      }
+    },
+
+    /**
+     * 滚动事件处理器 - 保存滚动位置
+     */
+    onScroll() {
+      if (!this.vditorInstance || !this.vditorInstance.vditor || !this.vditorInstance.vditor.ir) {
+        return;
+      }
+
+      const irElement = this.vditorInstance.vditor.ir.element;
+      if (irElement) {
+        this.scrollPosition = irElement.scrollTop;
+      }
+    },
+
+    /**
+     * 保存滚动位置到 localStorage
+     */
+    saveScrollPosition() {
+      if (!this.vditorInstance || !this.vditorInstance.vditor || !this.vditorInstance.vditor.ir) {
+        return;
+      }
+
+      const irElement = this.vditorInstance.vditor.ir.element;
+      if (irElement) {
+        this.scrollPosition = irElement.scrollTop;
+        const storageKey = `vditor-scroll-${this.noteId}`;
+        try {
+          localStorage.setItem(storageKey, this.scrollPosition.toString());
+        } catch (error) {
+          console.warn('[VditorEditor] Failed to save scroll position:', error);
+        }
+      }
+    },
+
+    /**
+     * 从 localStorage 恢复滚动位置
+     */
+    restoreScrollPosition() {
+      if (!this.vditorInstance || !this.vditorInstance.vditor || !this.vditorInstance.vditor.ir) {
+        return;
+      }
+
+      const storageKey = `vditor-scroll-${this.noteId}`;
+      try {
+        const savedPosition = localStorage.getItem(storageKey);
+        if (savedPosition) {
+          const position = parseInt(savedPosition, 10);
+          if (!isNaN(position)) {
+            this.scrollPosition = position;
+            // 使用 nextTick 确保 DOM 已渲染
+            this.$nextTick(() => {
+              const irElement = this.vditorInstance?.vditor?.ir?.element;
+              if (irElement) {
+                irElement.scrollTop = this.scrollPosition;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[VditorEditor] Failed to restore scroll position:', error);
       }
     }
   }

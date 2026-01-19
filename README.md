@@ -5,6 +5,7 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-42b883?logo=vue.js)](https://vuejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express)](https://expressjs.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-3.x-003b57?logo=sqlite)](https://www.sqlite.org/)
+[![Vditor](https://img.shields.io/badge/Vditor-3.x-42b883?logo=markdown)](https://vditor.js.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## ✨ 核心特色
@@ -23,10 +24,28 @@
 - **平移**：按住空白处拖拽即可平移白板
 - **坐标系统**：精确的屏幕坐标与世界坐标转换
 
+## 📸 演示
+
+### 创建和编辑便签
+
+![创建和编辑便签](https://github.com/Sillykjs/knowledge-board/tree/main/images/create-and-edit-notes.gif)
+
+### 创建连接和上文追溯
+
+![创建连接和上文追溯](https://github.com/Sillykjs/knowledge-board/tree/main/images/create-connection-and-trace.gif)
+
+### AI 生成内容
+
+![AI 生成内容](https://github.com/Sillykjs/knowledge-board/tree/main/images/ai-generation.gif)
+
+### 无限白板缩放平移
+
+![无限白板](https://github.com/Sillykjs/knowledge-board/tree/main/images/infinite-canvas.gif)
+
 ## 🎯 应用场景
 
 - **知识图谱构建**：将相关概念通过连接线组织成知识网络
-- **AI 对话管理**：保存和复用与大模型的多轮对话
+- **AI 对话管理**：保存和复用与大模型的多轮对话，快速自定义上文（通过连接线和层数）
 - **思维导图**：可视化思路和知识关联
 - **研究笔记**：整理研究资料和文献关联
 

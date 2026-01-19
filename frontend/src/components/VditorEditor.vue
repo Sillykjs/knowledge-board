@@ -48,6 +48,10 @@ export default {
       if (this.vditorInstance && newVal !== this.vditorInstance.getValue()) {
         this.vditorInstance.setValue(newVal);
       }
+    },
+    isGenerating(newVal) {
+      // AI 生成状态变化时，禁用/启用编辑器
+      this.updateDisabledState(newVal);
     }
   },
   mounted() {
@@ -72,6 +76,11 @@ export default {
             if (irElement) {
               irElement.addEventListener('input', this.onContentChange);
             }
+          }
+
+          // 根据初始状态设置禁用状态
+          if (this.isGenerating) {
+            this.updateDisabledState(true);
           }
 
           // 触发 ready 事件
@@ -187,6 +196,26 @@ export default {
       buttons?.forEach(btn => {
         btn.style.overflow = 'visible';
       });
+    },
+
+    /**
+     * 更新编辑器禁用状态
+     * @param {boolean} disabled - 是否禁用
+     */
+    updateDisabledState(disabled) {
+      if (!this.vditorInstance) return;
+
+      try {
+        // Vditor 提供了 disabled 方法来禁用/启用编辑器
+        if (disabled) {
+          this.vditorInstance.disabled();
+        } else {
+          // 重新启用编辑器
+          this.vditorInstance.enable();
+        }
+      } catch (error) {
+        console.error('[VditorEditor] Failed to update disabled state:', error);
+      }
     }
   }
 };
@@ -199,6 +228,7 @@ export default {
   flex-direction: column;
   min-height: 400px;
   overflow: visible;
+  box-sizing: border-box;
 }
 
 .vditor-wrapper {
@@ -216,13 +246,38 @@ export default {
   overflow: visible;
 }
 
-/* AI 生成中的样式 */
+/* AI 生成中的样式 - 黄色边框和脉冲动画 */
 .vditor-editor-container.generating {
-  background: #fff9c4;
-  animation: pulse 2s ease-in-out infinite;
+  border: 3px solid #ffc107;
+  animation: pulse-border 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
+/* AI 生成中，大纲导航禁用交互 */
+.vditor-editor-container.generating :deep(.vditor-outline) {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* AI 生成中，禁用编辑区域的交互 */
+.vditor-editor-container.generating :deep(.vditor-ir) {
+  pointer-events: none;
+  user-select: none;
+  cursor: not-allowed;
+}
+
+/* 禁用工具栏按钮 */
+.vditor-editor-container.generating :deep(.vditor-toolbar) {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* 禁用输入框 */
+.vditor-editor-container.generating :deep(.vditor-ir .vditor-reset) {
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes pulse-border {
   0%, 100% {
     box-shadow: 0 0 12px rgba(255, 193, 7, 0.4);
   }

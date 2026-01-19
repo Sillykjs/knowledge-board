@@ -154,6 +154,7 @@ ChatBranch2/
 - `id`: 主键，自增
 - `title`: 白板标题
 - `system_prompt`: AI系统提示词（用于AI生成功能）
+- `sort_order`: 排序顺序（用于侧边栏拖拽排序）
 - `created_at`: 创建时间
 - `updated_at`: 更新时间
 
@@ -179,6 +180,18 @@ ChatBranch2/
 - 外键约束：级联删除（当便签被删除时，相关连接也会被删除）
 - 唯一约束：`(source_note_id, target_note_id)` 组合必须唯一
 
+**model_configs表结构（模型配置表）:**
+
+- `id`: 主键，自增
+- `provider`: 厂商名称（唯一，如 'OpenAI', 'DeepSeek'）
+- `api_base`: API 基础地址
+- `api_key`: API 密钥
+- `models`: 支持的模型列表（JSON 数组字符串）
+- `sort_order`: 排序顺序（用于侧边栏显示顺序）
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
+- 唯一约束：`provider` 字段唯一
+
 ### 软删除机制
 
 - **软删除**: 删除便签时设置 `deleted_at = CURRENT_TIMESTAMP`，数据仍在数据库中
@@ -195,6 +208,7 @@ ChatBranch2/
 - `POST /api/notes/boards` - 创建新白板
 - `GET /api/notes/boards/:id` - 获取单个白板配置
 - `PUT /api/notes/boards/:id` - 更新白板配置（标题、系统提示词）
+- `PUT /api/notes/boards/reorder` - 更新白板排序顺序
 - `DELETE /api/notes/boards/:id` - 删除白板（禁止删除 id=1 的默认白板）
 
 **便签基本操作:**
@@ -224,6 +238,13 @@ ChatBranch2/
   - 响应: Server-Sent Events (SSE) 格式的流式数据
   - 使用白板的 `system_prompt` 作为 system 消息
   - 从数据库读取模型配置（provider, api_base, api_key, models）
+
+**模型配置操作:**
+
+- `GET /api/model-config` - 获取所有模型配置（API Key 已掩码处理）
+- `POST /api/model-config` - 保存模型配置（支持批量保存和更新）
+- `DELETE /api/model-config` - 批量删除模型配置
+  - 请求体: `{ ids: number[] }`
 
 **路由顺序注意事项**: 在 `backend/routes/notes.js` 中，路由按照以下顺序排列：
 
@@ -319,11 +340,22 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **左侧边栏**: 显示所有白板，点击切换，显示便签数量徽章，支持收起/展开
   - 展开状态：显示白板标题、便签数量徽章、删除按钮
   - 收起状态：只显示图标（当前白板为 📌，其他为 📄）
+  - **拖拽排序**: 使用 vuedraggable 组件，支持拖拽白板调整顺序
+    - 拖拽结束后自动保存新的排序到后端
+    - 使用 `sort_order` 字段存储排序顺序
+- **右侧边栏**: 便签索引面板，显示当前白板的所有便签列表
+  - 支持搜索便签标题（实时过滤）
+  - 点击便签项跳转到对应便签位置
+  - 显示便签创建时间（相对时间格式）
+  - 可折叠展开，独立于左侧边栏
 - **白板列表管理**:
   - `boards`: 白板列表数组
   - `currentBoardId`: 当前选中白板ID
   - `boardViewports`: 存储每个白板的视口状态 `{ boardId: { scale, translateX, translateY } }`
   - `sidebarCollapsed`: 侧边栏是否收起
+  - `rightSidebarCollapsed`: 右侧边栏是否收起
+  - `currentNotes`: 当前白板的便签列表（用于右侧索引）
+  - `searchQuery`: 搜索关键词
 - **白板操作方法**:
   - `loadBoards()`: 加载白板列表
   - `switchBoard(boardId)`: 切换白板，保存当前白板视口状态，恢复目标白板视口状态
@@ -331,11 +363,24 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
   - `confirmDeleteBoard(boardId)`: 删除白板（带确认模态框）
   - `onBoardUpdated(boardData)`: 处理白板配置更新事件
   - `toggleSidebar()`: 切换侧边栏收起/展开状态
+  - `toggleRightSidebar()`: 切换右侧边栏展开/收起
+  - `onDragEnd()`: 拖拽结束后保存白板排序
+  - `jumpToNote(note)`: 跳转到指定便签位置
+- **模型配置管理**:
+  - `loadModelsJson()`: 从后端加载模型配置（已掩码）
+  - `parseModelsJson()`: 解析模型 JSON 字符串
+  - `formatJson()`: 格式化 JSON
+  - `validateAndSaveJson()`: 验证并保存模型配置到后端
+    - 处理 API Key 掩码逻辑（保持原值或更新）
+    - 删除用户移除的厂商配置
+    - 保存后重新加载配置以获取掩码后的数据
+  - `onModelChanged(modelData)`: 模型切换事件处理
 - **侧边栏特性**:
   - 固定在左侧（z-index: 2000），展开宽度 250px，收起宽度 60px
   - 活跃状态高亮显示
   - 默认白板（id=1）不能删除
   - 新建白板按钮在底部
+  - 模型管理按钮在新建按钮上方
 
 **Note.vue** (单个便签)
 
@@ -441,75 +486,72 @@ Express路由按定义顺序匹配，更具体的路由必须在更通用的路�
 - **Props 传递**: 通过 App.vue 的 props 传入 `boardTitle` 和 `boardSystemPrompt`
 - **加载时机**: 通过 props 响应式更新，无需手动加载
 
-### Markdown 渲染实现
+### Markdown 编辑器实现
 
-查看便签模态框支持 Markdown 渲染，实现位于 `Note.vue`:
+项目使用 **Vditor** 作为 Markdown 编辑器，替代了原有的 markdown-it 方案：
 
-**依赖库:**
+**组件位置**: `frontend/src/components/VditorEditor.vue`
 
-- `markdown-it`: 解析 Markdown 语法为 HTML
-- `dompurify`: 净化 HTML 防止 XSS 攻击
+**Vditor 配置**: `frontend/src/utils/vditorConfig.js`
 
-**实现细节:**
+**核心特性:**
 
-1. **初始化**: 在 `<script>` 顶部初始化 markdown-it 实例
+1. **所见即所得（WYSIWYG）**: 支持即时渲染和编辑
+2. **双向绑定**: 使用 `v-model` 绑定内容，支持 `update:modelValue` 事件
+3. **AI 生成集成**: 接收 `isGenerating` prop，生成时禁用编辑器
+4. **滚动保持**: 生成过程中保持编辑器滚动位置
+5. **失焦保存**: 触发 `blur` 事件，自动保存内容
+6. **初始化回调**: 编辑器准备好后触发 `ready` 事件
 
-   - `html: false`: 禁止 HTML 标签（安全）
-   - `linkify: true`: 自动转换 URL 为链接
-   - `breaks: true`: 转换换行符为 `<br>`
-2. **计算属性**: `renderedContent()` 方法
+**Vditor vs markdown-it:**
 
-   - 使用 `md.render()` 解析 Markdown
-   - 使用 `DOMPurify.sanitize()` 净化 HTML
-   - 仅允许安全的标签和属性
-   - 错误时回退到纯文本
-3. **模板渲染**: 使用 `v-html="renderedContent"`
+- **Vditor**: 完整的 Markdown 编辑器，支持所见即所得编辑、实时预览、代码高亮、数学公式等
+- **markdown-it**: 仅用于解析和渲染 Markdown，不支持编辑交互
 
-   - 元素同时有 `view-content` 和 `markdown-body` 两个 class
-4. **样式实现（重要）**:
+**为什么使用 Vditor？**
 
-   - **使用两个 style 块**
-   - `<style scoped>`: 组件特定样式
-   - `<style>`: Markdown 样式（非 scoped，必须！）
+- 提供更好的用户体验（所见即所得）
+- 内置安全性处理（XSS 防护）
+- 支持丰富的 Markdown 扩展语法
+- 更好的中文支持
 
-**关键实现要点:**
+**使用方式:**
 
-**为什么需要非 scoped 样式？**
-
-- Vue 的 scoped 样式会给元素添加唯一的 `data-v-xxx` 属性
-- 通过 `v-html` 动态插入的 HTML 内容**没有**这些 data 属性
-- 因此 scoped 样式无法应用到 Markdown 渲染的 HTML 上
-- 必须将 `.markdown-body` 相关样式放在非 scoped 的 style 块中
-
-**避免样式冲突:**
-
-```css
-/* 默认样式 - 同时应用于 markdown 和纯文本 */
-.view-content {
-  font-size: 14px;
-  color: #555;
-  word-wrap: break-word;
-}
-
-/* 仅在非 markdown 模式下应用 */
-.view-content:not(.markdown-body) {
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-/* Markdown 专用样式（非 scoped 块） */
-.markdown-body {
-  line-height: 1.4;
-  font-size: 14px;
-  /* 紧凑间距：标题 12px/6px，段落 6px，其他元素 6px */
-}
+```vue
+<VditorEditor
+  ref="vditorEditor"
+  v-model="viewEditContent"
+  :note-id="id"
+  :is-generating="isAIGenerating"
+  placeholder="开始编辑..."
+  @blur="saveViewContent"
+/>
 ```
 
-**安全措施:**
+**配置文件**: `frontend/src/utils/vditorConfig.js` 导出 Vditor 的初始化选项
 
-- 禁止在 Markdown 中使用 HTML 标签（`html: false`）
-- DOMPurify 白名单机制限制可用的 HTML 标签和属性
-- 错误处理防止渲染失败导致崩溃
+**主要配置项:**
+
+- `mode`: 编辑模式（'ir' = 即时渲染，类似 Typora）
+- `height`: 编辑器高度（400px）
+- `minHeight`: 最小高度（300px）
+- `placeholder`: 占位符文本
+- `theme`: 主题（'classic'）
+- `lang`: 语言（'zh_CN'）
+- `toolbar`: 工具栏配置（精简版）
+  - 标题、粗体、斜体、删除线
+  - 列表、有序列表、待办
+  - 引用、代码块、行内代码
+  - 链接、表格
+  - 撤销、重做
+  - 全屏、编辑模式切换、大纲
+- `cache`: 禁用缓存（避免多实例冲突）
+- `math`: 数学公式配置（KaTeX 引擎）
+- `mermaid`: 流程图配置
+- `code`: 代码块配置（显示行号）
+- `counter`: 启用计数器
+- `enableHint`: 启用标题折叠功能
+- `outline`: 导航目录配置（左侧显示）
 
 ### AI 内容生成功能
 
@@ -757,10 +799,11 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 
 **boards.js 路由**（白板管理）:
 
-- `GET /` - 获取所有白板（包含便签计数，按更新时间倒序）
+- `GET /` - 获取所有白板（包含便签计数，按 sort_order 排序）
 - `POST /` - 创建新白板（需要 `title`，可选 `system_prompt`）
 - `GET /:id` - 获取单个白板配置
 - `PUT /:id` - 更新白板配置（需要 `title`，可选 `system_prompt`）
+- `PUT /reorder` - 批量更新白板排序（需要 `boardOrders` 数组）
 - `DELETE /:id` - 删除白板（禁止删除 id=1）
 
 **notes.js 路由顺序**:
@@ -825,8 +868,9 @@ sqlite3 notes.db "ALTER TABLE note_connections ADD COLUMN wall_id INTEGER NOT NU
 - `axios`: HTTP客户端
 - `vite`: 构建工具和开发服务器
 - `@vitejs/plugin-vue`: Vue 3插件
-- `markdown-it`: Markdown 解析器（用于查看便签模态框）
-- `dompurify`: HTML 净化库（防止 XSS 攻击）
+- `vditor`: Markdown 编辑器（用于便签内容的编辑和预览）
+- `vuedraggable`: 基于 Vue 3 的拖拽排序组件（用于侧边栏白板排序）
+- `dompurify`: HTML 净化库（防止 XSS 攻击，已被 Vditor 替代）
 
 ## 前端配置
 
@@ -1532,6 +1576,108 @@ clipboardData: {
 - 框选多个相关便签后复制到另一个位置
 - 框选多个便签后剪切粘贴到另一个白板
 - 保持便签之间的相对位置和连接关系
+
+### 实现便签索引和搜索功能
+
+项目实现了右侧便签索引面板，方便用户快速查找和跳转到便签：
+
+**功能说明:**
+
+- **便签列表**: 显示当前白板的所有便签（按创建时间倒序）
+- **实时搜索**: 输入关键词实时过滤便签标题
+- **相对时间**: 显示便签创建时间的相对格式（如"3分钟前"、"2小时前"）
+- **快速跳转**: 点击便签项自动跳转到对应位置
+
+**实现要点:**
+
+1. **数据流**: NoteWall 通过 `@notes-loaded` 事件将便签列表传递给 App.vue
+2. **搜索过滤**: 使用 computed 属性 `sortedNotes` 实时过滤和排序
+3. **时间格式化**: `formatNoteTime()` 方法将时间转换为相对格式
+4. **位置跳转**: 通过 `jumpToNote(note)` 方法调用 NoteWall 的跳转功能
+
+**关键文件位置:**
+
+- App.vue:102-143 - 右侧边栏模板
+- App.vue:285-306 - `sortedNotes` 计算属性
+- App.vue:646-717 - 右侧边栏相关方法
+- NoteWall.vue:2020-2065 - `jumpToNote()` 方法实现
+
+**跳转功能实现细节:**
+
+```javascript
+jumpToNote(note) {
+  // 1. 获取便签元素的实际尺寸（考虑缩放）
+  const noteElement = document.querySelector(`.note[data-note-id="${note.id}"]`);
+  const noteHeight = noteElement.offsetHeight / this.viewport.scale;
+  const noteWidth = noteElement.offsetWidth / this.viewport.scale;
+
+  // 2. 计算便签中心的世界坐标
+  const noteCenterX = note.position_x + noteWidth / 2;
+  const noteCenterY = note.position_y + noteHeight / 2;
+
+  // 3. 计算目标平移量，使便签位于屏幕中心
+  const screenCenterX = window.innerWidth / 2;
+  const screenCenterY = window.innerHeight / 2;
+
+  this.viewport.translateX = screenCenterX - noteCenterX * this.viewport.scale;
+  this.viewport.translateY = screenCenterY - noteCenterY * this.viewport.scale;
+
+  // 4. 添加动画效果
+  this.$refs.wallContent.classList.add('animating');
+  setTimeout(() => {
+    this.$refs.wallContent.classList.remove('animating');
+  }, 300);
+}
+```
+
+### 实现白板拖拽排序功能
+
+项目使用 vuedraggable 组件实现白板拖拽排序：
+
+**功能说明:**
+
+- 拖拽白板项调整顺序
+- 拖拽过程中显示视觉效果
+- 拖拽结束后自动保存到后端
+
+**实现要点:**
+
+1. **组件引入**: 在 App.vue 中引入 vuedraggable
+2. **数据绑定**: `v-model="boards"` 双向绑定白板列表
+3. **拖拽配置**:
+   - `item-key="id"` - 指定唯一标识
+   - `:disabled="sidebarCollapsed"` - 收起时禁用拖拽
+   - `@end="onDragEnd"` - 拖拽结束事件
+4. **后端保存**: 拖拽结束后调用 `PUT /api/notes/boards/reorder` 保存排序
+
+**关键文件位置:**
+
+- App.vue:12-57 - vuedraggable 组件配置
+- App.vue:451-467 - `onDragEnd()` 方法
+- backend/routes/boards.js - 排序 API 实现
+
+### 模型配置的掩码处理
+
+项目实现了 API Key 的安全掩码处理：
+
+**掩码逻辑:**
+
+- 保留前 3 个字符和后 4 个字符
+- 中间部分替换为 `***...`
+- 示例: `sk-abc123def456` → `sk-***...ef456`
+
+**保存逻辑:**
+
+1. **检测掩码**: 检查 apiKey 是否包含 `***`
+2. **保持原值**: 如果是掩码且存在对应记录，保持原值（`_keepOriginalKey: true`）
+3. **更新密钥**: 如果不是掩码或新记录，保存新值（`_keepOriginalKey: false`）
+4. **删除厂商**: 删除用户移除的厂商配置
+
+**关键文件位置:**
+
+- backend/routes/model-config.js:5-11 - `maskApiKey()` 函数
+- backend/routes/model-config.js:35-120 - 保存逻辑
+- App.vue:554-630 - 前端掩码处理逻辑
 
 ### 调试技巧
 

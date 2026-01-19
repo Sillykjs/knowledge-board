@@ -126,8 +126,9 @@ export default {
     appendContent(text) {
       if (!this.vditorInstance) return;
 
-      const current = this.vditorInstance.getValue();
-      this.vditorInstance.setValue(current + text);
+      // 使用 insertValue 而不是 setValue，避免重新渲染整个编辑器
+      // insertValue 会在光标位置插入内容，保持编辑器稳定
+      this.vditorInstance.insertValue(text);
 
       // 自动滚动到底部
       this.scrollToBottom();

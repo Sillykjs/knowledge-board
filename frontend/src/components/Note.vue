@@ -438,7 +438,12 @@ export default {
       }
 
       this.isAIGenerating = true;
-      this.viewEditContent = '';  // 重置内容
+
+      // 清空编辑器内容并聚焦，为流式输出做准备
+      if (this.$refs.vditorEditor) {
+        this.$refs.vditorEditor.setValue('');
+        this.$refs.vditorEditor.focus();
+      }
 
       try {
         // 从 localStorage 读取最后使用的模型配置（只需要 provider 和 model）

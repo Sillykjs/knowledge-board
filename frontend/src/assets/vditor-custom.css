@@ -7,10 +7,15 @@
 }
 
 /* 调整 IR 模式下的预览区域样式 */
-.vditor-ir {
-  font-size: 19px;
+.vditor-ir .vditor-reset {
+  font-size: 20px !important;
   color: #555;
   line-height: 1.6;
+}
+
+/* 确保编辑区域也应用相同的字体大小 */
+.vditor-ir {
+  font-size: 20px !important;
 }
 
 /* 调整代码块样式 */
@@ -25,7 +30,7 @@
   background-color: rgba(27, 31, 35, 0.05);
   border-radius: 3px;
   padding: 0.2em 0.4em;
-  font-size: 85%;
+  font-size: 90%;
   font-family: 'Courier New', Courier, monospace;
 }
 

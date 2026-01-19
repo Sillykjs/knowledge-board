@@ -82,6 +82,11 @@ export default {
       try {
         // 使用构造函数方式初始化
         this.vditorInstance = new Vditor(this.$refs.vditorRef.id, options);
+
+        // 修复 tooltip 被遮挡的问题
+        this.$nextTick(() => {
+          this.fixTooltipPosition();
+        });
       } catch (error) {
         console.error('[VditorEditor] Vditor initialization failed:', error);
       }
@@ -163,6 +168,24 @@ export default {
       if (this.vditorInstance) {
         this.vditorInstance.focus();
       }
+    },
+
+    /**
+     * 修复 tooltip 位置问题
+     * 确保工具栏的悬浮提示框不被遮挡
+     */
+    fixTooltipPosition() {
+      // 找到工具栏容器并确保其 overflow 为 visible
+      const toolbar = this.$refs.vditorRef?.querySelector('.vditor-toolbar');
+      if (toolbar) {
+        toolbar.style.overflow = 'visible';
+      }
+
+      // 确保所有按钮的 overflow 为 visible
+      const buttons = this.$refs.vditorRef?.querySelectorAll('.vditor-toolbar button');
+      buttons?.forEach(btn => {
+        btn.style.overflow = 'visible';
+      });
     }
   }
 };
@@ -174,11 +197,12 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 400px;
+  overflow: visible;
 }
 
 .vditor-wrapper {
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
   min-height: 400px;
 }
 
@@ -188,6 +212,7 @@ export default {
   min-height: 400px;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 /* AI 生成中的样式 */

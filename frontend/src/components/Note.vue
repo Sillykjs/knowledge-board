@@ -801,6 +801,7 @@ export default {
   display: flex;
   flex-direction: column;
   animation: modalAppear 0.2s ease-out;
+  overflow: visible;
 }
 
 .view-header {
@@ -818,9 +819,10 @@ export default {
 }
 
 .view-body {
-  padding: 20px;
+  padding: 80px 20px 20px 20px; /* 顶部留出足够空间给 tooltip */
   flex: 1;
   overflow-y: auto;
+  margin-top: -60px; /* 向上偏移以保持实际内容位置不变 */
 }
 
 .view-title {

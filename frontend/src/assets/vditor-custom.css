@@ -184,3 +184,34 @@
 
 /* 修复图标字体加载 */
 @import url('https://unpkg.com/vditor@3.9.9/dist/css/content-theme-icon.css');
+
+/* 确保 Vditor 工具栏悬浮提示框在最上层 */
+.vditor-tooltipped {
+  position: relative;
+}
+
+/* Tooltip 箭头和文本框的 z-index */
+.vditor-tooltipped::before,
+.vditor-tooltipped::after {
+  z-index: 3000 !important;
+}
+
+/* 确保工具栏容器不裁剪 tooltip */
+.vditor-toolbar {
+  overflow: visible !important;
+}
+
+.vditor-toolbar--bar {
+  overflow: visible !important;
+}
+
+/* 确保 Vditor 编辑器容器不裁剪 */
+.vditor {
+  overflow: visible;
+}
+
+/* 确保 Vditor 下拉菜单也在最上层 */
+.vditor-hint,
+.vditor-panel {
+  z-index: 3000 !important;
+}

@@ -82,59 +82,14 @@
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
-            <!-- 前缀内容（模型名称等，显示在推理 callout 之前） -->
-            <div
-              v-if="prefixContent && !editingViewContent"
-              class="prefix-content markdown-body"
-              v-html="renderedPrefixContent"
-            ></div>
-
-            <!-- Reasoning Callout（仅当有reasoning且非编辑模式时显示） -->
-            <div
-              v-if="parsedReasoning && !editingViewContent"
-              class="reasoning-callout"
-              :class="{ 'collapsed': reasoningCollapsed }"
-            >
-              <div
-                class="reasoning-header"
-                @click="reasoningCollapsed = !reasoningCollapsed"
-              >
-                <div class="reasoning-title">
-                  <svg class="reasoning-icon" viewBox="0 0 16 16">
-                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM7 5h2v2H7V5zm0 4h2v4H7V9z"/>
-                  </svg>
-                  <span>思考过程</span>
-                </div>
-                <svg
-                  class="collapse-icon"
-                  :class="{ 'rotated': !reasoningCollapsed }"
-                  viewBox="0 0 16 16"
-                >
-                  <path d="M4 6l4 4 4-4H4z"/>
-                </svg>
-              </div>
-              <div v-show="!reasoningCollapsed" class="reasoning-content">
-                <div
-                  class="reasoning-text markdown-body"
-                  v-html="renderedReasoning"
-                ></div>
-              </div>
-            </div>
-
-            <div
-              v-if="!editingViewContent"
-              class="view-content markdown-body"
-              v-html="renderedContent"
-              @dblclick="startEditViewContent"
-            ></div>
-            <textarea
-              v-else
-              ref="viewContentInput"
+            <!-- 使用 VditorEditor 替换旧的查看/编辑内容区域 -->
+            <VditorEditor
+              ref="vditorEditor"
               v-model="viewEditContent"
-              class="view-content-input"
-              @blur="saveViewContent"
-              @keyup.esc="cancelEditViewContent"
-            ></textarea>
+              :note-id="id"
+              :is-generating="isAIGenerating"
+              placeholder="开始编辑..."
+            />
           </div>
           <div class="view-footer">
             <button class="btn-ai-generate" @click="generateAIContent" :disabled="isAIGenerating">
@@ -151,112 +106,13 @@
 
 <script>
 import axios from 'axios';
-import MarkdownIt from 'markdown-it';
-import DOMPurify from 'dompurify';
-import mermaid from 'mermaid';
-import katex from 'katex';
-import tm from 'markdown-it-texmath';
-
-// 导入 KaTeX CSS 样式
-import 'katex/dist/katex.min.css';
-
-// 初始化 markdown-it 实例
-const md = new MarkdownIt({
-  html: true,         // 允许 HTML 标签（通过 DOMPurify 过滤确保安全）
-  linkify: true,      // 自动转换 URL 为链接
-  typographer: false, // 禁用美化排版，避免 * 等符号被特殊处理
-  breaks: true,       // 转换换行符为 <br>
-});
-
-// 配置 texmath 插件，支持数学公式
-md.use(tm, {
-  engine: katex,
-  delimiters: 'dollars',
-  katexOptions: {
-    macros: {"\\RR": "\\mathbb{R}"}
-  }
-});
-
-// 自定义链接渲染器，让所有链接在新标签页打开
-const defaultLinkOpen = md.renderer.rules.link_open || function(tokens, idx, options, env, self) {
-  return self.renderToken(tokens, idx, options);
-};
-
-md.renderer.rules.link_open = function(tokens, idx, options, env, self) {
-  // 添加 target="_blank" 和 rel="noopener noreferrer"
-  const token = tokens[idx];
-  const hrefIndex = token.attrIndex('href');
-  if (hrefIndex >= 0) {
-    token.attrPush(['target', '_blank']);
-    token.attrPush(['rel', 'noopener noreferrer']);
-  }
-  return defaultLinkOpen(tokens, idx, options, env, self);
-};
-
-// 添加对 \( \) 和 \[ \] 语法的支持，并标准化 $ 分隔符格式
-// 在 markdown-it 渲染前预处理文本
-const originalRender = md.render.bind(md);
-md.render = function(text, env) {
-  // 先处理块级公式，避免与行内公式冲突
-  // 1. 替换 \[ ... \] 为 $$...$$
-  text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
-    return `$$${formula.trim()}$$`;
-  });
-
-  // 2. 标准化已有的块级公式 $$ ... $$ (支持跨行)
-  text = text.replace(/\$\$\s+([\s\S]*?)\s+\$\$/g, (match, formula) => {
-    return `$$${formula.trim()}$$`;
-  });
-
-  // 3. 替换 \( ... \) 为 $...$ （行内公式）
-  text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
-    return `$${formula.trim()}$`;
-  });
-
-  // 4. 标准化已有的行内公式 $ ... $ (不包含 $$)
-  // 使用负向前瞻确保不会匹配到块级公式的边界
-  text = text.replace(/\$\s+([^\$\n]+?)\s+\$/g, (match, formula) => {
-    return `$${formula.trim()}$`;
-  });
-
-  return originalRender(text, env);
-};
-
-// 自定义 fence 渲染规则，支持 mermaid
-const defaultFence = md.renderer.rules.fence || function(tokens, idx, options, env, self) {
-  return self.renderToken(tokens, idx, options);
-};
-
-md.renderer.rules.fence = function(tokens, idx, options, env, self) {
-  const token = tokens[idx];
-  const info = token.info ? token.info.trim() : '';
-
-  // 如果是 mermaid 代码块
-  if (info === 'mermaid') {
-    // 使用 data 属性存储原始内容，避免被 DOMPurify 清理
-    const encodedContent = encodeURIComponent(token.content);
-    return `<pre class="mermaid" data-mermaid="${encodedContent}"></pre>`;
-  }
-
-  // 其他代码块使用默认渲染
-  return defaultFence(tokens, idx, options, env, self);
-};
-
-// 初始化 Mermaid
-try {
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    securityLevel: 'loose',
-    logLevel: 'error'  // 只显示错误日志
-  });
-  console.log('Mermaid initialized successfully');
-} catch (error) {
-  console.error('Failed to initialize Mermaid:', error);
-}
+import VditorEditor from './VditorEditor.vue';
 
 export default {
   name: 'Note',
+  components: {
+    VditorEditor
+  },
   props: {
     id: Number,
     title: String,
@@ -295,169 +151,14 @@ export default {
       isConnecting: false,  // 是否正在创建连接
       editingViewTitle: false,  // 是否正在编辑查看模态框中的标题
       viewEditTitle: this.title,  // 查看模态框中编辑的临时标题
-      editingViewContent: false,  // 是否正在编辑查看模态框中的内容
-      viewEditContent: this.content,  // 查看模态框中编辑的临时内容
+      viewEditContent: this.content,  // 查看模态框中的内容（v-model 绑定）
       isAIGenerating: false,  // AI生成中
-      aiError: null,  // AI错误信息
-      streamingContent: '',  // 流式接收的内容
-      reasoningCollapsed: true,  // 思考过程callout折叠状态（默认折叠）
-      // 记忆状态（分开存储查看和编辑的滚动位置）
-      viewScrollPositions: {},  // 存储查看模式的滚动位置 {noteId: scrollTop}
-      editScrollPositions: {},  // 存储编辑模式的滚动位置 {noteId: scrollTop}
-      contentEditingStates: {}  // 存储每个便签的编辑状态 {noteId: isEditing}
+      aiError: null  // AI错误信息
     };
   },
   computed: {
     truncatedContent() {
       return this.content || '';
-    },
-    // 解析前缀内容（<!-- REASONING --> 之前的内容，如模型名称）
-    prefixContent() {
-      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
-      if (!contentToParse) return '';
-
-      // 检查是否包含reasoning标记
-      const reasoningStartMatch = contentToParse.match(/<!--\s*REASONING\s*-->/i);
-
-      // 如果没有reasoning标记，返回空
-      if (!reasoningStartMatch) return '';
-
-      // 返回reasoning标记之前的内容
-      return contentToParse.substring(0, reasoningStartMatch.index).trim();
-    },
-    // 渲染前缀内容（Markdown格式）
-    renderedPrefixContent() {
-      const prefix = this.prefixContent;
-      if (!prefix) return '';
-      try {
-        const renderedMarkdown = md.render(prefix);
-        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
-          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
-                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
-                         'span', 'annotation', 'semantics', 'mtext', 'mn',
-                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
-                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
-                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
-          ALLOWED_ATTR: ['href', 'title', 'class', 'style', 'xmlns',
-                         'width', 'height', 'viewbox', 'preserveaspectratio',
-                         'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
-                         'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points',
-                         'text-anchor', 'font-size', 'font-family', 'transform',
-                         'data-mermaid', 'linebreak', 'indentalign',
-                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
-                         'columnspacing', 'displaystyle', 'scriptlevel',
-                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
-          ALLOW_DATA_ATTR: false
-        });
-        return cleanHtml;
-      } catch (error) {
-        console.error('Prefix content rendering error:', error);
-        return prefix;
-      }
-    },
-    // 解析思考过程内容
-    parsedReasoning() {
-      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
-      if (!contentToParse) return null;
-
-      // 检查是否包含reasoning标记
-      const reasoningStartMatch = contentToParse.match(/<!--\s*REASONING\s*-->/i);
-      const reasoningEndMatch = contentToParse.match(/<!--\s*END_REASONING\s*-->/i);
-
-      if (!reasoningStartMatch || !reasoningEndMatch) return null;
-
-      // 提取reasoning内容
-      const startIndex = reasoningStartMatch.index + reasoningStartMatch[0].length;
-      const endIndex = reasoningEndMatch.index;
-
-      return contentToParse.substring(startIndex, endIndex).trim();
-    },
-    // 解析主要实际内容
-    mainContent() {
-      const contentToParse = this.isAIGenerating ? this.streamingContent : this.content;
-      if (!contentToParse) return '';
-
-      // 检查是否包含reasoning标记
-      const reasoningEndMatch = contentToParse.match(/<!--\s*END_REASONING\s*-->/i);
-
-      if (!reasoningEndMatch) return contentToParse;
-
-      // 返回reasoning之后的内容
-      return contentToParse.substring(reasoningEndMatch.index + reasoningEndMatch[0].length).trim();
-    },
-    // 渲染思考过程内容
-    renderedReasoning() {
-      const reasoning = this.parsedReasoning;
-      if (!reasoning) return '';
-
-      try {
-        const renderedMarkdown = md.render(reasoning);
-        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
-          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
-                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
-                         'span', 'annotation', 'semantics', 'mtext', 'mn',
-                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
-                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
-                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math'],
-          ALLOWED_ATTR: ['href', 'title', 'class', 'style', 'xmlns',
-                         'width', 'height', 'viewbox', 'preserveaspectratio',
-                         'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
-                         'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points',
-                         'text-anchor', 'font-size', 'font-family', 'transform',
-                         'data-mermaid', 'linebreak', 'indentalign',
-                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
-                         'columnspacing', 'displaystyle', 'scriptlevel',
-                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
-          ALLOW_DATA_ATTR: false
-        });
-        return cleanHtml;
-      } catch (error) {
-        console.error('Reasoning rendering error:', error);
-        return reasoning;
-      }
-    },
-    // 渲染 Markdown 内容
-    renderedContent() {
-      // 使用解析后的主要内容
-      const contentToRender = this.mainContent;
-      if (!contentToRender) return '';
-      try {
-        // 1. 使用 markdown-it 解析 markdown（包含数学公式）
-        const renderedMarkdown = md.render(contentToRender);
-        // 2. 使用 DOMPurify 净化 HTML（防止 XSS）
-        const cleanHtml = DOMPurify.sanitize(renderedMarkdown, {
-          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre',
-                         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                         'ul', 'ol', 'li', 'blockquote', 'a', 'hr',
-                         'table', 'thead', 'tbody', 'tr', 'th', 'td',
-                         'div', 'svg', 'path', 'rect', 'circle', 'line',
-                         'polygon', 'polyline', 'text', 'g', 'marker',
-                         'span', 'annotation', 'semantics', 'mtext', 'mn',
-                         'mo', 'mi', 'mrow', 'mspace', 'msqrt', 'mfrac',
-                         'mstyle', 'munder', 'mover', 'munderover', 'msub',
-                         'msup', 'msubsup', 'mtable', 'mtr', 'mtd', 'math',
-                         'img'],
-          ALLOWED_ATTR: ['href', 'title', 'class', 'target', 'rel', 'id',
-                         'src', 'alt', 'width', 'height',
-                         'd', 'x', 'y', 'cx', 'cy', 'r',
-                         'x1', 'y1', 'x2', 'y2', 'points', 'fill', 'stroke',
-                         'stroke-width', 'viewBox', 'xmlns', 'text-anchor',
-                         'font-size', 'font-family', 'transform', 'data-mermaid',
-                         'style', 'xmlns', 'viewbox',
-                         'preserveaspectratio', 'linebreak', 'indentalign',
-                         'indentalignfirst', 'indentshiftfirst', 'columnalign',
-                         'columnspacing', 'displaystyle', 'scriptlevel',
-                         'scriptminsize', 'scriptsizemultiplier', 'depth'],
-          ALLOW_DATA_ATTR: false
-        });
-        return cleanHtml;
-      } catch (error) {
-        console.error('Markdown rendering error:', error);
-        // 出错时返回纯文本
-        return contentToRender;
-      }
     }
   },
   methods: {
@@ -517,45 +218,14 @@ export default {
         this.$nextTick(() => {
           this.startEditViewTitle();
         });
-        return;
       }
-
-      // 恢复记忆的状态
-      this.$nextTick(() => {
-        const viewBody = document.querySelector('.view-modal-content .view-body');
-        if (viewBody) {
-          // 恢复编辑状态
-          const savedEditingState = this.contentEditingStates[this.id] || false;
-          if (savedEditingState) {
-            this.startEditViewContent();
-          } else {
-            // 查看模式：恢复查看模式的滚动位置
-            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
-            viewBody.scrollTop = savedScrollTop;
-          }
-        }
-      });
     },
-    closeViewModal() {
-      // 保存当前状态（根据当前模式保存到对应的存储）
-      const viewBody = document.querySelector('.view-modal-content .view-body');
-      if (viewBody) {
-        if (this.editingViewContent) {
-          // 编辑模式：保存编辑模式的滚动位置
-          const textarea = viewBody.querySelector('.view-content-input');
-          if (textarea) {
-            this.editScrollPositions[this.id] = textarea.scrollTop;
-          }
-        } else {
-          // 查看模式：保存查看模式的滚动位置
-          this.viewScrollPositions[this.id] = viewBody.scrollTop;
-        }
-      }
-      this.contentEditingStates[this.id] = this.editingViewContent;
 
+    closeViewModal() {
+      // 自动保存内容
+      this.saveViewContent();
       this.showViewModal = false;
       this.editingViewTitle = false;
-      this.editingViewContent = false;
     },
     startEditViewTitle() {
       this.viewEditTitle = this.title;
@@ -605,51 +275,10 @@ export default {
       this.editingViewTitle = false;
       this.viewEditTitle = this.title;
     },
-    startEditViewContent() {
-      // 保存当前查看模式的滚动位置
-      const viewBody = document.querySelector('.view-modal-content .view-body');
-      if (viewBody) {
-        this.viewScrollPositions[this.id] = viewBody.scrollTop;
-      }
 
-      this.viewEditContent = this.content;
-      this.editingViewContent = true;
-      this.contentEditingStates[this.id] = true;  // 记录进入编辑状态
-
-      this.$nextTick(() => {
-        if (this.$refs.viewContentInput) {
-          this.$refs.viewContentInput.focus();
-          this.$refs.viewContentInput.setSelectionRange(0, 0);
-
-          // 恢复编辑模式的滚动位置
-          const savedScrollTop = this.editScrollPositions[this.id] || 0;
-          this.$refs.viewContentInput.scrollTop = savedScrollTop;
-        }
-      });
-    },
     async saveViewContent() {
-      if (!this.editingViewContent) return;
-
-      // 保存编辑模式的滚动位置
-      if (this.$refs.viewContentInput) {
-        this.editScrollPositions[this.id] = this.$refs.viewContentInput.scrollTop;
-      }
-
-      this.editingViewContent = false;
-      this.contentEditingStates[this.id] = false;  // 记录退出编辑状态
-
       // 如果内容没有变化，直接返回
-      if (this.viewEditContent === this.content) {
-        // 即使内容没变化，也要恢复查看模式的滚动位置
-        this.$nextTick(() => {
-          const viewBody = document.querySelector('.view-modal-content .view-body');
-          if (viewBody) {
-            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
-            viewBody.scrollTop = savedScrollTop;
-          }
-        });
-        return;
-      }
+      if (this.viewEditContent === this.content) return;
 
       try {
         await axios.put(`/api/notes/${this.id}`, {
@@ -666,37 +295,9 @@ export default {
           position_x: this.position_x,
           position_y: this.position_y
         });
-
-        // 恢复查看模式的滚动位置
-        this.$nextTick(() => {
-          const viewBody = document.querySelector('.view-modal-content .view-body');
-          if (viewBody) {
-            const savedScrollTop = this.viewScrollPositions[this.id] || 0;
-            viewBody.scrollTop = savedScrollTop;
-          }
-        });
       } catch (error) {
         console.error('Failed to update note content:', error);
       }
-    },
-    cancelEditViewContent() {
-      // 保存编辑模式的滚动位置
-      if (this.$refs.viewContentInput) {
-        this.editScrollPositions[this.id] = this.$refs.viewContentInput.scrollTop;
-      }
-
-      this.editingViewContent = false;
-      this.contentEditingStates[this.id] = false;  // 记录取消编辑状态
-      this.viewEditContent = this.content;
-
-      // 恢复查看模式的滚动位置
-      this.$nextTick(() => {
-        const viewBody = document.querySelector('.view-modal-content .view-body');
-        if (viewBody) {
-          const savedScrollTop = this.viewScrollPositions[this.id] || 0;
-          viewBody.scrollTop = savedScrollTop;
-        }
-      });
     },
     onMouseDown(e) {
       // 只允许左键（button === 0）拖动便签，中键和右键不触发拖动
@@ -837,7 +438,7 @@ export default {
       }
 
       this.isAIGenerating = true;
-      this.streamingContent = '';  // 重置流式内容
+      this.viewEditContent = '';  // 重置内容
 
       try {
         // 从 localStorage 读取最后使用的模型配置（只需要 provider 和 model）
@@ -909,9 +510,9 @@ export default {
                   break;
                 }
 
-                // 追加内容
+                // 使用 VditorEditor 的 appendContent 方法流式追加内容
                 if (parsed.content) {
-                  this.streamingContent += parsed.content;
+                  this.$refs.vditorEditor?.appendContent(parsed.content);
                 }
               } catch (e) {
                 // 忽略JSON解析错误
@@ -920,8 +521,8 @@ export default {
           }
         }
 
-        // 流式接收完成后，保存到数据库
-        const generatedContent = this.streamingContent;
+        // 流式接收完成后，获取最终内容并保存到数据库
+        const generatedContent = this.$refs.vditorEditor?.getValue() || this.viewEditContent;
 
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,
@@ -949,121 +550,8 @@ export default {
       } finally {
         this.isAIGenerating = false;
       }
-    },
-    // 渲染 Mermaid 图表
-    async renderMermaid() {
-      // 等待 Vue 完成 DOM 更新
-      await this.$nextTick();
-
-      if (!this.showViewModal) return;
-
-      // 需要额外延迟，确保 Teleport 的 DOM 完全渲染
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      try {
-        // 在 document 级别查找 mermaid 元素（因为使用了 Teleport）
-        const mermaidDivs = document.querySelectorAll('.view-modal-content .mermaid');
-
-        if (mermaidDivs.length === 0) {
-          console.log('No mermaid diagrams found');
-          return;
-        }
-
-        console.log('Found mermaid diagrams:', mermaidDivs.length);
-
-        // 从 data 属性中读取内容并插入到元素中
-        mermaidDivs.forEach((div) => {
-          const encodedContent = div.getAttribute('data-mermaid');
-          if (encodedContent) {
-            div.textContent = decodeURIComponent(encodedContent);
-          }
-        });
-
-        // 使用 mermaid.run() 渲染所有图表
-        await mermaid.run({
-          querySelector: '.view-modal-content .mermaid'
-        });
-
-        console.log('Mermaid rendering completed');
-      } catch (error) {
-        console.error('Mermaid rendering error:', error);
-      }
-    },
-    // 保存滚动位置（实时记录，根据当前模式保存到对应的存储）
-    onViewBodyScroll(event) {
-      if (this.editingViewContent) {
-        // 编辑模式：保存到编辑模式的存储
-        this.editScrollPositions[this.id] = event.target.scrollTop;
-      } else {
-        // 查看模式：保存到查看模式的存储
-        this.viewScrollPositions[this.id] = event.target.scrollTop;
-      }
-    },
-    // 附加滚动监听器（根据当前模式选择正确的元素）
-    attachScrollListener() {
-      const viewBody = document.querySelector('.view-modal-content .view-body');
-      if (!viewBody) return;
-
-      if (this.editingViewContent) {
-        // 编辑模式：监听 textarea 的滚动
-        const textarea = viewBody.querySelector('.view-content-input');
-        if (textarea) {
-          textarea.addEventListener('scroll', this.onViewBodyScroll);
-        }
-      } else {
-        // 查看模式：监听 view-body 的滚动
-        viewBody.addEventListener('scroll', this.onViewBodyScroll);
-      }
-    },
-    // 分离滚动监听器（移除所有可能的监听器）
-    detachScrollListener() {
-      const viewBody = document.querySelector('.view-modal-content .view-body');
-      if (!viewBody) return;
-
-      // 移除 view-body 的滚动监听
-      viewBody.removeEventListener('scroll', this.onViewBodyScroll);
-
-      // 移除 textarea 的滚动监听
-      const textarea = viewBody.querySelector('.view-content-input');
-      if (textarea) {
-        textarea.removeEventListener('scroll', this.onViewBodyScroll);
-      }
     }
 
-  },
-  watch: {
-    // 监听模态框打开状态，渲染 mermaid 和处理滚动记忆
-    showViewModal(newVal) {
-      if (newVal) {
-        this.renderMermaid();
-        // 模态框打开时，添加滚动事件监听
-        this.$nextTick(() => {
-          this.attachScrollListener();
-        });
-      } else {
-        // 模态框关闭时，移除滚动事件监听
-        this.detachScrollListener();
-      }
-    },
-    // 监听编辑状态变化，切换滚动事件监听
-    editingViewContent(newVal) {
-      this.$nextTick(() => {
-        this.detachScrollListener();  // 先移除所有监听
-        this.attachScrollListener();  // 重新添加正确的监听（不再同步位置）
-      });
-    },
-    // 监听内容变化，重新渲染 mermaid
-    content() {
-      if (this.showViewModal) {
-        this.renderMermaid();
-      }
-    },
-    // 监听流式内容变化（AI生成时）
-    streamingContent() {
-      if (this.showViewModal && this.isAIGenerating) {
-        this.renderMermaid();
-      }
-    }
   },
   mounted() {
     document.addEventListener('click', this.closeContextMenuOnOutsideClick);
@@ -1500,375 +988,5 @@ export default {
   border-radius: 4px;
   background: #ffebee;
   margin-top: 8px;
-}
-</style>
-
-<style>
-/* 前缀内容样式（模型名称等） */
-.prefix-content {
-  font-size: 16px;
-  margin-bottom: 12px;
-}
-
-</style>
-
-<style>
-/* Reasoning Callout Styles - GitHub简约灰色风格 */
-.reasoning-callout {
-  margin-bottom: 20px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background-color: #f6f8fa;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.reasoning-callout.collapsed {
-  background-color: #ffffff;
-}
-
-.reasoning-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  cursor: pointer;
-  user-select: none;
-  background-color: #f6f8fa;
-  border-bottom: 1px solid #d0d7de;
-}
-
-.reasoning-callout.collapsed .reasoning-header {
-  border-bottom: none;
-}
-
-.reasoning-header:hover {
-  background-color: #f3f4f6;
-}
-
-.reasoning-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #24292f;
-}
-
-.reasoning-icon {
-  width: 16px;
-  height: 16px;
-  fill: #656d76;
-}
-
-.collapse-icon {
-  width: 16px;
-  height: 16px;
-  fill: #656d76;
-  transition: transform 0.2s ease;
-}
-
-.collapse-icon.rotated {
-  transform: rotate(180deg);
-}
-
-.reasoning-content {
-  padding: 12px 16px;
-  border-top: 1px solid #d0d7de;
-  background-color: #ffffff;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.reasoning-text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #656d76;
-}
-
-/* Reasoning Markdown样式 */
-.reasoning-text.markdown-body p {
-  margin-bottom: 8px;
-}
-
-.reasoning-text.markdown-body h1,
-.reasoning-text.markdown-body h2,
-.reasoning-text.markdown-body h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 12px;
-  margin-bottom: 8px;
-  color: #24292f;
-}
-
-.reasoning-text.markdown-body ul,
-.reasoning-text.markdown-body ol {
-  padding-left: 20px;
-  margin-bottom: 8px;
-}
-
-.reasoning-text.markdown-body code {
-  background-color: #f6f8fa;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-.reasoning-text.markdown-body pre {
-  background-color: #f6f8fa;
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin: 8px 0;
-}
-
-.reasoning-text.markdown-body blockquote {
-  border-left: 3px solid #d0d7de;
-  padding-left: 12px;
-  color: #656d76;
-  margin: 8px 0;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .reasoning-callout {
-    margin-bottom: 16px;
-  }
-
-  .reasoning-header {
-    padding: 10px 12px;
-  }
-
-  .reasoning-content {
-    padding: 10px 12px;
-    max-height: 300px;
-  }
-
-  .reasoning-text {
-    font-size: 12px;
-  }
-}
-
-/* Markdown 样式 - 非scoped以支持v-html渲染 */
-.markdown-body {
-  line-height: 1.4;
-  font-size: 14px;
-}
-
-/* 标题样式 */
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-  margin-top: 12px;
-  margin-bottom: 6px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: #333;
-}
-
-.markdown-body h1 {
-  font-size: 2em;
-  border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.2em;
-}
-
-.markdown-body h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.2em;
-}
-
-.markdown-body h3 {
-  font-size: 1.25em;
-}
-
-/* 段落样式 */
-.markdown-body p {
-  margin-top: 0;
-  margin-bottom: 6px;
-}
-
-/* 列表样式 */
-.markdown-body ul,
-.markdown-body ol {
-  padding-left: 2em;
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.markdown-body li {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.markdown-body li > p {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-/* 代码块样式 */
-.markdown-body code {
-  padding: 0.2em 0.4em;
-  margin: 0;
-  font-size: 85%;
-  background-color: rgba(27, 31, 35, 0.05);
-  border-radius: 3px;
-  font-family: 'Courier New', Courier, monospace;
-}
-
-.markdown-body pre {
-  padding: 12px;
-  overflow: auto;
-  font-size: 85%;
-  line-height: 1.45;
-  background-color: #f6f8fa;
-  border-radius: 6px;
-  margin-top: 6px;
-  margin-bottom: 6px;
-}
-
-.markdown-body pre code {
-  padding: 0;
-  background-color: transparent;
-  font-size: 100%;
-}
-
-/* 引用样式 */
-.markdown-body blockquote {
-  padding: 0 1em;
-  color: #6a737d;
-  border-left: 0.25em solid #dfe2e5;
-  margin: 6px 0;
-}
-
-.markdown-body blockquote > :first-child {
-  margin-top: 0;
-}
-
-.markdown-body blockquote > :last-child {
-  margin-bottom: 0;
-}
-
-/* 水平线样式 */
-.markdown-body hr {
-  height: 0.25em;
-  padding: 0;
-  margin: 12px 0;
-  background-color: #e1e4e8;
-  border: 0;
-}
-
-/* 链接样式 */
-.markdown-body a {
-  color: #0366d6;
-  text-decoration: none;
-  position: relative;
-  padding-right: 13px; /* 为外部链接图标留出空间 */
-}
-
-.markdown-body a:hover {
-  text-decoration: underline;
-}
-
-/* 外部链接图标 */
-.markdown-body a[target="_blank"]::after {
-  content: '↗';
-  position: absolute;
-  right: 0;
-  top: 0;
-  font-size: 0.8em;
-  opacity: 0.7;
-}
-
-/* 图片样式 */
-.markdown-body img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 8px 0;
-  display: block;
-}
-
-/* 表格样式 */
-.markdown-body table {
-  border-spacing: 0;
-  border-collapse: collapse;
-  margin-top: 6px;
-  margin-bottom: 6px;
-  width: 100%;
-}
-
-.markdown-body table th,
-.markdown-body table td {
-  padding: 6px 13px;
-  border: 1px solid #dfe2e5;
-}
-
-.markdown-body table th {
-  font-weight: 600;
-  background-color: #f6f8fa;
-}
-
-.markdown-body table tr {
-  background-color: #fff;
-  border-top: 1px solid #c6cbd1;
-}
-
-.markdown-body table tr:nth-child(2n) {
-  background-color: #f6f8fa;
-}
-
-/* 强调样式 */
-.markdown-body strong {
-  font-weight: 600;
-  color: #24292e;
-}
-
-.markdown-body em {
-  font-style: italic;
-}
-
-/* 删除线样式 */
-.markdown-body s {
-  text-decoration: line-through;
-  color: #6a737d;
-}
-
-/* Mermaid 图表样式 */
-.markdown-body .mermaid {
-  margin: 12px 0;
-  text-align: center;
-  background: #f6f8fa;
-  padding: 16px;
-  border-radius: 6px;
-  overflow: auto;
-}
-
-.markdown-body .mermaid svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* KaTeX 数学公式样式 */
-.markdown-body .katex-display {
-  margin: 12px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 8px 0;
-}
-
-.markdown-body .katex {
-  font-size: 1.1em;
-}
-
-.markdown-body .katex-display > .katex {
-  text-align: center;
-}
-
-.markdown-body .katex-html {
-  color: #000;
 }
 </style>

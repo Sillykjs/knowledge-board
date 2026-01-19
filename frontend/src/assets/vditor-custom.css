@@ -1,0 +1,186 @@
+/* Vditor 自定义样式 */
+/* 保持与项目整体风格一致 */
+
+/* 调整编辑器整体样式 */
+.vditor {
+  border: none !important;
+}
+
+/* 调整 IR 模式下的预览区域样式 */
+.vditor-ir {
+  font-size: 19px;
+  color: #555;
+  line-height: 1.6;
+}
+
+/* 调整代码块样式 */
+.vditor-ir pre.vditor-ir__marker--pre {
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.vditor-ir code {
+  background-color: rgba(27, 31, 35, 0.05);
+  border-radius: 3px;
+  padding: 0.2em 0.4em;
+  font-size: 85%;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* 调整引用块样式 */
+.vditor-ir blockquote {
+  border-left: 4px solid #dfe2e5;
+  padding: 0 1em;
+  color: #6a737d;
+  margin: 8px 0;
+  background-color: #f6f8fa;
+  border-radius: 4px;
+}
+
+/* 调整链接颜色（与项目一致） */
+.vditor-ir a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.vditor-ir a:hover {
+  text-decoration: underline;
+}
+
+/* 调整表格样式 */
+.vditor-ir table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.vditor-ir table th,
+.vditor-ir table td {
+  padding: 6px 13px;
+  border: 1px solid #dfe2e5;
+}
+
+.vditor-ir table th {
+  font-weight: 600;
+  background-color: #f6f8fa;
+}
+
+.vditor-ir table tr {
+  background-color: #fff;
+  border-top: 1px solid #c6cbd1;
+}
+
+.vditor-ir table tr:nth-child(2n) {
+  background-color: #f6f8fa;
+}
+
+/* 调整标题样式 */
+.vditor-ir h1,
+.vditor-ir h2,
+.vditor-ir h3,
+.vditor-ir h4,
+.vditor-ir h5,
+.vditor-ir h6 {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #333;
+}
+
+.vditor-ir h1 {
+  font-size: 2em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.2em;
+}
+
+.vditor-ir h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.2em;
+}
+
+.vditor-ir h3 {
+  font-size: 1.25em;
+}
+
+/* 调整列表样式 */
+.vditor-ir ul,
+.vditor-ir ol {
+  padding-left: 2em;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* 调整段落样式 */
+.vditor-ir p {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+/* 调整 Mermaid 图表样式 */
+.vditor-ir .mermaid {
+  margin: 12px 0;
+  text-align: center;
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow: auto;
+}
+
+/* 调整数学公式样式 */
+.vditor-ir .katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+
+.vditor-ir .katex {
+  font-size: 1.1em;
+}
+
+/* 调整工具栏样式 */
+.vditor-toolbar {
+  border-bottom: 1px solid #eaecef;
+  padding: 8px 12px;
+  background-color: #f6f8fa;
+}
+
+/* 调整占位符样式 */
+.vditor-ir .vditor-ir__node--expand:before {
+  color: #999;
+}
+
+/* 确保工具栏图标可见 */
+.vditor-toolbar button.vditor-tooltipped {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vditor-toolbar button.vditor-tooltipped svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* 确保 SVG 图标可见 */
+.vditor-toolbar svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 确保工具栏按钮有适当的尺寸 */
+.vditor-toolbar button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px 8px;
+}
+
+/* 修复图标字体加载 */
+@import url('https://unpkg.com/vditor@3.9.9/dist/css/content-theme-icon.css');

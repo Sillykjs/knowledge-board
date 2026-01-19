@@ -28,19 +28,19 @@
 
 ### 创建和编辑便签
 
-![创建和编辑便签](https://github.com/Sillykjs/knowledge-board/tree/main/images/create-and-edit-notes.gif)
+![创建和编辑便签](https://github.com/Sillykjs/knowledge-board/blob/main/images/create-and-edit-notes.gif)
 
 ### 创建连接和上文追溯
 
-![创建连接和上文追溯](https://github.com/Sillykjs/knowledge-board/tree/main/images/create-connection-and-trace.gif)
+![创建连接和上文追溯](https://github.com/Sillykjs/knowledge-board/blob/main/images/create-connection-and-trace.gif)
 
 ### AI 生成内容
 
-![AI 生成内容](https://github.com/Sillykjs/knowledge-board/tree/main/images/ai-generation.gif)
+![AI 生成内容](https://github.com/Sillykjs/knowledge-board/blob/main/images/ai-generation.gif)
 
 ### 无限白板缩放平移
 
-![无限白板](https://github.com/Sillykjs/knowledge-board/tree/main/images/infinite-canvas.gif)
+![无限白板](https://github.com/Sillykjs/knowledge-board/blob/main/images/infinite-canvas.gif)
 
 ## 🎯 应用场景
 

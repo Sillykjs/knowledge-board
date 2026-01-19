@@ -1,6 +1,7 @@
 // Vditor 配置文件
 export const vditorOptions = {
   // 即时渲染模式（类似 Typora）
+  // 注意：标题折叠功能在 sv 或 wysiwyg 模式下支持更好
   mode: 'ir',
 
   // 编辑器配置
@@ -16,9 +17,8 @@ export const vditorOptions = {
     'list', 'ordered-list', 'check', '|',
     'quote', 'code', 'inline-code', '|',
     'link', 'table', '|',
-    'edit-mode', '|',  // 添加编辑模式切换按钮
     'undo', 'redo', '|',
-    'preview', 'fullscreen'
+    'fullscreen','edit-mode','outline'
   ],
 
   // 禁用缓存（避免多实例冲突）
@@ -55,5 +55,14 @@ export const vditorOptions = {
   // 启用计数器
   counter: {
     enable: true
+  },
+
+  // 启用标题折叠功能
+  enableHint: true,
+
+  // 导航目录配置
+  outline: {
+    enable: true,
+    position: 'left'
   }
 };

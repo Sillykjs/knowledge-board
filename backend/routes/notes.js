@@ -419,6 +419,15 @@ router.post('/ai-generate', async (req, res) => {
         }
       );
 
+      // KaTeX 兼容性处理：替换不支持的命令
+      const sanitizeKaTeX = (text) => {
+        if (!text) return text;
+        return text
+          .replace(/\\cdotp/g, '\\cdot')     // \cdotp → \cdot
+          .replace(/\\dots/g, '\\ldots')      // \dots → \ldots（如果需要）
+          .replace(/\\bigskip/g, '\\vspace{1em}'); // \bigskip → \vspace{1em}（如果需要）
+      };
+
       let hasReasoning = false;
       let reasoningEnded = false;
       let hasSentModelName = false;  // 标记是否已发送模型名称
@@ -461,8 +470,10 @@ router.post('/ai-generate', async (req, res) => {
                   }
 
                   if (reasoningText) {
+                    // 替换不支持的 KaTeX 命令
+                    const sanitizedReasoningText = sanitizeKaTeX(reasoningText);
                     // 直接输出推理内容（不加引用标记）
-                    res.write(`data: ${JSON.stringify({ content: reasoningText })}\n\n`);
+                    res.write(`data: ${JSON.stringify({ content: sanitizedReasoningText })}\n\n`);
                   }
                 }
                 // 处理常规content
@@ -488,7 +499,9 @@ router.post('/ai-generate', async (req, res) => {
                     res.write(`data: ${JSON.stringify({ content: `**模型：${modelName}**\n\n` })}\n\n`);
                   }
 
-                  res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                  // 替换不支持的 KaTeX 命令
+                  const sanitizedContent = sanitizeKaTeX(content);
+                  res.write(`data: ${JSON.stringify({ content: sanitizedContent })}\n\n`);
                 }
               }
             } catch (e) {

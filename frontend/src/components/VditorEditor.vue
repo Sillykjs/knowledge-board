@@ -71,21 +71,32 @@ export default {
         placeholder: this.placeholder,
         value: this.convertLatexDelimiters(this.modelValue || ''), // 初始化时转换分隔符
         after: () => {
-          // 监听内容变化
-          if (this.vditorInstance && this.vditorInstance.vditor && this.vditorInstance.vditor.ir) {
-            const irElement = this.vditorInstance.vditor.ir.element;
-            if (irElement) {
+          // 监听所有编辑模式的内容变化
+          const vditor = this.vditorInstance?.vditor;
+
+          if (vditor) {
+            // IR 模式（即时渲染）
+            if (vditor.ir?.element) {
+              const irElement = vditor.ir.element;
               irElement.addEventListener('input', this.onContentChange);
-
-              // 监听滚动事件，保存滚动位置
               irElement.addEventListener('scroll', this.onScroll);
-
-              // 监听失焦事件，触发自动保存
               irElement.addEventListener('blur', this.onBlur, true);
-
-              // 恢复之前保存的滚动位置
-              this.restoreScrollPosition();
             }
+
+            // SV 模式（分屏预览）
+            if (vditor.sv?.element) {
+              const svElement = vditor.sv.element;
+              svElement.addEventListener('input', this.onContentChange);
+            }
+
+            // WYSIWYG 模式（所见即所得）
+            if (vditor.wysiwyg?.element) {
+              const wysiwygElement = vditor.wysiwyg.element;
+              wysiwygElement.addEventListener('input', this.onContentChange);
+            }
+
+            // 恢复之前保存的滚动位置
+            this.restoreScrollPosition();
           }
 
           // 根据初始状态设置禁用状态
@@ -117,12 +128,29 @@ export default {
           // 保存当前滚动位置
           this.saveScrollPosition();
 
-          // 移除事件监听
-          if (this.vditorInstance.vditor && this.vditorInstance.vditor.ir && this.vditorInstance.vditor.ir.element) {
-            const irElement = this.vditorInstance.vditor.ir.element;
-            irElement.removeEventListener('input', this.onContentChange);
-            irElement.removeEventListener('scroll', this.onScroll);
-            irElement.removeEventListener('blur', this.onBlur, true);
+          // 移除所有编辑模式的事件监听
+          const vditor = this.vditorInstance?.vditor;
+
+          if (vditor) {
+            // IR 模式
+            if (vditor.ir?.element) {
+              const irElement = vditor.ir.element;
+              irElement.removeEventListener('input', this.onContentChange);
+              irElement.removeEventListener('scroll', this.onScroll);
+              irElement.removeEventListener('blur', this.onBlur, true);
+            }
+
+            // SV 模式
+            if (vditor.sv?.element) {
+              const svElement = vditor.sv.element;
+              svElement.removeEventListener('input', this.onContentChange);
+            }
+
+            // WYSIWYG 模式
+            if (vditor.wysiwyg?.element) {
+              const wysiwygElement = vditor.wysiwyg.element;
+              wysiwygElement.removeEventListener('input', this.onContentChange);
+            }
           }
 
           // 销毁实例

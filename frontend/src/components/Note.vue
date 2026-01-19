@@ -224,7 +224,7 @@ export default {
     },
 
     closeViewModal() {
-      // 自动保存内容
+      // 立即保存内容（不等待 blur 事件）
       this.saveViewContent();
       this.showViewModal = false;
       this.editingViewTitle = false;
@@ -279,13 +279,33 @@ export default {
     },
 
     async saveViewContent() {
+      // 尝试从 VditorEditor 获取最新内容
+      let latestContent = this.viewEditContent;
+
+      // 如果 VditorEditor 组件存在且有 getValue 方法，直接获取最新值
+      if (this.$refs.vditorEditor && typeof this.$refs.vditorEditor.getValue === 'function') {
+        latestContent = this.$refs.vditorEditor.getValue();
+        // 更新本地状态
+        this.viewEditContent = latestContent;
+      }
+
       // 如果内容没有变化，直接返回
-      if (this.viewEditContent === this.content) return;
+      if (latestContent === this.content) {
+        console.log('[Note] 内容未变化，跳过保存');
+        return;
+      }
+
+      console.log('[Note] 保存内容:', {
+        noteId: this.id,
+        oldLength: this.content?.length,
+        newLength: latestContent?.length,
+        changed: latestContent !== this.content
+      });
 
       try {
         await axios.put(`/api/notes/${this.id}`, {
           title: this.title,
-          content: this.viewEditContent,
+          content: latestContent,
           position_x: this.position_x,
           position_y: this.position_y
         });
@@ -293,12 +313,14 @@ export default {
         this.$emit('update', {
           id: this.id,
           title: this.title,
-          content: this.viewEditContent,
+          content: latestContent,
           position_x: this.position_x,
           position_y: this.position_y
         });
+
+        console.log('[Note] 内容保存成功');
       } catch (error) {
-        console.error('Failed to update note content:', error);
+        console.error('[Note] 保存内容失败:', error);
       }
     },
     onMouseDown(e) {

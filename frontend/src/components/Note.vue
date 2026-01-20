@@ -516,7 +516,15 @@ export default {
         while (true) {
           const { done, value } = await reader.read();
 
-          if (done) break;
+          if (done) {
+            // 【性能优化】后端已发送完毕，立即渲染所有累积的内容
+            // 避免"数据已到齐但前端还在慢吞吞渲染"的问题
+            if (this.streamingContent) {
+              this.$refs.vditorEditor?.setValue(this.streamingContent);
+              console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
+            }
+            break;
+          }
 
           // 解码数据块
           const chunk = decoder.decode(value, { stream: true });
@@ -528,6 +536,11 @@ export default {
 
               // 检查是否为结束标记
               if (data === '[DONE]') {
+                // 【性能优化】检测到结束标记，立即渲染所有累积的内容
+                if (this.streamingContent) {
+                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+                  console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
+                }
                 break;
               }
 

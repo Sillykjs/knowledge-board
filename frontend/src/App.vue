@@ -145,6 +145,7 @@
     <!-- 右侧边栏切换按钮 -->
     <button
       class="right-sidebar-toggle"
+      :class="{ collapsed: rightSidebarCollapsed }"
       @click="toggleRightSidebar"
       :title="rightSidebarCollapsed ? '展开便签索引' : '收起便签索引'"
     >
@@ -1344,7 +1345,7 @@ body {
 
 .right-sidebar-toggle {
   position: fixed;
-  right: 0;
+  right: 300px;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -1360,7 +1361,11 @@ body {
   justify-content: center;
   z-index: 1501;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  transition: right 0.3s ease, all 0.3s ease;
+}
+
+.right-sidebar-toggle.collapsed {
+  right: 0;
 }
 
 .right-sidebar-toggle:hover {

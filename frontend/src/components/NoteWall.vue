@@ -95,6 +95,7 @@
         @delete="onNoteDelete"
         @copy="onNoteCopy"
         @cut="onNoteCut"
+        @duplicate="onNoteDuplicate"
         @trace-parent="onTraceParent"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
@@ -870,6 +871,65 @@ export default {
       this.$emit('notes-loaded', this.notes);
       // 通知父组件更新白板列表（便签数量变化）
       this.$emit('note-count-changed');
+    },
+    // 直接拷贝便签（立即复制到附近）
+    async onNoteDuplicate(sourceNote) {
+      try {
+        const offsetX = 30;  // 水平偏移
+        const offsetY = 30;  // 垂直偏移
+
+        // 1. 创建新便签
+        const noteResponse = await axios.post('/api/notes', {
+          title: sourceNote.title,
+          content: sourceNote.content,
+          position_x: sourceNote.position_x + offsetX,
+          position_y: sourceNote.position_y + offsetY,
+          wall_id: this.boardId
+        });
+
+        const newNote = noteResponse.data.note;
+        const oldNoteId = sourceNote.id;
+        const newNoteId = newNote.id;
+
+        // 2. 查找与原便签相关的所有连接线
+        const relatedConnections = this.connections.filter(conn =>
+          conn.source_note_id === oldNoteId || conn.target_note_id === oldNoteId
+        );
+
+        // 3. 为每条连接线创建对应的连接（使用新便签ID）
+        for (const conn of relatedConnections) {
+          const newSourceId = conn.source_note_id === oldNoteId ? newNoteId : conn.source_note_id;
+          const newTargetId = conn.target_note_id === oldNoteId ? newNoteId : conn.target_note_id;
+
+          // 避免创建自连接（如果两端都是同一个便签）
+          if (newSourceId !== newTargetId) {
+            try {
+              await axios.post('/api/notes/connections', {
+                source_note_id: newSourceId,
+                target_note_id: newTargetId,
+                wall_id: this.boardId
+              });
+            } catch (error) {
+              console.error('Failed to create connection:', error);
+            }
+          }
+        }
+
+        // 4. 将新便签添加到本地数组
+        this.notes.push(newNote);
+
+        // 5. 重新加载连接线
+        await this.loadConnections();
+
+        // 6. 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
+
+      } catch (error) {
+        console.error('Failed to duplicate note:', error);
+        alert('拷贝便签失败: ' + (error.response?.data?.error || error.message));
+      }
     },
     // 复制便签
     async onNoteCopy(sourceNote) {

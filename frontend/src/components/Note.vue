@@ -44,6 +44,10 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
+        <div class="context-menu-item" @click="duplicateNote">
+          <span class="menu-icon">📄</span>
+          <span>拷贝</span>
+        </div>
         <div class="context-menu-item" @click="copyNote">
           <span class="menu-icon">📋</span>
           <span>复制</span>
@@ -387,6 +391,18 @@ export default {
         position_y: this.position_y
       });
     },
+    duplicateNote() {
+      this.showContextMenu = false;
+
+      // 触发直接拷贝事件，立即复制便签到附近
+      this.$emit('duplicate', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
+    },
     traceParentNotes() {
       this.showContextMenu = false;
 
@@ -425,7 +441,7 @@ export default {
 
       // 计算菜单位置，防止超出屏幕
       const menuWidth = 150;
-      const menuHeight = 200;  // 4个菜单项，每个约50px
+      const menuHeight = 250;  // 5个菜单项，每个约50px
 
       let x = event.clientX;
       let y = event.clientY;

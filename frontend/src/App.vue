@@ -28,8 +28,8 @@
                 <span class="drag-handle">⋮⋮</span>
                 <span class="board-title">{{ board.title }}</span>
                 <div class="board-actions">
-                  <span v-if="board.note_count > 0" class="board-badge">
-                    {{ board.note_count }}
+                  <span v-if="filteredBoardCounts[board.id] > 0" class="board-badge">
+                    {{ filteredBoardCounts[board.id] }}
                   </span>
                   <button
                     v-if="boards.length > 1"
@@ -47,8 +47,8 @@
               <template v-else>
                 <div class="board-icon">
                   {{ currentBoardId === board.id ? '📌' : '📄' }}
-                  <span v-if="board.note_count > 0" class="board-badge-mini">
-                    {{ board.note_count }}
+                  <span v-if="filteredBoardCounts[board.id] > 0" class="board-badge-mini">
+                    {{ filteredBoardCounts[board.id] }}
                   </span>
                 </div>
               </template>
@@ -260,10 +260,35 @@ export default {
       currentModelName: 'AI', // 当前选择的模型名称（响应式）
       rightSidebarCollapsed: true, // 右侧边栏是否收起
       currentNotes: [], // 当前白板的便签列表（用于右侧索引）
-      searchQuery: '' // 搜索关键词
+      searchQuery: '', // 搜索关键词
+      allBoardsNotes: {} // 缓存所有白板的便签数据 { boardId: [notes] }
     };
   },
   computed: {
+    // 计算每个白板在搜索关键词下的便签数量
+    filteredBoardCounts() {
+      const counts = {};
+      const query = this.searchQuery.toLowerCase().trim();
+
+      // 如果没有搜索关键词，返回原始数量（从 boards.note_count 获取）
+      if (!query) {
+        this.boards.forEach(board => {
+          counts[board.id] = board.note_count || 0;
+        });
+        return counts;
+      }
+
+      // 根据搜索关键词计算每个白板的筛选后数量
+      this.boards.forEach(board => {
+        const notes = this.allBoardsNotes[board.id] || [];
+        const filteredCount = notes.filter(note =>
+          note.title && note.title.toLowerCase().includes(query)
+        ).length;
+        counts[board.id] = filteredCount;
+      });
+
+      return counts;
+    },
     currentBoard() {
       return this.boards.find(b => b.id === this.currentBoardId);
     },
@@ -339,9 +364,31 @@ export default {
         // 避免在便签数量变化时意外切换白板
         if (!hadBoards && this.boards.length > 0) {
           this.currentBoardId = this.boards[0].id;
+
+          // 初始化时加载所有白板的便签数据，用于搜索功能
+          await this.loadAllBoardsNotes();
         }
       } catch (error) {
         console.error('Failed to load boards:', error);
+      }
+    },
+
+    // 加载所有白板的便签数据（用于搜索功能）
+    async loadAllBoardsNotes() {
+      try {
+        const promises = this.boards.map(async board => {
+          const response = await axios.get('/api/notes', {
+            params: { wall_id: board.id }
+          });
+          return { boardId: board.id, notes: response.data.notes || [] };
+        });
+
+        const results = await Promise.all(promises);
+        results.forEach(({ boardId, notes }) => {
+          this.allBoardsNotes[boardId] = notes;
+        });
+      } catch (error) {
+        console.error('Failed to load all boards notes:', error);
       }
     },
 
@@ -441,11 +488,28 @@ export default {
     async onNoteCountChanged() {
       // 当便签数量变化时，重新加载白板列表以更新 note_count
       await this.loadBoards();
+
+      // 重新加载当前白板的便签数据（更新缓存）
+      if (this.currentBoardId && this.allBoardsNotes[this.currentBoardId]) {
+        try {
+          const response = await axios.get('/api/notes', {
+            params: { wall_id: this.currentBoardId }
+          });
+          this.allBoardsNotes[this.currentBoardId] = response.data.notes || [];
+        } catch (error) {
+          console.error('Failed to reload board notes:', error);
+        }
+      }
     },
 
     // 便签列表加载完成
     onNotesLoaded(notes) {
       this.currentNotes = notes;
+
+      // 缓存当前白板的便签数据
+      if (this.currentBoardId) {
+        this.allBoardsNotes[this.currentBoardId] = [...notes];
+      }
     },
 
     // 拖拽结束时保存排序

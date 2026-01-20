@@ -21,7 +21,8 @@
       "Bash(ls:*)",
       "mcp__web-search-prime__webSearchPrime",
       "Bash(npm uninstall:*)",
-      "mcp__zread__search_doc"
+      "mcp__zread__search_doc",
+      "Bash(git add:*)"
     ]
   }
 }

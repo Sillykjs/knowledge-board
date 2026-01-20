@@ -44,6 +44,15 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
+        <div
+          class="context-menu-item has-submenu"
+          @mouseenter="onModelMenuItemEnter"
+          @mouseleave="onModelMenuItemLeave"
+        >
+          <span class="menu-icon">🤖</span>
+          <span>切换模型回答</span>
+          <span class="submenu-arrow">▶</span>
+        </div>
         <div class="context-menu-item" @click="duplicateNote">
           <span class="menu-icon">📄</span>
           <span>拷贝</span>
@@ -64,6 +73,42 @@
           <span class="menu-icon">🗑️</span>
           <span>删除</span>
         </div>
+
+        <!-- 模型选择侧边栏 -->
+        <transition name="slide-fade">
+          <div
+            v-if="showModelSelector"
+            class="model-selector-sidebar"
+            :style="getModelSidebarStyle()"
+            @mouseenter="onModelSidebarEnter"
+            @mouseleave="onModelSidebarLeave"
+          >
+            <div class="model-selector-header">
+              <span>选择模型重新生成</span>
+            </div>
+            <div class="model-selector-body">
+              <div
+                v-for="provider in availableModels"
+                :key="provider.provider"
+                class="model-provider-group"
+              >
+                <div class="provider-name">{{ provider.provider }}</div>
+                <div
+                  v-for="model in provider.models"
+                  :key="model"
+                  class="model-item"
+                  @click="duplicateWithModel(provider.provider, model)"
+                >
+                  <span class="model-icon">🤖</span>
+                  <span class="model-name">{{ model }}</span>
+                </div>
+              </div>
+              <div v-if="!availableModels || availableModels.length === 0" class="no-models">
+                暂无可用模型，请先配置模型
+              </div>
+            </div>
+          </div>
+        </transition>
       </div>
     </Teleport>
 
@@ -143,6 +188,10 @@ export default {
     currentModelName: {
       type: String,
       default: 'AI'
+    },
+    availableModels: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
@@ -159,12 +208,27 @@ export default {
       viewEditContent: this.content,  // 查看模态框中的内容（v-model 绑定）
       isAIGenerating: false,  // AI生成中
       aiError: null,  // AI错误信息
-      streamingContent: ''  // AI流式生成过程中的原始内容累积
+      streamingContent: '',  // AI流式生成过程中的原始内容累积
+      showModelSelector: false,  // 是否显示模型选择侧边栏
+      modelSelectorTimer: null  // 侧边栏隐藏定时器
     };
   },
   computed: {
     truncatedContent() {
       return this.content || '';
+    }
+  },
+  watch: {
+    // 监听 content prop 的变化，实时同步到查看模态框
+    content(newContent) {
+      // 如果模态框打开且正在生成内容，实时同步到 Vditor
+      if (this.showViewModal && this.isAIGenerating) {
+        this.viewEditContent = newContent;
+        // 也更新 Vditor 实例
+        if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
+          this.$refs.vditorEditor.setValue(newContent);
+        }
+      }
     }
   },
   methods: {
@@ -217,6 +281,24 @@ export default {
     openViewModal() {
       this.showContextMenu = false;
       this.showViewModal = true;
+
+      // 同步最新的内容到编辑器
+      this.viewEditContent = this.content;
+
+      // 确保 Vditor 实例准备好后再设置内容
+      this.$nextTick(() => {
+        if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
+          this.$refs.vditorEditor.setValue(this.content);
+          // 如果正在生成，滚动到底部
+          if (this.isAIGenerating) {
+            const vditor = this.$refs.vditorEditor.vditorInstance;
+            if (vditor && vditor.vditor && vditor.vditor.ir) {
+              const irElement = vditor.vditor.ir.element;
+              irElement.scrollTop = irElement.scrollHeight;
+            }
+          }
+        }
+      });
 
       // 检查是否为新便签，如果是则自动进入标题编辑状态
       const isNewNote = this.title === '新便签';
@@ -460,10 +542,54 @@ export default {
       this.contextMenuY = y;
       this.showContextMenu = true;
     },
+    // 模型菜单项鼠标进入
+    onModelMenuItemEnter() {
+      // 清除隐藏定时器
+      if (this.modelSelectorTimer) {
+        clearTimeout(this.modelSelectorTimer);
+        this.modelSelectorTimer = null;
+      }
+      // 显示侧边栏
+      this.showModelSelector = true;
+    },
+    // 模型菜单项鼠标离开
+    onModelMenuItemLeave(event) {
+      // 延迟隐藏，给鼠标移动到侧边栏的时间
+      this.modelSelectorTimer = setTimeout(() => {
+        // 检查鼠标是否在侧边栏上
+        const sidebar = document.querySelector('.model-selector-sidebar');
+        if (sidebar && !sidebar.matches(':hover')) {
+          this.showModelSelector = false;
+        }
+      }, 100);
+    },
+    // 模型侧边栏鼠标进入
+    onModelSidebarEnter() {
+      // 清除隐藏定时器
+      if (this.modelSelectorTimer) {
+        clearTimeout(this.modelSelectorTimer);
+        this.modelSelectorTimer = null;
+      }
+      // 保持显示
+      this.showModelSelector = true;
+    },
+    // 模型侧边栏鼠标离开
+    onModelSidebarLeave(event) {
+      // 延迟隐藏
+      this.modelSelectorTimer = setTimeout(() => {
+        this.showModelSelector = false;
+      }, 100);
+    },
     closeContextMenuOnOutsideClick(event) {
       const noteEl = this.$el;
       if (this.showContextMenu && !noteEl.contains(event.target)) {
         this.showContextMenu = false;
+        // 清除模型选择器定时器
+        if (this.modelSelectorTimer) {
+          clearTimeout(this.modelSelectorTimer);
+          this.modelSelectorTimer = null;
+        }
+        this.showModelSelector = false;
       }
     },
     async generateAIContent() {
@@ -622,6 +748,182 @@ export default {
       } finally {
         this.isAIGenerating = false;
       }
+    },
+    // 使用指定模型生成 AI 内容
+    async generateAIContentWithModel(provider, model) {
+      console.log('[Note] generateAIContentWithModel 被调用:', { provider, model, noteId: this.id });
+      this.aiError = null;
+
+      // 使用标题作为prompt
+      const prompt = this.title;
+
+      if (!prompt) {
+        this.aiError = '请先设置便签标题';
+        return;
+      }
+
+      this.isAIGenerating = true;
+
+      // 清空流式内容累积变量
+      this.streamingContent = '';
+
+      // 立即通知父组件内容已清空（白板预览会显示为空）
+      this.$emit('update', {
+        id: this.id,
+        title: this.title,
+        content: '',
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
+
+      try {
+        console.log('[Note] 使用指定模型调用 AI 生成接口:', { prompt, provider, model });
+
+        // 使用 fetch API 调用流式接口
+        const response = await fetch('/api/notes/ai-generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt,
+            wall_id: this.wallId,
+            note_id: this.id,
+            context_level: this.contextLevel,
+            include_reasoning: true,
+            provider,  // 使用指定的 provider
+            model     // 使用指定的 model
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // 读取流式数据
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
+            break;
+          }
+
+          // 解码数据块
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+
+              // 检查是否为结束标记
+              if (data === '[DONE]') {
+                console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+
+                // 检查是否有错误
+                if (parsed.error) {
+                  this.aiError = parsed.error;
+                  break;
+                }
+
+                // 累积内容并实时更新白板预览
+                if (parsed.content) {
+                  this.streamingContent += parsed.content;
+
+                  // 实时通知父组件更新内容（白板预览会立即显示）
+                  this.$emit('update', {
+                    id: this.id,
+                    title: this.title,
+                    content: this.streamingContent,
+                    position_x: this.position_x,
+                    position_y: this.position_y
+                  });
+
+                  // 每100个字符输出一次日志
+                  if (this.streamingContent.length % 100 === 0) {
+                    console.log('[Note] 已接收内容长度:', this.streamingContent.length);
+                  }
+                }
+              } catch (e) {
+                // 忽略JSON解析错误
+              }
+            }
+          }
+        }
+
+        // 流式接收完成后，保存最终内容到数据库
+        const generatedContent = this.streamingContent;
+
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 确保父组件更新最终内容
+        this.$emit('update', {
+          id: this.id,
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 同步到 viewEditContent（以便后续打开模态框时显示）
+        this.viewEditContent = generatedContent;
+
+        console.log('[Note] 使用指定模型生成完成');
+
+      } catch (error) {
+        console.error('Failed to generate AI content with model:', error);
+        const errorMsg = error.message || 'AI生成失败';
+        this.aiError = errorMsg;
+      } finally {
+        this.isAIGenerating = false;
+      }
+    },
+    // 获取模型选择侧边栏的位置样式
+    getModelSidebarStyle() {
+      // 侧边栏显示在右键菜单的右侧，留出间距
+      const menuWidth = 150;
+      const gap = 10;  // 菜单和侧边栏之间的间距
+      return {
+        left: (this.contextMenuX + menuWidth + gap) + 'px',
+        top: this.contextMenuY + 'px'
+      };
+    },
+    // 使用指定模型拷贝便签并重新生成
+    duplicateWithModel(provider, model) {
+      console.log('[Note] duplicateWithModel 被调用:', { provider, model, noteId: this.id });
+      // 清除定时器
+      if (this.modelSelectorTimer) {
+        clearTimeout(this.modelSelectorTimer);
+        this.modelSelectorTimer = null;
+      }
+      this.showModelSelector = false;
+      this.showContextMenu = false;
+
+      // 触发事件，传递便签信息和模型配置
+      this.$emit('duplicate-with-model', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y,
+        provider: provider,
+        model: model
+      });
+      console.log('[Note] duplicate-with-model 事件已触发');
     }
 
   },
@@ -630,6 +932,11 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
+    // 清除模型选择器定时器
+    if (this.modelSelectorTimer) {
+      clearTimeout(this.modelSelectorTimer);
+      this.modelSelectorTimer = null;
+    }
   }
 };
 </script>
@@ -848,6 +1155,111 @@ export default {
   font-size: 16px;
   width: 20px;
   text-align: center;
+}
+
+/* 右键菜单项带子菜单 */
+.context-menu-item.has-submenu {
+  position: relative;
+  padding-right: 30px;  /* 为箭头留出空间 */
+}
+
+.submenu-arrow {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: #999;
+}
+
+/* 模型选择侧边栏 */
+.model-selector-sidebar {
+  position: fixed;
+  background: white;
+  border-radius: 0 8px 8px 0;  /* 左侧无圆角，紧贴菜单 */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  width: 280px;
+  max-height: 400px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1001;
+  margin-left: -1px;  /* 向左偏移1px，与菜单重叠边框 */
+}
+
+.model-selector-header {
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+.model-selector-body {
+  padding: 8px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.model-provider-group {
+  margin-bottom: 8px;
+}
+
+.provider-name {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #666;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 14px;
+  color: #333;
+}
+
+.model-item:hover {
+  background: #f5f5f5;
+}
+
+.model-icon {
+  font-size: 14px;
+}
+
+.model-name {
+  flex: 1;
+}
+
+.no-models {
+  padding: 20px 16px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+/* 侧边栏滑入动画 */
+.slide-fade-enter-active {
+  transition: all 0.2s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.slide-fade-enter-from {
+  transform: translateX(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateX(-10px);
+  opacity: 0;
 }
 
 /* 查看模态框样式 */

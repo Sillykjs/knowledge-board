@@ -81,6 +81,7 @@
       <Note
         v-for="note in notes"
         :key="note.id"
+        :ref="el => { if (el) noteRefs[note.id] = el }"
         :id="note.id"
         :title="note.title"
         :content="note.content"
@@ -91,11 +92,13 @@
         :isSelected="selectedNoteIds.has(note.id)"
         :contextLevel="contextLevel"
         :currentModelName="currentModelName"
+        :availableModels="availableModels"
         @update="onNoteUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
         @cut="onNoteCut"
         @duplicate="onNoteDuplicate"
+        @duplicate-with-model="onNoteDuplicateWithModel"
         @trace-parent="onTraceParent"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
@@ -301,8 +304,8 @@ export default {
   },
   data() {
     return {
+      noteRefs: {},  // 存储便签组件的引用，key 为 noteId
       notes: [],
-      tempTitle: '',
       tempRemark: '',
       showTooltip: false,
       isEditingTitle: false,
@@ -929,6 +932,87 @@ export default {
       } catch (error) {
         console.error('Failed to duplicate note:', error);
         alert('拷贝便签失败: ' + (error.response?.data?.error || error.message));
+      }
+    },
+    // 使用指定模型拷贝便签并重新生成
+    async onNoteDuplicateWithModel(sourceNote) {
+      console.log('[NoteWall] 开始使用指定模型拷贝便签:', sourceNote);
+      try {
+        const offsetX = 30;  // 水平偏移
+        const offsetY = 30;  // 垂直偏移
+
+        // 1. 创建新便签（内容清空，等待AI生成）
+        const noteResponse = await axios.post('/api/notes', {
+          title: sourceNote.title,
+          content: '',  // 初始内容为空
+          position_x: sourceNote.position_x + offsetX,
+          position_y: sourceNote.position_y + offsetY,
+          wall_id: this.boardId
+        });
+
+        const newNote = noteResponse.data.note;
+        console.log('[NoteWall] 新便签已创建:', newNote);
+
+        const oldNoteId = sourceNote.id;
+        const newNoteId = newNote.id;
+
+        // 2. 查找与原便签相关的所有连接线
+        const relatedConnections = this.connections.filter(conn =>
+          conn.source_note_id === oldNoteId || conn.target_note_id === oldNoteId
+        );
+
+        // 3. 为每条连接线创建对应的连接（使用新便签ID）
+        for (const conn of relatedConnections) {
+          const newSourceId = conn.source_note_id === oldNoteId ? newNoteId : conn.source_note_id;
+          const newTargetId = conn.target_note_id === oldNoteId ? newNoteId : conn.target_note_id;
+
+          // 避免创建自连接（如果两端都是同一个便签）
+          if (newSourceId !== newTargetId) {
+            try {
+              await axios.post('/api/notes/connections', {
+                source_note_id: newSourceId,
+                target_note_id: newTargetId,
+                wall_id: this.boardId
+              });
+            } catch (error) {
+              console.error('Failed to create connection:', error);
+            }
+          }
+        }
+
+        // 4. 将新便签添加到本地数组
+        this.notes.push(newNote);
+
+        // 5. 重新加载连接线
+        await this.loadConnections();
+
+        // 6. 通知父组件便签列表已更新
+        this.$emit('notes-loaded', this.notes);
+        // 通知父组件更新白板列表（便签数量变化）
+        this.$emit('note-count-changed');
+
+        // 7. 触发新便签的查看模态框并自动生成（利用现有的流式生成功能）
+        console.log('[NoteWall] 准备触发新便签的AI生成:', {
+          newNoteId,
+          provider: sourceNote.provider,
+          model: sourceNote.model
+        });
+
+        // 等待 DOM 更新，确保新便签组件已挂载
+        this.$nextTick(() => {
+          const newNoteRef = this.noteRefs[newNoteId];
+          if (newNoteRef) {
+            console.log('[NoteWall] 找到新便签组件，开始生成内容（不打开模态框）');
+            // 直接开始生成，不打开查看模态框
+            newNoteRef.generateAIContentWithModel(sourceNote.provider, sourceNote.model);
+          } else {
+            console.error('[NoteWall] 未找到新便签组件引用:', newNoteId);
+          }
+        });
+
+      } catch (error) {
+        console.error('Failed to duplicate note with model:', error);
+        alert('拷贝并生成便签失败: ' + (error.response?.data?.error || error.message));
       }
     },
     // 复制便签

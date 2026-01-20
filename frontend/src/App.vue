@@ -3,7 +3,12 @@
     <!-- 左侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }" :style="sidebarStyle" v-if="boards.length > 0">
       <!-- 切换按钮 -->
-      <button class="sidebar-toggle" @click="toggleSidebar" :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'">
+      <button
+        class="sidebar-toggle"
+        :class="{ collapsed: sidebarCollapsed }"
+        @click="toggleSidebar"
+        :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      >
         {{ sidebarCollapsed ? '▶' : '◀' }}
       </button>
 
@@ -821,30 +826,33 @@ body {
 }
 
 .sidebar-toggle {
-  position: absolute;
-  top: 10px;
-  right: -5px;
+  position: fixed;
+  left: 247px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 32px;
-  height: 32px;
+  height: 60px;
   background: #2196F3;
   border: 2px solid white;
-  border-radius: 6px;
+  border-radius: 0 8px 8px 0;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2001;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  transition: left 0.3s ease, all 0.3s ease;
+}
+
+.sidebar-toggle.collapsed {
+  left: 57px;
 }
 
 .sidebar-toggle:hover {
   background: #1976D2;
   width: 36px;
-  height: 36px;
-  right: -5px;
   box-shadow: 3px 0 12px rgba(33, 150, 243, 0.4);
 }
 
@@ -1345,7 +1353,7 @@ body {
 
 .right-sidebar-toggle {
   position: fixed;
-  right: 300px;
+  right: 297px;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -1365,7 +1373,7 @@ body {
 }
 
 .right-sidebar-toggle.collapsed {
-  right: 0;
+  right: -3px;
 }
 
 .right-sidebar-toggle:hover {

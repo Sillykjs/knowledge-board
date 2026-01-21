@@ -45,6 +45,10 @@ export const vditorOptions = {
     theme: 'default'
   },
 
+  // CDN 配置 - 使用 Vditor CDN 以加载最新版本的 Mermaid
+  // 这将解决 Mermaid 9.1.7 对中文标点符号支持不足的问题
+  cdn: 'https://unpkg.com/vditor@3.11.2',
+
   // 代码块配置
   code: {
     lineNumber: true

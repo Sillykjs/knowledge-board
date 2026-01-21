@@ -139,7 +139,7 @@
               v-model="viewEditContent"
               :note-id="id"
               :is-generating="isAIGenerating"
-              placeholder="开始编辑..."
+              placeholder="开始编辑或生成内容..."
               @blur="saveViewContent"
             />
           </div>

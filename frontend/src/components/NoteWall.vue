@@ -812,7 +812,7 @@ export default {
       try {
         const response = await axios.post('/api/notes', {
           title: '新便签',
-          content: '点击编辑添加内容',
+          content: '',
           position_x: newPosition.x,
           position_y: newPosition.y,
           wall_id: this.boardId

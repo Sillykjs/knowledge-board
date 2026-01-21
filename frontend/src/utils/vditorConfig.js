@@ -30,14 +30,14 @@ export const vditorOptions = {
   height: 400,
   minHeight: 300,
 
-  // 数学公式配置
+  // 数学公式配置 - 使用 MathJax 以获得更好的 LaTeX 兼容性
   math: {
-    engine: 'KaTeX',
+    engine: 'MathJax',
     inlineDigit: false,
     macros: {
       '\\RR': '\\mathbb{R}'
     },
-    cdn: 'https://unpkg.com/katex@0.16.9/dist/'
+    cdn: 'https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js'
   },
 
   // Mermaid 配置

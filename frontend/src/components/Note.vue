@@ -10,6 +10,8 @@
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
     @contextmenu.prevent="onContextMenu"
     @mousedown="onMouseDown"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
   >
     <!-- 引入点（上中心） -->
     <div
@@ -438,6 +440,14 @@ export default {
         offsetX: this.dragOffsetX,
         offsetY: this.dragOffsetY
       });
+    },
+    // 鼠标进入便签
+    onMouseEnter() {
+      this.$emit('mouse-enter', this.id);
+    },
+    // 鼠标离开便签
+    onMouseLeave() {
+      this.$emit('mouse-leave', this.id);
     },
     async deleteNote() {
       this.showContextMenu = false;

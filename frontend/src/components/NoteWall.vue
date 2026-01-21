@@ -41,6 +41,7 @@
         <!-- 已建立的连接 -->
         <line
           v-for="connection in connections"
+          v-show="!shouldHideConnection(connection)"
           :key="connection.id"
           :x1="getConnectionStartPoint(connection).x"
           :y1="getConnectionStartPoint(connection).y"
@@ -55,6 +56,7 @@
         <!-- 箭头 -->
         <polygon
           v-for="connection in connections"
+          v-show="!shouldHideConnection(connection)"
           :key="'arrow-' + connection.id"
           :points="getArrowheadPoints(connection)"
           class="connection-arrowhead"
@@ -103,6 +105,8 @@
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
         @quick-create="onQuickCreate"
+        @mouse-enter="onNoteMouseEnter"
+        @mouse-leave="onNoteMouseLeave"
       />
     </div>
 
@@ -330,6 +334,7 @@ export default {
       selectedConnectionId: null,   // 选中的连接ID（用于删除）
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
       highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
+      hoveredNoteIds: new Set(), // 鼠标悬停的便签ID集合（用于显示引入线）
       // 剪切板
       clipboardData: null,  // 存储复制的便签数据（支持多便签）
       // 数据结构: { notes: [], connections: [], sourceWallId, isCutMode, baseNoteId, basePosition }
@@ -1864,6 +1869,23 @@ export default {
       this.$emit('note-count-changed');
     },
 
+    // 计算每个便签的引入线数量
+    getIncomingConnectionCount(noteId) {
+      return this.connections.filter(conn => conn.target_note_id === noteId).length;
+    },
+    // 判断连接线是否应该隐藏（目标便签引入线 >= 4 且未悬停）
+    shouldHideConnection(connection) {
+      const incomingCount = this.getIncomingConnectionCount(connection.target_note_id);
+      return incomingCount >= 4 && !this.hoveredNoteIds.has(connection.target_note_id);
+    },
+    // 便签鼠标进入事件
+    onNoteMouseEnter(noteId) {
+      this.hoveredNoteIds.add(noteId);
+    },
+    // 便签鼠标离开事件
+    onNoteMouseLeave(noteId) {
+      this.hoveredNoteIds.delete(noteId);
+    },
     // 计算连接起点（引出点：便签底部下8px，水平居中）
     getConnectionStartPoint(connection) {
       const sourceNote = this.notes.find(n => n.id === connection.source_note_id);

@@ -116,9 +116,9 @@
 
 
     <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
-    <Teleport to="body">
-      <div v-if="showViewModal" class="view-modal" @click="closeViewModal">
-        <div class="view-modal-content" @click.stop @wheel.stop>
+  <Teleport to="body">
+      <div v-if="showViewModal" class="view-modal" @click="onViewModalClick">
+        <div class="view-modal-content" @click.stop="onViewModalContentClick" @wheel.stop>
           <div class="view-header">
             <div v-if="!editingViewTitle" class="view-title" @dblclick="startEditViewTitle">{{ title }}</div>
             <input
@@ -144,14 +144,50 @@
             />
           </div>
           <div class="view-footer">
-            <button
-              class="btn-ai-generate"
-              :class="{ 'btn-stop': isAIGenerating }"
-              @click="isAIGenerating ? stopAIGeneration() : generateAIContent()"
-            >
-              <span class="ai-icon">{{ isAIGenerating ? '⏹️' : '🤖' }}</span>
-              <span>{{ isAIGenerating ? '停止生成' : `${currentModelName} 生成内容` }}</span>
-            </button>
+            <div class="ai-generate-container">
+              <button
+                class="btn-ai-generate"
+                :class="{ 'btn-stop': isAIGenerating }"
+                @click="isAIGenerating ? stopAIGeneration() : generateAIContent()"
+              >
+                <span class="ai-icon">{{ isAIGenerating ? '⏹️' : '🤖' }}</span>
+                <span>{{ isAIGenerating ? '停止生成' : `${currentModelName} 生成内容` }}</span>
+              </button>
+              <button
+                v-if="!isAIGenerating"
+                class="btn-dropdown"
+                :class="{ 'active': showModelDropdown }"
+                @click.stop="toggleModelDropdown"
+                title="选择模型"
+              >
+                <span class="dropdown-arrow">▼</span>
+              </button>
+
+              <!-- 模型选择下拉菜单 -->
+              <transition name="dropdown-fade">
+                <div v-if="showModelDropdown" class="model-dropdown-menu">
+                  <div
+                    v-for="provider in availableModels"
+                    :key="provider.provider"
+                    class="dropdown-provider-group"
+                  >
+                    <div class="dropdown-provider-name">{{ provider.provider }}</div>
+                    <div
+                      v-for="model in provider.models"
+                      :key="model"
+                      class="dropdown-model-item"
+                      @click="generateWithModel(provider.provider, model)"
+                    >
+                      <span class="dropdown-model-icon">🤖</span>
+                      <span class="dropdown-model-name">{{ model }}</span>
+                    </div>
+                  </div>
+                  <div v-if="!availableModels || availableModels.length === 0" class="dropdown-no-models">
+                    暂无可用模型，请先配置模型
+                  </div>
+                </div>
+              </transition>
+            </div>
             <div v-if="aiError" class="ai-error">{{ aiError }}</div>
           </div>
         </div>
@@ -217,7 +253,8 @@ export default {
       streamingContent: '',  // AI流式生成过程中的原始内容累积
       showModelSelector: false,  // 是否显示模型选择侧边栏
       modelSelectorTimer: null,  // 侧边栏隐藏定时器
-      abortController: null  // 用于中断 AI 生成请求
+      abortController: null,  // 用于中断 AI 生成请求
+      showModelDropdown: false  // 是否显示模型下拉选择器（在 view-footer 中）
     };
   },
   computed: {
@@ -317,6 +354,12 @@ export default {
     },
 
     closeViewModal() {
+      // 如果下拉菜单打开，先关闭下拉菜单
+      if (this.showModelDropdown) {
+        this.showModelDropdown = false;
+        return;
+      }
+
       // 立即保存内容（不等待 blur 事件）
       this.saveViewContent();
       this.showViewModal = false;
@@ -606,6 +649,25 @@ export default {
         }
         this.showModelSelector = false;
       }
+    },
+    // 点击外部关闭模型下拉菜单
+    closeModelDropdownOnOutsideClick(event) {
+      // 只在模态框打开时处理
+      if (!this.showViewModal) return;
+
+      // 如果下拉菜单没有打开，不需要处理
+      if (!this.showModelDropdown) return;
+
+      // 检查点击的元素是否在下拉相关区域内
+      const target = event.target;
+      const dropdownButton = target.closest('.btn-dropdown');
+      const dropdownMenu = target.closest('.model-dropdown-menu');
+
+      // 如果点击的是下拉按钮或下拉菜单，不关闭
+      if (dropdownButton || dropdownMenu) return;
+
+      // 点击其他任何位置，关闭下拉菜单
+      this.showModelDropdown = false;
     },
     async generateAIContent() {
       this.aiError = null;
@@ -1012,14 +1074,225 @@ export default {
         model: model
       });
       console.log('[Note] duplicate-with-model 事件已触发');
+    },
+    // 切换模型下拉菜单的显示/隐藏
+    toggleModelDropdown() {
+      this.showModelDropdown = !this.showModelDropdown;
+    },
+    // 处理模态框背景点击
+    onViewModalClick() {
+      // 如果下拉菜单打开，先关闭下拉菜单
+      if (this.showModelDropdown) {
+        this.showModelDropdown = false;
+        return;
+      }
+      // 否则关闭模态框
+      this.closeViewModal();
+    },
+    // 处理模态框内容区域点击
+    onViewModalContentClick(event) {
+      // 检查点击是否在下拉按钮或下拉菜单内
+      const dropdownButton = event.target.closest('.btn-dropdown');
+      const dropdownMenu = event.target.closest('.model-dropdown-menu');
+
+      // 如果不在下拉相关区域内，关闭下拉菜单
+      if (!dropdownButton && !dropdownMenu) {
+        this.showModelDropdown = false;
+      }
+    },
+    // 使用指定模型生成内容（不关闭模态框）
+    async generateWithModel(provider, model) {
+      console.log('[Note] generateWithModel 被调用:', { provider, model, noteId: this.id });
+
+      // 关闭下拉菜单
+      this.showModelDropdown = false;
+
+      // 清空内容并开始生成
+      this.aiError = null;
+
+      // 使用标题作为prompt
+      const prompt = this.title;
+
+      if (!prompt) {
+        this.aiError = '请先设置便签标题';
+        return;
+      }
+
+      // 创建新的 AbortController
+      this.abortController = new AbortController();
+      this.isAIGenerating = true;
+
+      // 清空流式内容累积变量
+      this.streamingContent = '';
+
+      // 清空编辑器内容
+      if (this.$refs.vditorEditor) {
+        this.$refs.vditorEditor.setValue('');
+        this.$refs.vditorEditor.focus();
+      }
+
+      try {
+        console.log('[Note] 使用指定模型调用 AI 生成接口:', { prompt, provider, model });
+
+        // 保存选中的模型到 localStorage
+        localStorage.setItem('lastUsedModel', `${provider}|${model}`);
+
+        // 使用 fetch API 调用流式接口，传入 signal
+        const response = await fetch('/api/notes/ai-generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt,
+            wall_id: this.wallId,
+            note_id: this.id,
+            context_level: this.contextLevel,
+            include_reasoning: true,
+            provider,  // 使用指定的 provider
+            model     // 使用指定的 model
+          }),
+          signal: this.abortController.signal
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // 读取流式数据
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            // 渲染所有累积的内容
+            if (this.streamingContent) {
+              this.$refs.vditorEditor?.setValue(this.streamingContent);
+              console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
+            }
+            break;
+          }
+
+          // 解码数据块
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+
+              // 检查是否为结束标记
+              if (data === '[DONE]') {
+                if (this.streamingContent) {
+                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+                  console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
+                }
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+
+                // 检查是否有错误
+                if (parsed.error) {
+                  this.aiError = parsed.error;
+                  break;
+                }
+
+                // 累积原始内容，避免流式插入导致的层级问题
+                if (parsed.content) {
+                  this.streamingContent += parsed.content;
+
+                  // 渲染到编辑器
+                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+
+                  // 滚动到底部
+                  this.$nextTick(() => {
+                    const vditor = this.$refs.vditorEditor?.vditorInstance;
+                    if (vditor && vditor.vditor && vditor.vditor.ir) {
+                      const irElement = vditor.vditor.ir.element;
+                      irElement.scrollTop = irElement.scrollHeight;
+                    }
+                  });
+                }
+              } catch (e) {
+                // 忽略JSON解析错误
+              }
+            }
+          }
+        }
+
+        // 流式接收完成后，获取最终内容并保存到数据库
+        const generatedContent = this.streamingContent || this.$refs.vditorEditor?.getValue() || this.viewEditContent;
+
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 更新本地数据（触发父组件更新）
+        this.$emit('update', {
+          id: this.id,
+          title: this.title,
+          content: generatedContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 更新编辑状态的临时内容
+        this.viewEditContent = generatedContent;
+
+      } catch (error) {
+        // 如果是用户主动取消，不显示错误信息
+        if (error.name === 'AbortError') {
+          console.log('[Note] AI 生成已停止');
+
+          // 保存已生成的内容
+          if (this.streamingContent) {
+            try {
+              await axios.put(`/api/notes/${this.id}`, {
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.$emit('update', {
+                id: this.id,
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.viewEditContent = this.streamingContent;
+            } catch (saveError) {
+              console.error('[Note] 保存停止后的内容失败:', saveError);
+            }
+          }
+        } else {
+          console.error('Failed to generate AI content with model:', error);
+          const errorMsg = error.message || 'AI生成失败';
+          this.aiError = errorMsg;
+        }
+      } finally {
+        this.isAIGenerating = false;
+        this.abortController = null;
+      }
     }
 
   },
   mounted() {
     document.addEventListener('click', this.closeContextMenuOnOutsideClick);
+    document.addEventListener('click', this.closeModelDropdownOnOutsideClick);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
+    document.removeEventListener('click', this.closeModelDropdownOnOutsideClick);
     // 清除模型选择器定时器
     if (this.modelSelectorTimer) {
       clearTimeout(this.modelSelectorTimer);
@@ -1520,26 +1793,34 @@ export default {
 }
 
 .btn-ai-generate {
-  padding: 8px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --btn-start-color: #667eea;
+  --btn-end-color: #764ba2;
+  --btn-hover-start: #5a6fd6;
+  --btn-hover-end: #6a4190;
+
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--btn-start-color) 0%, var(--btn-end-color) 100%);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 4px 0 0 4px;
   cursor: pointer;
   font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: background-position 0.2s ease;
+  height: 38px;
+  line-height: 1;
 }
 
 .btn-ai-generate:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background-position: 100% 50%;
 }
 
 .btn-ai-generate:active {
-  transform: translateY(0);
+  background-position: 100% 50%;
 }
 
 .btn-ai-generate:disabled {
@@ -1574,4 +1855,139 @@ export default {
   background: #ffebee;
   margin-top: 8px;
 }
+
+/* AI 生成容器 - 包含按钮和下拉菜单 */
+.ai-generate-container {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+/* 下拉按钮 */
+.btn-dropdown {
+  --btn-start-color: #667eea;
+  --btn-end-color: #764ba2;
+  --btn-hover-start: #5a6fd6;
+  --btn-hover-end: #6a4190;
+
+  padding: 8px 10px;
+  background: linear-gradient(135deg, var(--btn-start-color) 0%, var(--btn-end-color) 100%);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  color: white;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-position 0.2s ease;
+  height: 38px;
+  min-width: 36px;
+}
+
+.btn-dropdown:hover {
+  background-position: 100% 50%;
+}
+
+.btn-dropdown.active {
+  background-position: 100% 50%;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+  display: inline-block;
+  line-height: 1;
+}
+
+.btn-dropdown.active .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+/* 调整主按钮的圆角，使其左侧有圆角，右侧无圆角 */
+.btn-ai-generate {
+  border-radius: 4px 0 0 4px !important;
+}
+
+/* 模型下拉菜单 */
+.model-dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  width: 280px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-bottom: 8px;
+  padding: 8px 0;
+}
+
+/* 下拉菜单的提供商分组 */
+.dropdown-provider-group {
+  margin-bottom: 8px;
+}
+
+.dropdown-provider-name {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #666;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-model-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 14px;
+  color: #333;
+}
+
+.dropdown-model-item:hover {
+  background: #f5f5f5;
+}
+
+.dropdown-model-icon {
+  font-size: 14px;
+}
+
+.dropdown-model-name {
+  flex: 1;
+}
+
+.dropdown-no-models {
+  padding: 20px 16px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+/* 下拉菜单淡入淡出动画 */
+.dropdown-fade-enter-active {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.dropdown-fade-leave-active {
+  transition: opacity 0.15s ease-in, transform 0.15s ease-in;
+}
+
+.dropdown-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
 </style>

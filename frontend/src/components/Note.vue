@@ -144,9 +144,13 @@
             />
           </div>
           <div class="view-footer">
-            <button class="btn-ai-generate" @click="generateAIContent" :disabled="isAIGenerating">
-              <span class="ai-icon">{{ isAIGenerating ? '⏳' : '🤖' }}</span>
-              <span>{{ isAIGenerating ? '生成中...' : `${currentModelName} 生成内容` }}</span>
+            <button
+              class="btn-ai-generate"
+              :class="{ 'btn-stop': isAIGenerating }"
+              @click="isAIGenerating ? stopAIGeneration() : generateAIContent()"
+            >
+              <span class="ai-icon">{{ isAIGenerating ? '⏹️' : '🤖' }}</span>
+              <span>{{ isAIGenerating ? '停止生成' : `${currentModelName} 生成内容` }}</span>
             </button>
             <div v-if="aiError" class="ai-error">{{ aiError }}</div>
           </div>
@@ -212,7 +216,8 @@ export default {
       aiError: null,  // AI错误信息
       streamingContent: '',  // AI流式生成过程中的原始内容累积
       showModelSelector: false,  // 是否显示模型选择侧边栏
-      modelSelectorTimer: null  // 侧边栏隐藏定时器
+      modelSelectorTimer: null,  // 侧边栏隐藏定时器
+      abortController: null  // 用于中断 AI 生成请求
     };
   },
   computed: {
@@ -613,6 +618,8 @@ export default {
         return;
       }
 
+      // 创建新的 AbortController
+      this.abortController = new AbortController();
       this.isAIGenerating = true;
 
       // 清空编辑器内容和流式内容累积变量
@@ -640,7 +647,7 @@ export default {
           }
         }
 
-        // 使用 fetch API 调用流式接口
+        // 使用 fetch API 调用流式接口，传入 signal
         const response = await fetch('/api/notes/ai-generate', {
           method: 'POST',
           headers: {
@@ -654,7 +661,8 @@ export default {
             include_reasoning: true,  // 请求推理模型的思考过程
             provider,  // 传递 provider（后端会从数据库读取 API Key）
             model     // 传递 model 名称
-          })
+          }),
+          signal: this.abortController.signal
         });
 
         if (!response.ok) {
@@ -752,11 +760,48 @@ export default {
         this.viewEditContent = generatedContent;
 
       } catch (error) {
-        console.error('Failed to generate AI content:', error);
-        const errorMsg = error.message || 'AI生成失败';
-        this.aiError = errorMsg;
+        // 如果是用户主动取消，不显示错误信息
+        if (error.name === 'AbortError') {
+          console.log('[Note] AI 生成已停止');
+
+          // 保存已生成的内容
+          if (this.streamingContent) {
+            try {
+              await axios.put(`/api/notes/${this.id}`, {
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.$emit('update', {
+                id: this.id,
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.viewEditContent = this.streamingContent;
+            } catch (saveError) {
+              console.error('[Note] 保存停止后的内容失败:', saveError);
+            }
+          }
+        } else {
+          console.error('Failed to generate AI content:', error);
+          const errorMsg = error.message || 'AI生成失败';
+          this.aiError = errorMsg;
+        }
       } finally {
         this.isAIGenerating = false;
+        this.abortController = null;
+      }
+    },
+    // 停止 AI 生成
+    stopAIGeneration() {
+      if (this.abortController) {
+        this.abortController.abort();
+        console.log('[Note] 用户停止 AI 生成');
       }
     },
     // 使用指定模型生成 AI 内容
@@ -772,6 +817,8 @@ export default {
         return;
       }
 
+      // 创建新的 AbortController
+      this.abortController = new AbortController();
       this.isAIGenerating = true;
 
       // 清空流式内容累积变量
@@ -789,7 +836,7 @@ export default {
       try {
         console.log('[Note] 使用指定模型调用 AI 生成接口:', { prompt, provider, model });
 
-        // 使用 fetch API 调用流式接口
+        // 使用 fetch API 调用流式接口，传入 signal
         const response = await fetch('/api/notes/ai-generate', {
           method: 'POST',
           headers: {
@@ -803,7 +850,8 @@ export default {
             include_reasoning: true,
             provider,  // 使用指定的 provider
             model     // 使用指定的 model
-          })
+          }),
+          signal: this.abortController.signal
         });
 
         if (!response.ok) {
@@ -895,11 +943,41 @@ export default {
         console.log('[Note] 使用指定模型生成完成');
 
       } catch (error) {
-        console.error('Failed to generate AI content with model:', error);
-        const errorMsg = error.message || 'AI生成失败';
-        this.aiError = errorMsg;
+        // 如果是用户主动取消，不显示错误信息
+        if (error.name === 'AbortError') {
+          console.log('[Note] AI 生成已停止');
+
+          // 保存已生成的内容
+          if (this.streamingContent) {
+            try {
+              await axios.put(`/api/notes/${this.id}`, {
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.$emit('update', {
+                id: this.id,
+                title: this.title,
+                content: this.streamingContent,
+                position_x: this.position_x,
+                position_y: this.position_y
+              });
+
+              this.viewEditContent = this.streamingContent;
+            } catch (saveError) {
+              console.error('[Note] 保存停止后的内容失败:', saveError);
+            }
+          }
+        } else {
+          console.error('Failed to generate AI content with model:', error);
+          const errorMsg = error.message || 'AI生成失败';
+          this.aiError = errorMsg;
+        }
       } finally {
         this.isAIGenerating = false;
+        this.abortController = null;
       }
     },
     // 获取模型选择侧边栏的位置样式
@@ -1473,6 +1551,15 @@ export default {
 .btn-ai-generate:disabled:hover {
   box-shadow: none;
   transform: none;
+}
+
+/* 停止按钮样式 */
+.btn-ai-generate.btn-stop {
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+}
+
+.btn-ai-generate.btn-stop:hover {
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
 }
 
 .ai-icon {

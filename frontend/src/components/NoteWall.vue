@@ -417,6 +417,18 @@ export default {
       };
     }
   },
+  watch: {
+    // 监听 availableModels 变化，当模型配置加载完成后同步 selectedModel
+    availableModels: {
+      handler(newVal) {
+        if (newVal && newVal.length > 0) {
+          console.log('[NoteWall] availableModels 已更新，重新同步 selectedModel');
+          this.loadModelConfig();
+        }
+      },
+      deep: true
+    }
+  },
   async mounted() {
     await this.loadNotes();
     this.loadRecycleNotes();
@@ -2163,8 +2175,23 @@ export default {
       // availableModels 现在从 props 传入（由 App.vue 从后端加载）
       // 这里只处理用户上次选择的模型
       const lastUsedModel = localStorage.getItem('lastUsedModel');
-      if (lastUsedModel) {
-        this.selectedModel = lastUsedModel;
+
+      if (lastUsedModel && this.availableModels && this.availableModels.length > 0) {
+        // 验证模型是否存在于当前可用模型列表中
+        const modelExists = this.availableModels.some(provider =>
+          provider.models.some(model => `${provider.provider}|${model}` === lastUsedModel)
+        );
+
+        if (modelExists) {
+          this.selectedModel = lastUsedModel;
+          console.log('[NoteWall] 已恢复上次选择的模型:', lastUsedModel);
+        } else {
+          console.warn('[NoteWall] 上次选择的模型不存在于当前配置中:', lastUsedModel);
+          this.selectedModel = '';
+        }
+      } else if (lastUsedModel && (!this.availableModels || this.availableModels.length === 0)) {
+        // 模型还未加载，不处理，等待 watch 监听 availableModels 变化
+        console.log('[NoteWall] 模型配置还未加载完成，等待 availableModels 更新...');
       }
     },
 

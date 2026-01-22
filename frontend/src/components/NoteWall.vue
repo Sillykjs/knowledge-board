@@ -127,7 +127,7 @@
       <button class="level-btn" @click="increaseContextLevel" :disabled="contextLevel >= 24">+</button>
     </div>
 
-    <button class="add-button" @click="addNote()">
+    <button class="add-button" @click="addNote(null, true)">
       <span class="plus-icon">+</span>
     </button>
 
@@ -806,7 +806,7 @@ export default {
         console.error('Failed to load notes:', error);
       }
     },
-    async addNote(customPosition = null) {
+    async addNote(customPosition = null, autoOpen = false) {
       const newPosition = customPosition || this.calculateNewPosition();
 
       try {
@@ -825,6 +825,17 @@ export default {
         this.$emit('notes-loaded', this.notes);
         // 通知父组件更新白板列表（便签数量变化）
         this.$emit('note-count-changed');
+
+        // 只在通过 add-button 创建时自动打开新便签进行编辑
+        if (autoOpen) {
+          const newNoteId = response.data.note.id;
+          this.$nextTick(() => {
+            const newNoteRef = this.noteRefs[newNoteId];
+            if (newNoteRef) {
+              newNoteRef.openViewModal();
+            }
+          });
+        }
       } catch (error) {
         console.error('Failed to create note:', error);
       }

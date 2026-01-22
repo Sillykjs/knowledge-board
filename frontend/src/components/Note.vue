@@ -254,7 +254,9 @@ export default {
       showModelSelector: false,  // 是否显示模型选择侧边栏
       modelSelectorTimer: null,  // 侧边栏隐藏定时器
       abortController: null,  // 用于中断 AI 生成请求
-      showModelDropdown: false  // 是否显示模型下拉选择器（在 view-footer 中）
+      showModelDropdown: false,  // 是否显示模型下拉选择器（在 view-footer 中）
+      lastUpdateTime: 0,  // 上次更新时间（用于节流）
+      UPDATE_THROTTLE: 100  // 节流阈值：100ms 更新一次
     };
   },
   computed: {
@@ -739,8 +741,7 @@ export default {
           const { done, value } = await reader.read();
 
           if (done) {
-            // 【性能优化】后端已发送完毕，立即渲染所有累积的内容
-            // 避免"数据已到齐但前端还在慢吞吞渲染"的问题
+            // 流式结束，确保渲染最终内容（避免节流导致遗漏）
             if (this.streamingContent) {
               this.$refs.vditorEditor?.setValue(this.streamingContent);
               console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
@@ -758,7 +759,7 @@ export default {
 
               // 检查是否为结束标记
               if (data === '[DONE]') {
-                // 【性能优化】检测到结束标记，立即渲染所有累积的内容
+                // 检测到结束标记，确保渲染最终内容（避免节流导致遗漏）
                 if (this.streamingContent) {
                   this.$refs.vditorEditor?.setValue(this.streamingContent);
                   console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
@@ -779,18 +780,23 @@ export default {
                 if (parsed.content) {
                   this.streamingContent += parsed.content;
 
-                  // 每接收到一部分内容，就渲染到编辑器（使用 setValue 而不是 insertValue）
-                  // 这样可以避免光标位置导致的列表嵌套问题
-                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+                  // 节流：只在超过阈值时更新编辑器（避免卡顿）
+                  const now = Date.now();
+                  if (now - this.lastUpdateTime > this.UPDATE_THROTTLE) {
+                    this.lastUpdateTime = now;
 
-                  // 滚动到底部
-                  this.$nextTick(() => {
-                    const vditor = this.$refs.vditorEditor?.vditorInstance;
-                    if (vditor && vditor.vditor && vditor.vditor.ir) {
-                      const irElement = vditor.vditor.ir.element;
-                      irElement.scrollTop = irElement.scrollHeight;
-                    }
-                  });
+                    // 节流后渲染到编辑器
+                    this.$refs.vditorEditor?.setValue(this.streamingContent);
+
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                      const vditor = this.$refs.vditorEditor?.vditorInstance;
+                      if (vditor && vditor.vditor && vditor.vditor.ir) {
+                        const irElement = vditor.vditor.ir.element;
+                        irElement.scrollTop = irElement.scrollHeight;
+                      }
+                    });
+                  }
                 }
               } catch (e) {
                 // 忽略JSON解析错误
@@ -929,6 +935,14 @@ export default {
 
           if (done) {
             console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
+            // 流式结束前，确保发送最后更新（避免节流导致遗漏）
+            this.$emit('update', {
+              id: this.id,
+              title: this.title,
+              content: this.streamingContent,
+              position_x: this.position_x,
+              position_y: this.position_y
+            });
             break;
           }
 
@@ -943,6 +957,14 @@ export default {
               // 检查是否为结束标记
               if (data === '[DONE]') {
                 console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
+                // 检测到结束标记，确保发送最后更新
+                this.$emit('update', {
+                  id: this.id,
+                  title: this.title,
+                  content: this.streamingContent,
+                  position_x: this.position_x,
+                  position_y: this.position_y
+                });
                 break;
               }
 
@@ -955,18 +977,24 @@ export default {
                   break;
                 }
 
-                // 累积内容并实时更新白板预览
+                // 累积内容并节流更新白板预览（避免频繁更新导致性能问题）
                 if (parsed.content) {
                   this.streamingContent += parsed.content;
 
-                  // 实时通知父组件更新内容（白板预览会立即显示）
-                  this.$emit('update', {
-                    id: this.id,
-                    title: this.title,
-                    content: this.streamingContent,
-                    position_x: this.position_x,
-                    position_y: this.position_y
-                  });
+                  // 节流：只在超过阈值时更新父组件（避免卡死）
+                  const now = Date.now();
+                  if (now - this.lastUpdateTime > this.UPDATE_THROTTLE) {
+                    this.lastUpdateTime = now;
+
+                    // 节流后通知父组件更新内容
+                    this.$emit('update', {
+                      id: this.id,
+                      title: this.title,
+                      content: this.streamingContent,
+                      position_x: this.position_x,
+                      position_y: this.position_y
+                    });
+                  }
 
                   // 每100个字符输出一次日志
                   if (this.streamingContent.length % 100 === 0) {
@@ -1167,7 +1195,7 @@ export default {
           const { done, value } = await reader.read();
 
           if (done) {
-            // 渲染所有累积的内容
+            // 流式结束，确保渲染最终内容（避免节流导致遗漏）
             if (this.streamingContent) {
               this.$refs.vditorEditor?.setValue(this.streamingContent);
               console.log('[Note] 流式输出完成，最终渲染内容长度:', this.streamingContent.length);
@@ -1185,6 +1213,7 @@ export default {
 
               // 检查是否为结束标记
               if (data === '[DONE]') {
+                // 检测到结束标记，确保渲染最终内容（避免节流导致遗漏）
                 if (this.streamingContent) {
                   this.$refs.vditorEditor?.setValue(this.streamingContent);
                   console.log('[Note] 检测到 [DONE] 标记，最终渲染内容长度:', this.streamingContent.length);
@@ -1205,17 +1234,23 @@ export default {
                 if (parsed.content) {
                   this.streamingContent += parsed.content;
 
-                  // 渲染到编辑器
-                  this.$refs.vditorEditor?.setValue(this.streamingContent);
+                  // 节流：只在超过阈值时更新编辑器（避免卡顿）
+                  const now = Date.now();
+                  if (now - this.lastUpdateTime > this.UPDATE_THROTTLE) {
+                    this.lastUpdateTime = now;
 
-                  // 滚动到底部
-                  this.$nextTick(() => {
-                    const vditor = this.$refs.vditorEditor?.vditorInstance;
-                    if (vditor && vditor.vditor && vditor.vditor.ir) {
-                      const irElement = vditor.vditor.ir.element;
-                      irElement.scrollTop = irElement.scrollHeight;
-                    }
-                  });
+                    // 节流后渲染到编辑器
+                    this.$refs.vditorEditor?.setValue(this.streamingContent);
+
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                      const vditor = this.$refs.vditorEditor?.vditorInstance;
+                      if (vditor && vditor.vditor && vditor.vditor.ir) {
+                        const irElement = vditor.vditor.ir.element;
+                        irElement.scrollTop = irElement.scrollHeight;
+                      }
+                    });
+                  }
                 }
               } catch (e) {
                 // 忽略JSON解析错误

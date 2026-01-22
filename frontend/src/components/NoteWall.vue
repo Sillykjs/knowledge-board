@@ -881,14 +881,14 @@ export default {
       const index = this.notes.findIndex(n => n.id === updatedNote.id);
       if (index !== -1) {
         // 保留原有的 created_at 等字段，只更新传入的字段
-        this.notes.splice(index, 1, {
-          ...this.notes[index],  // 保留原有所有字段
-          ...updatedNote          // 覆盖更新的字段
-        });
-        // 强制连接线重新计算（通过重新触发响应式更新）
-        this.$forceUpdate();
-        // 通知父组件便签列表已更新
-        this.$emit('notes-loaded', this.notes);
+        // 直接修改对象属性，避免触发不必要的子组件重新渲染
+        Object.assign(this.notes[index], updatedNote);
+
+        // 注意：不需要 $forceUpdate()，Vue 响应式系统会自动处理更新
+        // Vue 的 splice 会自动触发视图更新，$forceUpdate() 会导致性能灾难
+
+        // 通知父组件便签列表已更新（仅在必要时触发）
+        // this.$emit('notes-loaded', this.notes);
       }
     },
     async onNoteDelete(noteId) {

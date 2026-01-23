@@ -8,9 +8,9 @@
 [![Vditor](https://img.shields.io/badge/Vditor-3.x-42b883?logo=markdown)](https://vditor.js.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## ✨ 核心特色
-
 ![demo](https://github.com/Sillykjs/knowledge-board/blob/main/images/demo.png)
+
+## ✨ 核心特色
 
 ### 🤖 AI 对话作为便签
 

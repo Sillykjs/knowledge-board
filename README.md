@@ -10,6 +10,8 @@
 
 ## ✨ 核心特色
 
+![demo](https://github.com/Sillykjs/knowledge-board/blob/main/images/demo.png)
+
 ### 🤖 AI 对话作为便签
 
 每次与大模型的对话都成为可拖拽、可编辑的便签，永久保存在无限白板中。支持 Markdown 渲染，双击即可编辑。

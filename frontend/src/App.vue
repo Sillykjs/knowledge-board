@@ -96,6 +96,7 @@
         :board-system-prompt="currentBoard?.system_prompt"
         :current-model-name="currentModelName"
         :available-models="parsedModels"
+        :initial-note-id="initialNoteId"
         :key="currentBoardId"
         @board-updated="onBoardUpdated"
         @note-count-changed="onNoteCountChanged"
@@ -119,7 +120,7 @@
             v-model="searchQuery"
             type="text"
             class="search-input"
-            placeholder="搜索便签标题..."
+            placeholder="搜索所有白板便签..."
             @input="onSearchInput"
           />
           <button
@@ -137,10 +138,14 @@
             v-for="note in sortedNotes"
             :key="note.id"
             class="note-index-item"
+            :class="{ 'cross-board': note.board_id !== currentBoardId }"
             @click="jumpToNote(note)"
-            :title="note.title"
+            :title="`${note.title}\n所属白板: ${note.board_title}`"
           >
             <span class="note-index-title">{{ note.title }}</span>
+            <span class="note-index-board" v-if="note.board_id !== currentBoardId">
+              📋 {{ note.board_title }}
+            </span>
             <span class="note-index-time">{{ formatNoteTime(note.created_at) }}</span>
           </div>
         </div>
@@ -267,7 +272,8 @@ export default {
       rightSidebarCollapsed: true, // 右侧边栏是否收起
       currentNotes: [], // 当前白板的便签列表（用于右侧索引）
       searchQuery: '', // 搜索关键词
-      allBoardsNotes: {} // 缓存所有白板的便签数据 { boardId: [notes] }
+      allBoardsNotes: {}, // 缓存所有白板的便签数据 { boardId: [notes] }
+      initialNoteId: null // 跨白板跳转时指定的便签ID
     };
   },
   computed: {
@@ -312,28 +318,43 @@ export default {
         marginRight: this.rightSidebarCollapsed ? '0' : '300px'
       };
     },
-    // 获取当前白板的便签列表（按创建时间排序并搜索过滤）
+    // 获取所有白板的便签列表（按创建时间排序并搜索过滤）
     sortedNotes() {
-      if (!this.currentNotes || this.currentNotes.length === 0) {
-        return [];
-      }
+      let allNotes = [];
 
-      let notes = [...this.currentNotes];
+      // 1. 收集所有白板的便签，并添加所属白板信息
+      this.boards.forEach(board => {
+        const boardNotes = (this.allBoardsNotes[board.id] || []).map(note => ({
+          ...note,
+          board_id: board.id,
+          board_title: board.title
+        }));
+        allNotes.push(...boardNotes);
+      });
 
-      // 根据搜索关键词过滤
+      // 2. 根据搜索关键词过滤
       if (this.searchQuery && this.searchQuery.trim() !== '') {
         const query = this.searchQuery.toLowerCase().trim();
-        notes = notes.filter(note =>
+        allNotes = allNotes.filter(note =>
           note.title && note.title.toLowerCase().includes(query)
         );
       }
 
-      // 按创建时间排序（降序，新的在前）
-      return notes.sort((a, b) => {
+      // 3. 按创建时间排序（降序，新的在前）
+      allNotes.sort((a, b) => {
         const dateA = new Date(a.created_at);
         const dateB = new Date(b.created_at);
         return dateB - dateA;
       });
+
+      // 4. 将当前白板的便签排在前面
+      allNotes.sort((a, b) => {
+        const aIsCurrent = a.board_id === this.currentBoardId ? 0 : 1;
+        const bIsCurrent = b.board_id === this.currentBoardId ? 0 : 1;
+        return aIsCurrent - bIsCurrent;
+      });
+
+      return allNotes;
     }
   },
   async mounted() {
@@ -398,7 +419,7 @@ export default {
       }
     },
 
-    switchBoard(boardId) {
+    async switchBoard(boardId) {
       // 保存当前白板的视口状态
       if (this.$refs.noteWall) {
         this.boardViewports[this.currentBoardId] = {
@@ -411,12 +432,20 @@ export default {
       // 切换白板
       this.currentBoardId = boardId;
 
-      // 恢复目标白板的视口状态
-      this.$nextTick(() => {
-        if (this.$refs.noteWall && this.boardViewports[boardId]) {
-          Object.assign(this.$refs.noteWall.viewport, this.boardViewports[boardId]);
-        }
+      // 等待 NoteWall 组件挂载完成
+      await new Promise(resolve => {
+        this.$nextTick(resolve);
       });
+
+      // 等待组件完全挂载（可能需要两个 nextTick）
+      await new Promise(resolve => {
+        this.$nextTick(resolve);
+      });
+
+      // 恢复目标白板的视口状态
+      if (this.$refs.noteWall && this.boardViewports[boardId]) {
+        Object.assign(this.$refs.noteWall.viewport, this.boardViewports[boardId]);
+      }
     },
 
     createBoard() {
@@ -731,10 +760,49 @@ export default {
       this.searchQuery = '';
     },
 
-    // 跳转到指定便签
-    jumpToNote(note) {
-      if (this.$refs.noteWall && this.$refs.noteWall.jumpToNote) {
-        this.$refs.noteWall.jumpToNote(note);
+    // 跳转到指定便签（支持跨白板跳转）
+    async jumpToNote(note) {
+      // 尝试从 note 对象获取 board_id 或 wall_id
+      let targetBoardId = note.board_id || note.wall_id;
+
+      // 如果没有找到 board_id，尝试从便签列表中查找
+      if (!targetBoardId) {
+        for (const boardId of Object.keys(this.allBoardsNotes)) {
+          const boardNotes = this.allBoardsNotes[boardId];
+          const foundNote = boardNotes.find(n => n.id === note.id);
+          if (foundNote) {
+            targetBoardId = parseInt(boardId);
+            break;
+          }
+        }
+      }
+
+      // 如果还是没找到，提示错误
+      if (!targetBoardId) {
+        alert('无法确定便签所属的白板');
+        return;
+      }
+
+      // 如果便签不在当前白板，先切换到目标白板
+      if (targetBoardId !== this.currentBoardId) {
+        // 设置初始跳转的便签ID
+        this.initialNoteId = note.id;
+
+        // 切换到目标白板（NoteWall 会在 mounted 中自动跳转）
+        await this.switchBoard(targetBoardId);
+
+        // 等待 NoteWall 完全加载并跳转完成
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 清空初始跳转ID（避免影响后续操作）
+        this.initialNoteId = null;
+      } else {
+        // 当前白板内的跳转，直接调用 NoteWall 的方法
+        this.$nextTick(() => {
+          if (this.$refs.noteWall && this.$refs.noteWall.jumpToNote) {
+            this.$refs.noteWall.jumpToNote(note);
+          }
+        });
       }
     },
 
@@ -1520,4 +1588,17 @@ body {
   font-size: 12px;
   color: #999;
 }
+
+.note-index-board {
+  font-size: 11px;
+  color: #2196F3;
+  background: #e3f2fd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+}
+
 </style>

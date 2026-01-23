@@ -304,6 +304,10 @@ export default {
     availableModels: {
       type: Array,
       default: () => []
+    },
+    initialNoteId: {
+      type: Number,
+      default: null
     }
   },
   data() {
@@ -435,18 +439,31 @@ export default {
     this.loadConnections();
     this.loadModelConfig();
 
-    // 自动跳转到最新便签
+    // 跳转到指定便签或最新便签
     if (this.notes.length > 0) {
-      // 按创建时间降序排序，获取最新便签
-      const sortedNotes = [...this.notes].sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateB - dateA;
-      });
+      let targetNote = null;
 
-      // 延迟执行，确保 DOM 渲染完成
+      // 优先跳转到指定便签（用于跨白板跳转）
+      if (this.initialNoteId) {
+        targetNote = this.notes.find(note => note.id === this.initialNoteId);
+      }
+
+      // 如果没有指定便签或未找到，则跳转到最新便签
+      if (!targetNote) {
+        // 按创建时间降序排序，获取最新便签
+        const sortedNotes = [...this.notes].sort((a, b) => {
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
+          return dateB - dateA;
+        });
+        targetNote = sortedNotes[0];
+      }
+
+      // 延迟执行，确保 DOM 完全渲染完成（使用多个 nextTick）
       this.$nextTick(() => {
-        this.jumpToNote(sortedNotes[0]);
+        this.$nextTick(() => {
+          this.jumpToNote(targetNote);
+        });
       });
     }
 

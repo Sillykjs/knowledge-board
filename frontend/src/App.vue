@@ -273,7 +273,8 @@ export default {
       currentNotes: [], // 当前白板的便签列表（用于右侧索引）
       searchQuery: '', // 搜索关键词
       allBoardsNotes: {}, // 缓存所有白板的便签数据 { boardId: [notes] }
-      initialNoteId: null // 跨白板跳转时指定的便签ID
+      initialNoteId: null, // 跨白板跳转时指定的便签ID
+      isJumping: false // 防止并发跳转的标志位
     };
   },
   computed: {
@@ -442,8 +443,8 @@ export default {
         this.$nextTick(resolve);
       });
 
-      // 恢复目标白板的视口状态
-      if (this.$refs.noteWall && this.boardViewports[boardId]) {
+      // 恢复目标白板的视口状态（确保 noteWall 存在且视口数据存在）
+      if (this.$refs.noteWall && this.$refs.noteWall.viewport && this.boardViewports[boardId]) {
         Object.assign(this.$refs.noteWall.viewport, this.boardViewports[boardId]);
       }
     },
@@ -762,47 +763,63 @@ export default {
 
     // 跳转到指定便签（支持跨白板跳转）
     async jumpToNote(note) {
-      // 尝试从 note 对象获取 board_id 或 wall_id
-      let targetBoardId = note.board_id || note.wall_id;
-
-      // 如果没有找到 board_id，尝试从便签列表中查找
-      if (!targetBoardId) {
-        for (const boardId of Object.keys(this.allBoardsNotes)) {
-          const boardNotes = this.allBoardsNotes[boardId];
-          const foundNote = boardNotes.find(n => n.id === note.id);
-          if (foundNote) {
-            targetBoardId = parseInt(boardId);
-            break;
-          }
-        }
-      }
-
-      // 如果还是没找到，提示错误
-      if (!targetBoardId) {
-        alert('无法确定便签所属的白板');
+      // 防止并发跳转
+      if (this.isJumping) {
+        console.warn('[App] 正在跳转中，忽略新的跳转请求');
         return;
       }
 
-      // 如果便签不在当前白板，先切换到目标白板
-      if (targetBoardId !== this.currentBoardId) {
-        // 设置初始跳转的便签ID
-        this.initialNoteId = note.id;
+      try {
+        this.isJumping = true;
 
-        // 切换到目标白板（NoteWall 会在 mounted 中自动跳转）
-        await this.switchBoard(targetBoardId);
+        // 尝试从 note 对象获取 board_id 或 wall_id
+        let targetBoardId = note.board_id || note.wall_id;
 
-        // 等待 NoteWall 完全加载并跳转完成
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // 清空初始跳转ID（避免影响后续操作）
-        this.initialNoteId = null;
-      } else {
-        // 当前白板内的跳转，直接调用 NoteWall 的方法
-        this.$nextTick(() => {
-          if (this.$refs.noteWall && this.$refs.noteWall.jumpToNote) {
-            this.$refs.noteWall.jumpToNote(note);
+        // 如果没有找到 board_id，尝试从便签列表中查找
+        if (!targetBoardId) {
+          for (const boardId of Object.keys(this.allBoardsNotes)) {
+            const boardNotes = this.allBoardsNotes[boardId] || []; // ✅ 添加空数组保护
+            const foundNote = boardNotes.find(noteItem => noteItem.id === note.id); // ✅ 修复变量名
+            if (foundNote) {
+              const parsedBoardId = parseInt(boardId);
+              if (!isNaN(parsedBoardId)) { // ✅ 检查转换是否成功
+                targetBoardId = parsedBoardId;
+                break;
+              }
+            }
           }
-        });
+        }
+
+        // 如果还是没找到，提示错误
+        if (!targetBoardId) {
+          alert('无法确定便签所属的白板');
+          return;
+        }
+
+        // 如果便签不在当前白板，先切换到目标白板
+        if (targetBoardId !== this.currentBoardId) {
+          // 设置初始跳转的便签ID
+          this.initialNoteId = note.id;
+
+          // 切换到目标白板（NoteWall 会在 mounted 中自动跳转）
+          await this.switchBoard(targetBoardId);
+
+          // 等待 NoteWall 完全加载并跳转完成
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // 清空初始跳转ID（避免影响后续操作）
+          this.initialNoteId = null;
+        } else {
+          // 当前白板内的跳转，直接调用 NoteWall 的方法
+          this.$nextTick(() => {
+            if (this.$refs.noteWall && this.$refs.noteWall.jumpToNote) {
+              this.$refs.noteWall.jumpToNote(note);
+            }
+          });
+        }
+      } finally {
+        // 无论成功失败，都重置标志位
+        this.isJumping = false;
       }
     },
 

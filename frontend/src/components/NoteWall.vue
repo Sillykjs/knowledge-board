@@ -2325,12 +2325,12 @@ export default {
   backface-visibility: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* 确保缩放时文字清晰 */
-  image-rendering: -webkit-optimize-contrast;
-  /* 强制使用 sub-pixel 渲染 */
-  text-rendering: optimizeLegibility;
-  /* 关键：使用极短过渡触发高质量渲染，50ms 几乎无感知但能解决模糊 */
-  transition: transform 0.05s linear;
+  /* 使用几何精度渲染，比 optimizeLegibility 性能更好且缩放更清晰 */
+  text-rendering: geometricPrecision;
+  /* 移除过渡以获得即时响应，或使用极短过渡（2帧）避免模糊 */
+  /* 注意：完全移除过渡会导致快速滚动时文字渲染可能暂时不清晰
+     这里使用 0.032s（约2帧）在清晰度和响应速度之间平衡 */
+  transition: transform 0.032s ease-out;
 }
 
 /* 平滑过渡动画（跳转时使用更长的过渡时间） */

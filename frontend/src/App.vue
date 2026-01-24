@@ -64,24 +64,14 @@
 
       <!-- 模型管理按钮 -->
       <button class="model-button" @click="openEditJsonModal" :title="sidebarCollapsed ? '模型管理' : ''">
-        <template v-if="!sidebarCollapsed">
-          <span class="model-icon">🤖</span>
-          <span class="model-text">模型管理</span>
-        </template>
-        <template v-else>
-          <span class="model-icon">🤖</span>
-        </template>
+        <span class="model-icon">🤖</span>
+        <span class="model-text" v-show="!sidebarCollapsed">模型管理</span>
       </button>
 
       <!-- 新建白板按钮 -->
       <button class="add-board-button" @click="createBoard" :title="sidebarCollapsed ? '新建白板' : ''">
-        <template v-if="!sidebarCollapsed">
-          <span class="add-icon">+</span>
-          <span class="add-text">新建白板</span>
-        </template>
-        <template v-else>
-          <span class="add-icon">+</span>
-        </template>
+        <span class="add-icon">+</span>
+        <span class="add-text" v-show="!sidebarCollapsed">新建白板</span>
       </button>
     </aside>
 
@@ -950,17 +940,14 @@ body {
   position: relative;
 }
 
+/* 隐藏滚动条但保留滚动功能 */
+.board-list {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
 .board-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.board-list::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 2px;
-}
-
-.board-list::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
+  display: none; /* Chrome/Safari/Opera */
 }
 
 .board-item {
@@ -1150,14 +1137,20 @@ body {
 
 .add-text {
   font-weight: 500;
+  opacity: 1;
+  max-width: 200px;
+  overflow: hidden;
+  transition: opacity 0.2s, max-width 0.2s;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .add-text {
+  opacity: 0;
+  max-width: 0;
 }
 
 .sidebar.collapsed .add-board-button {
   padding: 12px;
-}
-
-.sidebar.collapsed .add-text {
-  display: none;
 }
 
 .main-content {
@@ -1312,14 +1305,20 @@ body {
 
 .model-text {
   font-weight: 500;
+  opacity: 1;
+  max-width: 200px;
+  overflow: hidden;
+  transition: opacity 0.2s, max-width 0.2s;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .model-text {
+  opacity: 0;
+  max-width: 0;
 }
 
 .sidebar.collapsed .model-button {
   padding: 12px;
-}
-
-.sidebar.collapsed .model-text {
-  display: none;
 }
 
 /* 模型配置表单样式 */

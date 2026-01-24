@@ -52,7 +52,7 @@ export default {
     },
     isGenerating(newVal) {
       // AI 生成状态变化时，禁用/启用编辑器
-      this.updateDisabledState(newVal);
+      this.updateEditableState(newVal);
     }
   },
   mounted() {
@@ -99,9 +99,9 @@ export default {
             this.restoreScrollPosition();
           }
 
-          // 根据初始状态设置禁用状态
+          // 根据初始状态设置可编辑状态
           if (this.isGenerating) {
-            this.updateDisabledState(true);
+            this.updateEditableState(true);
           }
 
           // 触发 ready 事件
@@ -207,8 +207,7 @@ export default {
       // insertValue 会在光标位置插入内容，保持编辑器稳定
       this.vditorInstance.insertValue(text);
 
-      // 自动滚动到底部
-      this.scrollToBottom();
+      // 已移除自动滚动到底部
     },
 
     /**
@@ -267,23 +266,49 @@ export default {
     },
 
     /**
-     * 更新编辑器禁用状态
-     * @param {boolean} disabled - 是否禁用
+     * 更新编辑器可编辑状态
+     * @param {boolean} isGenerating - 是否正在生成
      */
-    updateDisabledState(disabled) {
+    updateEditableState(isGenerating) {
       if (!this.vditorInstance) return;
 
       try {
-        // Vditor 提供了 disabled 方法来禁用/启用编辑器
-        if (disabled) {
-          this.vditorInstance.disabled();
+        const irElement = this.vditorInstance.vditor?.ir?.element;
+        if (!irElement) return;
+
+        const resetElement = irElement.querySelector('.vditor-reset');
+        if (!resetElement) return;
+
+        if (isGenerating) {
+          // AI 生成中：禁止编辑，但允许滚动
+          resetElement.setAttribute('contenteditable', 'false');
+          // 添加键盘事件监听，阻止所有键盘输入
+          resetElement.addEventListener('keydown', this.onKeyDownGenerating, true);
+          resetElement.addEventListener('keypress', this.onKeyDownGenerating, true);
+          resetElement.addEventListener('keyup', this.onKeyDownGenerating, true);
         } else {
-          // 重新启用编辑器
-          this.vditorInstance.enable();
+          // 生成完成：恢复编辑
+          resetElement.setAttribute('contenteditable', 'true');
+          // 移除键盘事件监听
+          resetElement.removeEventListener('keydown', this.onKeyDownGenerating, true);
+          resetElement.removeEventListener('keypress', this.onKeyDownGenerating, true);
+          resetElement.removeEventListener('keyup', this.onKeyDownGenerating, true);
         }
       } catch (error) {
-        console.error('[VditorEditor] Failed to update disabled state:', error);
+        console.error('[VditorEditor] Failed to update editable state:', error);
       }
+    },
+
+    /**
+     * AI 生成时阻止键盘输入
+     * @param {KeyboardEvent} event
+     */
+    onKeyDownGenerating(event) {
+      // 阻止所有键盘事件（除了可能需要的特殊键）
+      // 如果需要允许某些快捷键，可以在这里添加条件判断
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
     },
 
     /**
@@ -393,27 +418,22 @@ export default {
   animation: pulse-border 2s ease-in-out infinite;
 }
 
-/* AI 生成中，大纲导航禁用交互 */
-.vditor-editor-container.generating :deep(.vditor-outline) {
-  pointer-events: none;
+/* AI 生成中，禁止文本选择 */
+.vditor-editor-container.generating :deep(.vditor-ir .vditor-reset) {
   user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
-/* AI 生成中，禁用编辑区域的交互 */
-.vditor-editor-container.generating :deep(.vditor-ir) {
-  pointer-events: none;
-  user-select: none;
-  cursor: not-allowed;
-}
-
-/* 禁用工具栏按钮 */
+/* AI 生成中，禁用工具栏按钮 */
 .vditor-editor-container.generating :deep(.vditor-toolbar) {
   pointer-events: none;
   opacity: 0.6;
 }
 
-/* 禁用输入框 */
-.vditor-editor-container.generating :deep(.vditor-ir .vditor-reset) {
+/* AI 生成中，大纲导航禁用交互 */
+.vditor-editor-container.generating :deep(.vditor-outline) {
   pointer-events: none;
   user-select: none;
 }

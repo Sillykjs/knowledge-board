@@ -335,14 +335,6 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
           this.$refs.vditorEditor.setValue(this.content);
-          // 如果正在生成，滚动到底部
-          if (this.isAIGenerating) {
-            const vditor = this.$refs.vditorEditor.vditorInstance;
-            if (vditor && vditor.vditor && vditor.vditor.ir) {
-              const irElement = vditor.vditor.ir.element;
-              irElement.scrollTop = irElement.scrollHeight;
-            }
-          }
         }
       });
 
@@ -788,14 +780,7 @@ export default {
                     // 节流后渲染到编辑器
                     this.$refs.vditorEditor?.setValue(this.streamingContent);
 
-                    // 滚动到底部
-                    this.$nextTick(() => {
-                      const vditor = this.$refs.vditorEditor?.vditorInstance;
-                      if (vditor && vditor.vditor && vditor.vditor.ir) {
-                        const irElement = vditor.vditor.ir.element;
-                        irElement.scrollTop = irElement.scrollHeight;
-                      }
-                    });
+                    // 已移除自动滚动到底部
                   }
                 }
               } catch (e) {
@@ -1242,14 +1227,7 @@ export default {
                     // 节流后渲染到编辑器
                     this.$refs.vditorEditor?.setValue(this.streamingContent);
 
-                    // 滚动到底部
-                    this.$nextTick(() => {
-                      const vditor = this.$refs.vditorEditor?.vditorInstance;
-                      if (vditor && vditor.vditor && vditor.vditor.ir) {
-                        const irElement = vditor.vditor.ir.element;
-                        irElement.scrollTop = irElement.scrollHeight;
-                      }
-                    });
+                    // 已移除自动滚动到底部
                   }
                 }
               } catch (e) {

@@ -168,6 +168,14 @@
         <div
           v-if="contextMenuBoard"
           class="context-menu-item"
+          @click="editBoard(contextMenuBoard)"
+        >
+          <span class="menu-icon">✏️</span>
+          <span class="menu-text">编辑白板</span>
+        </div>
+        <div
+          v-if="contextMenuBoard"
+          class="context-menu-item"
           :class="{ disabled: contextMenuBoard.id === 1 || boards.length <= 1 }"
           @click="askDeleteBoard(contextMenuBoard.id)"
         >
@@ -972,6 +980,24 @@ export default {
     hideBoardContextMenu() {
       this.boardContextMenuVisible = false;
       this.contextMenuBoard = null;
+    },
+
+    // 编辑白板
+    async editBoard(board) {
+      // 如果编辑的不是当前白板，先切换过去
+      if (board.id !== this.currentBoardId) {
+        await this.switchBoard(board.id);
+      }
+
+      // 关闭右键菜单
+      this.hideBoardContextMenu();
+
+      // 等待组件挂载完成后打开编辑模态框
+      this.$nextTick(() => {
+        if (this.$refs.noteWall && this.$refs.noteWall.openEditModal) {
+          this.$refs.noteWall.openEditModal();
+        }
+      });
     }
   }
 };

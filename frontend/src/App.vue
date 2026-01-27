@@ -101,6 +101,19 @@
       <div class="notes-index">
         <div class="notes-index-header">
           <h3>便签索引</h3>
+
+          <!-- 增强搜索开关 -->
+          <div class="advanced-search-toggle">
+            <span class="toggle-label">增强搜索</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                v-model="advancedSearchEnabled"
+              />
+              <span class="slider round"></span>
+            </label>
+          </div>
+
           <span class="notes-count">{{ sortedNotes.length }}</span>
         </div>
 
@@ -110,7 +123,7 @@
             v-model="searchQuery"
             type="text"
             class="search-input"
-            placeholder="搜索所有白板便签..."
+            :placeholder="advancedSearchEnabled ? '增强搜索：标题和内容' : '搜索所有便签的标题'"
             @input="onSearchInput"
           />
           <button
@@ -262,6 +275,7 @@ export default {
       rightSidebarCollapsed: true, // 右侧边栏是否收起
       currentNotes: [], // 当前白板的便签列表（用于右侧索引）
       searchQuery: '', // 搜索关键词
+      advancedSearchEnabled: false, // 增强搜索是否启用
       allBoardsNotes: {}, // 缓存所有白板的便签数据 { boardId: [notes] }
       initialNoteId: null, // 跨白板跳转时指定的便签ID
       isJumping: false // 防止并发跳转的标志位
@@ -284,9 +298,19 @@ export default {
       // 根据搜索关键词计算每个白板的筛选后数量
       this.boards.forEach(board => {
         const notes = this.allBoardsNotes[board.id] || [];
-        const filteredCount = notes.filter(note =>
-          note.title && note.title.toLowerCase().includes(query)
-        ).length;
+        const filteredCount = notes.filter(note => {
+          // 标题匹配
+          const titleMatch = note.title && note.title.toLowerCase().includes(query);
+
+          if (this.advancedSearchEnabled) {
+            // 增强搜索：标题或内容匹配
+            const contentMatch = note.content && note.content.toLowerCase().includes(query);
+            return titleMatch || contentMatch;
+          } else {
+            // 普通搜索：仅标题匹配
+            return titleMatch;
+          }
+        }).length;
         counts[board.id] = filteredCount;
       });
 
@@ -326,9 +350,19 @@ export default {
       // 2. 根据搜索关键词过滤
       if (this.searchQuery && this.searchQuery.trim() !== '') {
         const query = this.searchQuery.toLowerCase().trim();
-        allNotes = allNotes.filter(note =>
-          note.title && note.title.toLowerCase().includes(query)
-        );
+        allNotes = allNotes.filter(note => {
+          // 标题匹配
+          const titleMatch = note.title && note.title.toLowerCase().includes(query);
+
+          if (this.advancedSearchEnabled) {
+            // 增强搜索：标题或内容匹配
+            const contentMatch = note.content && note.content.toLowerCase().includes(query);
+            return titleMatch || contentMatch;
+          } else {
+            // 普通搜索：仅标题匹配
+            return titleMatch;
+          }
+        });
       }
 
       // 3. 按创建时间排序（降序，新的在前）
@@ -1478,6 +1512,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 12px 16px;
   background: #f5f5f5;
   border-radius: 8px;
@@ -1551,6 +1586,75 @@ body {
   min-width: 20px;
   text-align: center;
 }
+
+/* 增强搜索开关样式 */
+.advanced-search-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+.slider.round {
+  border-radius: 22px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
 
 .notes-list {
   flex: 1;

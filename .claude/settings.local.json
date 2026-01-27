@@ -23,7 +23,8 @@
       "Bash(npm uninstall:*)",
       "mcp__zread__search_doc",
       "Bash(git add:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "mcp__zai-mcp-server__extract_text_from_screenshot"
     ]
   }
 }

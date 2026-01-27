@@ -904,8 +904,8 @@ export default {
         // 注意：不需要 $forceUpdate()，Vue 响应式系统会自动处理更新
         // Vue 的 splice 会自动触发视图更新，$forceUpdate() 会导致性能灾难
 
-        // 通知父组件便签列表已更新（仅在必要时触发）
-        // this.$emit('notes-loaded', this.notes);
+        // 通知父组件便签列表已更新（用于同步搜索缓存）
+        this.$emit('notes-loaded', this.notes);
       }
     },
     async onNoteDelete(noteId) {
@@ -1430,6 +1430,9 @@ export default {
           position_x: x,
           position_y: y
         });
+
+        // 保存成功后，触发 notes-loaded 事件以更新搜索缓存
+        this.$emit('notes-loaded', this.notes);
       } catch (error) {
         console.error('Failed to save note position:', error);
       }

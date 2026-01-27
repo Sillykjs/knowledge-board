@@ -448,9 +448,11 @@ export default {
         });
 
         const results = await Promise.all(promises);
-        results.forEach(({ boardId, notes }) => {
-          this.allBoardsNotes[boardId] = notes;
-        });
+
+        // 创建新对象以触发响应式更新
+        this.allBoardsNotes = Object.fromEntries(
+          results.map(({ boardId, notes }) => [boardId, notes])
+        );
       } catch (error) {
         console.error('Failed to load all boards notes:', error);
       }
@@ -561,13 +563,16 @@ export default {
       // 当便签数量变化时，重新加载白板列表以更新 note_count
       await this.loadBoards();
 
-      // 重新加载当前白板的便签数据（更新缓存）
-      if (this.currentBoardId && this.allBoardsNotes[this.currentBoardId]) {
+      // 重新加载当前白板的便签数据（更新缓存，创建新对象引用）
+      if (this.currentBoardId) {
         try {
           const response = await axios.get('/api/notes', {
             params: { wall_id: this.currentBoardId }
           });
-          this.allBoardsNotes[this.currentBoardId] = response.data.notes || [];
+          this.allBoardsNotes = {
+            ...this.allBoardsNotes,
+            [this.currentBoardId]: response.data.notes || []
+          };
         } catch (error) {
           console.error('Failed to reload board notes:', error);
         }
@@ -578,9 +583,12 @@ export default {
     onNotesLoaded(notes) {
       this.currentNotes = notes;
 
-      // 缓存当前白板的便签数据
+      // 缓存当前白板的便签数据（创建新对象引用以触发响应式更新）
       if (this.currentBoardId) {
-        this.allBoardsNotes[this.currentBoardId] = [...notes];
+        this.allBoardsNotes = {
+          ...this.allBoardsNotes,
+          [this.currentBoardId]: [...notes]
+        };
       }
     },
 

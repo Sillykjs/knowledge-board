@@ -5,7 +5,7 @@ const notesRouter = require('./routes/notes');
 const modelConfigRouter = require('./routes/model-config');
 
 const app = express();
-const PORT = 3001;
+const PORT = 3002;
 
 // 中间件
 app.use(cors());

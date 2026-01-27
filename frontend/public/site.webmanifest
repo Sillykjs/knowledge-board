@@ -1,6 +1,6 @@
 {
-  "name": "知识白板",
-  "short_name": "知识白板",
+  "name": "知识白板02",
+  "short_name": "知识白板02",
   "description": "将大模型的问答作为便签贴在无限白板中",
   "start_url": "/",
   "display": "standalone",

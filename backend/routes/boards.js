@@ -152,7 +152,7 @@ router.put('/:id', (req, res) => {
   });
 });
 
-// 删除白板
+// 删除白板（级联删除便签和连接）
 router.delete('/:id', (req, res) => {
   const { id } = req.params;
 
@@ -162,18 +162,60 @@ router.delete('/:id', (req, res) => {
     return;
   }
 
-  const sql = 'DELETE FROM boards WHERE id = ?';
+  // 使用事务确保数据一致性
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
 
-  db.run(sql, id, function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Board not found' });
-      return;
-    }
-    res.json({ message: 'Board deleted' });
+    // 1. 删除该白板的所有连接
+    db.run('DELETE FROM note_connections WHERE wall_id = ?', [id], (err) => {
+      if (err) {
+        console.error('Error deleting note_connections:', err.message);
+        db.run('ROLLBACK');
+        res.status(500).json({ error: err.message });
+        return;
+      }
+
+      // 2. 删除该白板的所有便签（note_connections 有级联删除，但这里直接删除更安全）
+      db.run('DELETE FROM notes WHERE wall_id = ?', [id], (err) => {
+        if (err) {
+          console.error('Error deleting notes:', err.message);
+          db.run('ROLLBACK');
+          res.status(500).json({ error: err.message });
+          return;
+        }
+
+        // 3. 删除白板
+        db.run('DELETE FROM boards WHERE id = ?', [id], function(err) {
+          if (err) {
+            console.error('Error deleting board:', err.message);
+            db.run('ROLLBACK');
+            res.status(500).json({ error: err.message });
+            return;
+          }
+
+          if (this.changes === 0) {
+            db.run('ROLLBACK');
+            res.status(404).json({ error: 'Board not found' });
+            return;
+          }
+
+          // 提交事务
+          db.run('COMMIT', (err) => {
+            if (err) {
+              console.error('Error committing transaction:', err.message);
+              res.status(500).json({ error: err.message });
+              return;
+            }
+
+            console.log(`Board ${id} deleted successfully with all notes and connections`);
+            res.json({
+              message: 'Board deleted',
+              details: 'Board and all associated notes/connections have been removed'
+            });
+          });
+        });
+      });
+    });
   });
 });
 

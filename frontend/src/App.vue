@@ -27,6 +27,7 @@
             <div
               :class="['board-item', { active: currentBoardId === board.id }]"
               @click="switchBoard(board.id)"
+              @contextmenu.prevent="showBoardContextMenu($event, board)"
             >
               <!-- 展开状态：显示完整信息 -->
               <template v-if="!sidebarCollapsed">
@@ -36,15 +37,6 @@
                   <span v-if="filteredBoardCounts[board.id] > 0" class="board-badge">
                     {{ filteredBoardCounts[board.id] }}
                   </span>
-                  <button
-                    v-if="boards.length > 1"
-                    class="board-delete"
-                    @click.stop="askDeleteBoard(board.id)"
-                    :disabled="board.id === 1"
-                    :title="board.id === 1 ? '默认白板不能删除' : '删除白板'"
-                  >
-                    🗑️
-                  </button>
                 </div>
               </template>
 
@@ -165,6 +157,34 @@
       {{ rightSidebarCollapsed ? '◀' : '▶' }}
     </button>
 
+    <!-- 白板右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="boardContextMenuVisible"
+        class="context-menu"
+        :style="{ left: boardContextMenuPosition.x + 'px', top: boardContextMenuPosition.y + 'px' }"
+        @click.stop
+      >
+        <div
+          v-if="contextMenuBoard"
+          class="context-menu-item"
+          :class="{ disabled: contextMenuBoard.id === 1 || boards.length <= 1 }"
+          @click="askDeleteBoard(contextMenuBoard.id)"
+        >
+          <span class="menu-icon">🗑️</span>
+          <span class="menu-text">删除白板</span>
+          <span v-if="contextMenuBoard.id === 1" class="menu-hint">默认白板</span>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 点击其他地方关闭右键菜单 -->
+    <div
+      v-if="boardContextMenuVisible"
+      class="context-menu-overlay"
+      @click="hideBoardContextMenu"
+    ></div>
+
     <!-- 删除白板确认模态框 -->
     <Teleport to="body">
       <div v-if="showDeleteBoardConfirm" class="modal-overlay" @click="cancelDeleteBoard">
@@ -278,7 +298,10 @@ export default {
       advancedSearchEnabled: false, // 增强搜索是否启用
       allBoardsNotes: {}, // 缓存所有白板的便签数据 { boardId: [notes] }
       initialNoteId: null, // 跨白板跳转时指定的便签ID
-      isJumping: false // 防止并发跳转的标志位
+      isJumping: false, // 防止并发跳转的标志位
+      boardContextMenuVisible: false, // 白板右键菜单是否显示
+      boardContextMenuPosition: { x: 0, y: 0 }, // 右键菜单位置
+      contextMenuBoard: null // 当前右键菜单选中的白板
     };
   },
   computed: {
@@ -524,6 +547,14 @@ export default {
     askDeleteBoard(boardId) {
       const board = this.boards.find(b => b.id === boardId);
       if (!board) return;
+
+      // 如果是默认白板或只剩一个白板，不允许删除
+      if (board.id === 1 || this.boards.length <= 1) {
+        return;
+      }
+
+      // 关闭右键菜单
+      this.hideBoardContextMenu();
 
       this.pendingDeleteBoardId = boardId;
       this.showDeleteBoardConfirm = true;
@@ -913,6 +944,34 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       });
+    },
+
+    // ========== 白板右键菜单相关方法 ==========
+
+    // 显示白板右键菜单
+    showBoardContextMenu(event, board) {
+      this.contextMenuBoard = board;
+      this.boardContextMenuPosition = {
+        x: event.clientX,
+        y: event.clientY
+      };
+      this.boardContextMenuVisible = true;
+
+      // 点击菜单项后自动关闭菜单
+      this.$nextTick(() => {
+        const menuItems = document.querySelectorAll('.context-menu-item:not(.disabled)');
+        menuItems.forEach(item => {
+          item.addEventListener('click', () => {
+            this.hideBoardContextMenu();
+          }, { once: true });
+        });
+      });
+    },
+
+    // 隐藏白板右键菜单
+    hideBoardContextMenu() {
+      this.boardContextMenuVisible = false;
+      this.contextMenuBoard = null;
     }
   }
 };
@@ -1739,6 +1798,83 @@ input:checked + .slider:before {
   align-items: center;
   gap: 4px;
   align-self: flex-start;
+}
+
+/* ========== 白板右键菜单样式 ========== */
+
+.context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2999;
+  background: transparent;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 180px;
+  animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+  color: #333;
+  user-select: none;
+}
+
+.context-menu-item:hover:not(.disabled) {
+  background: #f5f5f5;
+  color: #d32f2f;
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #999;
+}
+
+.menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.menu-text {
+  flex: 1;
+  font-weight: 500;
+}
+
+.menu-hint {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 </style>

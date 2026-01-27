@@ -295,20 +295,26 @@ export default {
         return counts;
       }
 
-      // 根据搜索关键词计算每个白板的筛选后数量
+      // 根据搜索关键词计算每个白板的筛选后数量（支持 AND 搜索）
       this.boards.forEach(board => {
         const notes = this.allBoardsNotes[board.id] || [];
+        // 将搜索词按空格分割成多个关键词（支持多个空格）
+        const keywords = query.split(/\s+/).filter(k => k.length > 0);
+
         const filteredCount = notes.filter(note => {
-          // 标题匹配
-          const titleMatch = note.title && note.title.toLowerCase().includes(query);
+          const titleLower = note.title ? note.title.toLowerCase() : '';
+          const contentLower = note.content ? note.content.toLowerCase() : '';
 
           if (this.advancedSearchEnabled) {
-            // 增强搜索：标题或内容匹配
-            const contentMatch = note.content && note.content.toLowerCase().includes(query);
-            return titleMatch || contentMatch;
+            // 增强搜索：所有关键词都必须在标题或内容中匹配
+            return keywords.every(keyword => {
+              return titleLower.includes(keyword) || contentLower.includes(keyword);
+            });
           } else {
-            // 普通搜索：仅标题匹配
-            return titleMatch;
+            // 普通搜索：所有关键词都必须在标题中匹配
+            return keywords.every(keyword => {
+              return titleLower.includes(keyword);
+            });
           }
         }).length;
         counts[board.id] = filteredCount;
@@ -347,20 +353,26 @@ export default {
         allNotes.push(...boardNotes);
       });
 
-      // 2. 根据搜索关键词过滤
+      // 2. 根据搜索关键词过滤（支持 AND 搜索）
       if (this.searchQuery && this.searchQuery.trim() !== '') {
         const query = this.searchQuery.toLowerCase().trim();
+        // 将搜索词按空格分割成多个关键词（支持多个空格）
+        const keywords = query.split(/\s+/).filter(k => k.length > 0);
+
         allNotes = allNotes.filter(note => {
-          // 标题匹配
-          const titleMatch = note.title && note.title.toLowerCase().includes(query);
+          const titleLower = note.title ? note.title.toLowerCase() : '';
+          const contentLower = note.content ? note.content.toLowerCase() : '';
 
           if (this.advancedSearchEnabled) {
-            // 增强搜索：标题或内容匹配
-            const contentMatch = note.content && note.content.toLowerCase().includes(query);
-            return titleMatch || contentMatch;
+            // 增强搜索：所有关键词都必须在标题或内容中匹配
+            return keywords.every(keyword => {
+              return titleLower.includes(keyword) || contentLower.includes(keyword);
+            });
           } else {
-            // 普通搜索：仅标题匹配
-            return titleMatch;
+            // 普通搜索：所有关键词都必须在标题中匹配
+            return keywords.every(keyword => {
+              return titleLower.includes(keyword);
+            });
           }
         });
       }

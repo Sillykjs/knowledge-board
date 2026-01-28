@@ -228,18 +228,44 @@
         <div class="help-body">
           <div class="help-section">
             <h4>🎯 快速开始</h4>
-            <p>欢迎使用知识白板！这里将提供详细的使用指南。</p>
+            <p>• 双击白板或者右下角按钮创建新便签</p>
+            <p>• <strong>鼠标拖拽</strong>移动便签，<strong>滚轮</strong>缩放画布</p>
+            <p>• <strong>中键+拖拽</strong>平移画布</p>
           </div>
 
           <div class="help-section">
-            <h4>📝 基本操作</h4>
-            <p>帮助内容正在持续更新中...</p>
+            <h4>📝 便签操作</h4>
+            <p>• 双击点击便签进入编辑模式，支持 Markdown</p>
+            <p>• <strong>右键</strong>打开菜单：上文追溯、删除等</p>
+            <p>• 便签<strong>正下方圆点</strong>可拖拽建立连接或者快速新建便签</p>
           </div>
 
           <div class="help-section">
-            <h4>🔗 连接功能</h4>
-            <p>更多功能即将推出，敬请期待！</p>
+            <h4>🔗 连接与追溯</h4>
+            <p>• 拖拽便签正下方圆点到另一个便签建立连接</p>
+            <p>• 右键选择<strong>"上文追溯"</strong>高亮显示相关便签</p>
+            <p>• 连接线可删除</p>
           </div>
+
+          <div class="help-section">
+            <h4>🤖 AI 生成</h4>
+            <p>• 编辑便签时点击<strong>"AI 生成内容"</strong></p>
+            <p>• 自动加载关联便签作为上文</p>
+            <p>• 需在左侧边栏配置 AI 模型</p>
+          </div>
+
+          <div class="help-section">
+            <h4>🗑️ 回收站</h4>
+            <p>• 删除的便签进入回收站</p>
+            <p>• 可<strong>恢复</strong>或<strong>永久删除</strong></p>
+          </div>
+
+          <!-- <div class="help-section">
+            <h4>⌨️ 快捷键</h4>
+            <p>• <strong>Ctrl+A</strong> 全选便签</p>
+            <p>• <strong>Delete</strong> 删除选中的便签</p>
+            <p>• <strong>ESC</strong> 关闭弹窗/取消选择</p>
+          </div> -->
         </div>
 
         <div class="help-footer">

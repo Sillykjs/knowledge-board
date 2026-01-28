@@ -160,6 +160,9 @@
 
     <!-- 缩放控制按钮组 -->
     <div class="zoom-controls">
+      <button class="zoom-btn help" @click="openHelpModal" title="帮助">
+        <span>?</span>
+      </button>
       <button class="zoom-btn" @click="zoomIn" title="放大">
         <span>+</span>
       </button>
@@ -210,6 +213,37 @@
             清空回收站
           </button>
           <button @click="closeRecycleBin" class="btn-close">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div v-if="showHelpModal" class="help-modal" @click="closeHelpModalOutside">
+      <div class="help-modal-content" @click.stop @wheel.stop>
+        <div class="help-header">
+          <h3>使用帮助</h3>
+          <button class="close-btn" @click="closeHelpModal">×</button>
+        </div>
+
+        <div class="help-body">
+          <div class="help-section">
+            <h4>🎯 快速开始</h4>
+            <p>欢迎使用知识白板！这里将提供详细的使用指南。</p>
+          </div>
+
+          <div class="help-section">
+            <h4>📝 基本操作</h4>
+            <p>帮助内容正在持续更新中...</p>
+          </div>
+
+          <div class="help-section">
+            <h4>🔗 连接功能</h4>
+            <p>更多功能即将推出，敬请期待！</p>
+          </div>
+        </div>
+
+        <div class="help-footer">
+          <button @click="closeHelpModal" class="btn-close">关闭</button>
         </div>
       </div>
     </div>
@@ -318,6 +352,7 @@ export default {
       showTooltip: false,
       isEditingTitle: false,
       showRecycleBin: false,
+      showHelpModal: false,
       recycleNotes: [],
       recycleCount: 0,
       showDeleteConfirm: false,
@@ -508,7 +543,7 @@ export default {
     // 白板鼠标按下事件
     onWallMouseDown(event) {
       // 如果有任何模态框打开，不处理白板拖拽
-      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+      if (this.isEditingTitle || this.showRecycleBin || this.showHelpModal || this.showDeleteConfirm || this.showClearConfirm) {
         return;
       }
 
@@ -1190,7 +1225,7 @@ export default {
     // 白板右键菜单
     onWallContextMenu(event) {
       // 如果有任何模态框打开，不显示右键菜单
-      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+      if (this.isEditingTitle || this.showRecycleBin || this.showHelpModal || this.showDeleteConfirm || this.showClearConfirm) {
         return;
       }
 
@@ -1477,6 +1512,17 @@ export default {
     },
     closeRecycleBin() {
       this.showRecycleBin = false;
+    },
+    openHelpModal() {
+      this.showHelpModal = true;
+    },
+    closeHelpModal() {
+      this.showHelpModal = false;
+    },
+    closeHelpModalOutside(event) {
+      if (event.target.classList.contains('help-modal')) {
+        this.closeHelpModal();
+      }
     },
     async loadRecycleNotes() {
       try {
@@ -2674,6 +2720,14 @@ export default {
   background: #1976d2;
 }
 
+.zoom-btn.help {
+  background: #ff9800;
+}
+
+.zoom-btn.help:hover {
+  background: #f57c00;
+}
+
 .zoom-level {
   font-size: 12px;
   font-weight: bold;
@@ -3085,6 +3139,80 @@ export default {
 
 .btn-close:hover {
   background: #e0e0e0;
+}
+
+/* 帮助模态框样式 */
+.help-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.help-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.2s ease-out;
+}
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.help-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.help-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.help-section {
+  margin-bottom: 24px;
+}
+
+.help-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #2196f3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-section p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.help-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* 白板右键菜单样式 */

@@ -384,20 +384,34 @@ export default {
       // 如果标题没有变化，直接返回
       if (this.viewEditTitle === this.title) return;
 
+      const newTitle = this.viewEditTitle;
+
       try {
         await axios.put(`/api/notes/${this.id}`, {
-          title: this.viewEditTitle,
+          title: newTitle,
           content: this.content,
           position_x: this.position_x,
           position_y: this.position_y
         });
 
+        // 先更新本地标题状态，再触发事件，确保 AI 生成时使用新标题
         this.$emit('update', {
           id: this.id,
-          title: this.viewEditTitle,
+          title: newTitle,
           content: this.content,
           position_x: this.position_x,
           position_y: this.position_y
+        });
+
+        // 手动更新本地标题，确保后续操作使用新标题
+        // 由于 props 是只读的，我们需要等待父组件更新
+        // 这里使用 $nextTick 确保父组件更新完成后再触发 AI 生成
+        this.$nextTick(() => {
+          // 标题保存成功后，如果内容为空，自动触发 AI 生成
+          if (!this.content || this.content.trim() === '') {
+            // console.log('[Note] 内容为空，自动触发 AI 生成，使用新标题:', newTitle);
+            this.generateAIContent();
+          }
         });
       } catch (error) {
         console.error('Failed to update note title:', error);

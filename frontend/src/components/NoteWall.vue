@@ -969,17 +969,43 @@ export default {
         this.$emit('notes-loaded', this.notes);
       }
     },
-    async onNoteDelete(noteId) {
-      // 先加载连接（后端会自动删除相关连接），避免渲染时找不到便签导致连接线闪烁到原点
-      await this.loadConnections();
-      // 再从 notes 数组中移除便签
-      this.notes = this.notes.filter(n => n.id !== noteId);
-      this.loadRecycleNotes();
+    async onNoteDelete(noteToDelete) {
+      // 检查是否有多个选中的便签（批量删除模式）
+      if (this.selectedNoteIds.size > 1) {
+        await this.deleteMultipleNotes(noteToDelete);
+      } else {
+        // 单便签删除模式（原有逻辑)
+        await this.loadConnections();
+        this.notes = this.notes.filter(n => n.id !== noteToDelete.id);
+        this.loadRecycleNotes();
+        this.$emit('notes-loaded', this.notes);
+        this.$emit('note-count-changed');
+      }
+    },
+    // 批量删除选中的便签
+    async deleteMultipleNotes(baseNote) {
+      // 1. 批量删除选中的便签
+      for (const noteId of this.selectedNoteIds) {
+        try {
+          await axios.delete(`/api/notes/${noteId}`);
+        } catch (error) {
+          console.error(`Failed to delete note ${noteId}:`, error);
+        }
+      }
 
-      // 通知父组件便签列表已更新
+      // 2. 更新本地状态
+      this.notes = this.notes.filter(n => !this.selectedNoteIds.has(n.id));
+
+      // 3. 重新加载连接线和回收站计数
+      await this.loadConnections();
+      await this.loadRecycleNotes();
+
+      // 4. 通知父组件
       this.$emit('notes-loaded', this.notes);
-      // 通知父组件更新白板列表（便签数量变化）
       this.$emit('note-count-changed');
+
+      // 5. 清空选择
+      this.selectedNoteIds.clear();
     },
     // 直接拷贝便签（立即复制到附近）
     async onNoteDuplicate(sourceNote) {

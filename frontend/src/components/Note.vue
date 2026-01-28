@@ -505,15 +505,18 @@ export default {
     onMouseLeave() {
       this.$emit('mouse-leave', this.id);
     },
-    async deleteNote() {
+    deleteNote() {
       this.showContextMenu = false;
 
-      try {
-        await axios.delete(`/api/notes/${this.id}`);
-        this.$emit('delete', this.id);
-      } catch (error) {
-        console.error('Failed to delete note:', error);
-      }
+      // 触发删除事件，传递便签信息给父组件
+      // 父组件会根据是否有选中的便签来决定是单个删除还是批量删除
+      this.$emit('delete', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
     },
     cutNote() {
       this.showContextMenu = false;

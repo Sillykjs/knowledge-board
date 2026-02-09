@@ -71,6 +71,10 @@
           <span class="menu-icon">🔗</span>
           <span>上文追溯</span>
         </div>
+        <div class="context-menu-item" @click="openChatMode">
+          <span class="menu-icon">💬</span>
+          <span>对话模式</span>
+        </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>
           <span>删除</span>
@@ -572,6 +576,19 @@ export default {
 
       // 触发上文追溯事件，传递当前便签 ID
       this.$emit('trace-parent', this.id);
+    },
+    openChatMode() {
+      this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
+
+      // 触发对话模式事件，传递当前便签信息
+      this.$emit('open-chat-mode', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
     },
     async updatePosition(x, y) {
       try {

@@ -103,6 +103,7 @@
         @duplicate="onNoteDuplicate"
         @duplicate-with-model="onNoteDuplicateWithModel"
         @trace-parent="onTraceParent"
+        @open-chat-mode="onOpenChatMode"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
         @quick-create="onQuickCreate"
@@ -335,17 +336,28 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 对话模式模态窗口 -->
+    <ChatModal
+      ref="chatModal"
+      :available-models="availableModels"
+      :initial-note="chatInitialNote"
+      :upstream-notes="chatUpstreamNotes"
+      @note-updated="onChatNoteUpdated"
+    />
   </div>
 </template>
 
 <script>
 import axios from 'axios';
 import Note from './Note.vue';
+import ChatModal from './ChatModal.vue';
 
 export default {
   name: 'NoteWall',
   components: {
-    Note
+    Note,
+    ChatModal
   },
   props: {
     boardId: {
@@ -403,6 +415,9 @@ export default {
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
       highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
       hoveredNoteIds: new Set(), // 鼠标悬停的便签ID集合（用于显示引入线）
+      // 对话模式
+      chatInitialNote: null,    // 当前选中的便签（用于对话模式）
+      chatUpstreamNotes: [],    // 上游便签列表（用于对话模式）
       // 剪切板
       clipboardData: null,  // 存储复制的便签数据（支持多便签）
       // 数据结构: { notes: [], connections: [], sourceWallId, isCutMode, baseNoteId, basePosition }
@@ -1528,6 +1543,80 @@ export default {
         this.highlightedConnectionIds.clear();
         this.highlightTimer = null;
       }, 2000);
+    },
+    // 打开对话模式
+    onOpenChatMode(noteData) {
+      // 设置当前便签
+      this.chatInitialNote = {
+        id: noteData.id,
+        title: noteData.title,
+        content: noteData.content,
+        position_x: noteData.position_x,
+        position_y: noteData.position_y,
+        wall_id: this.boardId
+      };
+
+      // 获取上游便签
+      this.chatUpstreamNotes = this.getUpstreamNotes(noteData.id);
+
+      // 打开对话模态窗口
+      this.$nextTick(() => {
+        if (this.$refs.chatModal) {
+          this.$refs.chatModal.open(noteData.id, { x: noteData.position_x, y: noteData.position_y });
+        }
+      });
+    },
+    // 获取上游便签（按创建时间排序）
+    getUpstreamNotes(noteId) {
+      const upstreamNotes = [];
+      const visited = new Set();
+      const queue = [noteId];
+
+      while (queue.length > 0) {
+        const currentNoteId = queue.shift();
+
+        if (visited.has(currentNoteId)) {
+          continue;
+        }
+        visited.add(currentNoteId);
+
+        // 找到所有以当前节点为目标节点的连接（即父节点）
+        const parentConnections = this.connections.filter(
+          conn => conn.target_note_id === currentNoteId
+        );
+
+        // 遍历所有父节点
+        parentConnections.forEach(conn => {
+          const parentId = conn.source_note_id;
+          const parentNote = this.notes.find(n => n.id === parentId);
+
+          if (parentNote && !visited.has(parentId)) {
+            upstreamNotes.push(parentNote);
+            queue.push(parentId);
+          }
+        });
+      }
+
+      // 按创建时间排序（从早到晚）
+      upstreamNotes.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateA - dateB;
+      });
+
+      return upstreamNotes;
+    },
+    // 对话模式中便签更新
+    onChatNoteUpdated(noteData) {
+      // 更新本地便签数据
+      const noteIndex = this.notes.findIndex(n => n.id === noteData.id);
+      if (noteIndex !== -1) {
+        this.notes = [...this.notes];
+        this.notes[noteIndex].content = noteData.content;
+      }
+
+      // 重新加载便签列表以保持同步
+      this.loadNotes();
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

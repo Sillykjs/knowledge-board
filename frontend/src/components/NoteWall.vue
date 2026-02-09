@@ -994,7 +994,14 @@ export default {
       if (this.selectedNoteIds.size > 1) {
         await this.deleteMultipleNotes(noteToDelete);
       } else {
-        // 单便签删除模式（原有逻辑)
+        // 单便签删除模式
+        try {
+          await axios.delete(`/api/notes/${noteToDelete.id}`);
+        } catch (error) {
+          console.error('Failed to delete note:', error);
+          return;
+        }
+
         await this.loadConnections();
         this.notes = this.notes.filter(n => n.id !== noteToDelete.id);
         this.loadRecycleNotes();

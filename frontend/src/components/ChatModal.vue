@@ -86,6 +86,8 @@
 
 <script>
 import axios from 'axios';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 export default {
   name: 'ChatModal',
@@ -120,7 +122,8 @@ export default {
       rootNoteId: null,
       lastNoteId: null,
       lastNotePosition: null,
-      newNotesCache: {}  // 缓存新创建的便签（用于保存内容时查找）
+      newNotesCache: {},  // 缓存新创建的便签（用于保存内容时查找）
+      renderedCache: {}    // 缓存已渲染的 HTML
     };
   },
   computed: {
@@ -500,24 +503,89 @@ export default {
       }
     },
 
-    // 渲染Markdown（简化版，实际项目中可以使用markdown-it等库）
+    // 渲染Markdown（使用 KaTeX 渲染数学公式）
     renderMarkdown(content) {
       if (!content) return '';
 
-      // 简单的Markdown转HTML
-      let html = content
+      // 使用缓存的渲染结果（如果存在）
+      const cacheKey = content;
+      if (this.renderedCache[cacheKey]) {
+        return this.renderedCache[cacheKey];
+      }
+
+      // 先处理数学公式（用占位符替换）
+      const mathPlaceholders = [];
+      let processedContent = content;
+
+      // 处理块级公式 $$...$$
+      processedContent = processedContent.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+        const placeholder = `__MATH_BLOCK_${mathPlaceholders.length}__`;
+        mathPlaceholders.push({ type: 'block', formula: formula.trim() });
+        return placeholder;
+      });
+
+      // 处理行内公式 $...$
+      processedContent = processedContent.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (match, formula) => {
+        const placeholder = `__MATH_INLINE_${mathPlaceholders.length}__`;
+        mathPlaceholders.push({ type: 'inline', formula: formula.trim() });
+        return placeholder;
+      });
+
+      // 简单的 Markdown 转 HTML（同步）
+      let html = processedContent
+        // 转义 HTML 字符（除了数学占位符）
+        .replace(/&(?!(?:amp|lt|gt);)/g, '&amp;')
+        .replace(/<(?!\/?[a-z]|__MATH)/gi, '&lt;')
+        .replace(/>(?!__MATH)/g, '&gt;')
         // 代码块
-        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+          return `<pre><code class="language-${lang || ''}">${code.trim()}</code></pre>`;
+        })
         // 行内代码
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
+        // 标题
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
         // 粗体
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         // 斜体
         .replace(/\*([^*]+)\*/g, '<em>$1</em>')
         // 链接
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+        // 无序列表
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        // 有序列表
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        // 引用
+        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
         // 换行
+        .replace(/\n\n/g, '</p><p>')
         .replace(/\n/g, '<br>');
+
+      // 包装在段落中
+      html = `<p>${html}</p>`;
+
+      // 渲染数学公式
+      mathPlaceholders.forEach((math, index) => {
+        try {
+          const rendered = katex.renderToString(math.formula, {
+            displayMode: math.type === 'block',
+            throwOnError: false,
+            output: 'html'
+          });
+          const placeholder = math.type === 'block'
+            ? `__MATH_BLOCK_${index}__`
+            : `__MATH_INLINE_${index}__`;
+          html = html.replace(placeholder, rendered);
+        } catch (error) {
+          console.error('Math rendering error:', error);
+        }
+      });
+
+      // 缓存结果
+      this.renderedCache[cacheKey] = html;
 
       return html;
     }
@@ -678,35 +746,6 @@ export default {
   border: 1px solid #e0e0e0;
 }
 
-.assistant-message pre {
-  background: #f5f5f5;
-  padding: 12px;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 8px 0;
-}
-
-.assistant-message code {
-  background: #f5f5f5;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 14px;
-}
-
-.assistant-message strong {
-  font-weight: bold;
-}
-
-.assistant-message em {
-  font-style: italic;
-}
-
-.assistant-message a {
-  color: #2196f3;
-  text-decoration: underline;
-}
-
 /* 输入区域 */
 .chat-input-area {
   padding: 16px 20px;
@@ -822,5 +861,144 @@ export default {
   30% {
     transform: translateY(-8px);
   }
+}
+
+/* Vditor 渲染样式覆盖 */
+.assistant-message :deep(.vditor-reset) {
+  padding: 0;
+  background: transparent;
+}
+
+/* KaTeX 数学公式样式 */
+.assistant-message :deep(.katex) {
+  font-size: 1.05em;
+  font-family: 'KaTeX_Main', 'Times New Roman', Times, serif;
+  font-weight: 400;
+}
+
+.assistant-message :deep(.katex .katex-html) {
+  color: #000;
+}
+
+.assistant-message :deep(.katex-display) {
+  display: block;
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.assistant-message :deep(h1),
+.assistant-message :deep(h2),
+.assistant-message :deep(h3),
+.assistant-message :deep(h4),
+.assistant-message :deep(h5),
+.assistant-message :deep(h6) {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  color: #333;
+}
+
+.assistant-message :deep(h1) {
+  font-size: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px;
+}
+
+.assistant-message :deep(h2) {
+  font-size: 18px;
+}
+
+.assistant-message :deep(h3) {
+  font-size: 16px;
+}
+
+.assistant-message :deep(p) {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.assistant-message :deep(ul),
+.assistant-message :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.assistant-message :deep(li) {
+  margin: 4px 0;
+}
+
+.assistant-message :deep(blockquote) {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid #2196f3;
+  background: #f5f5f5;
+  color: #555;
+}
+
+.assistant-message :deep(pre) {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid #e0e0e0;
+}
+
+.assistant-message :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  font-size: 14px;
+}
+
+.assistant-message :deep(code) {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 14px;
+  color: #e83e8c;
+}
+
+.assistant-message :deep(strong) {
+  font-weight: bold;
+}
+
+.assistant-message :deep(em) {
+  font-style: italic;
+}
+
+.assistant-message :deep(a) {
+  color: #2196f3;
+  text-decoration: underline;
+}
+
+.assistant-message :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.assistant-message :deep(table th),
+.assistant-message :deep(table td) {
+  border: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.assistant-message :deep(table th) {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+
+.assistant-message :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.assistant-message :deep(hr) {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 16px 0;
 }
 </style>

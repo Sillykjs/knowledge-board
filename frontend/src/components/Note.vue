@@ -41,7 +41,7 @@
     <!-- 右键菜单 - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
     <Teleport to="body">
       <div
-        v-if="showContextMenu"
+        v-if="shouldShowContextMenu"
         class="context-menu"
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
@@ -234,6 +234,10 @@ export default {
     availableModels: {
       type: Array,
       default: () => []
+    },
+    activeContextMenuNoteId: {
+      type: Number,
+      default: null
     }
   },
   data() {
@@ -262,6 +266,10 @@ export default {
   computed: {
     truncatedContent() {
       return this.content || '';
+    },
+    // 右键菜单是否显示（由父组件控制，实现互斥）
+    shouldShowContextMenu() {
+      return this.showContextMenu && this.activeContextMenuNoteId === this.id;
     }
   },
   watch: {
@@ -507,6 +515,7 @@ export default {
     },
     deleteNote() {
       this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
 
       // 触发删除事件，传递便签信息给父组件
       // 父组件会根据是否有选中的便签来决定是单个删除还是批量删除
@@ -520,6 +529,7 @@ export default {
     },
     cutNote() {
       this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
 
       // 触发剪切事件，传递便签信息给父组件
       this.$emit('cut', {
@@ -532,6 +542,7 @@ export default {
     },
     copyNote() {
       this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
 
       // 触发复制事件，传递便签信息给父组件
       this.$emit('copy', {
@@ -544,6 +555,7 @@ export default {
     },
     duplicateNote() {
       this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
 
       // 触发直接拷贝事件，立即复制便签到附近
       this.$emit('duplicate', {
@@ -556,6 +568,7 @@ export default {
     },
     traceParentNotes() {
       this.showContextMenu = false;
+      this.$emit('contextmenu-closed');
 
       // 触发上文追溯事件，传递当前便签 ID
       this.$emit('trace-parent', this.id);
@@ -610,6 +623,10 @@ export default {
       this.contextMenuX = x;
       this.contextMenuY = y;
       this.showContextMenu = true;
+
+      // 通知父组件更新当前打开的菜单ID（实现互斥）
+      // 同时通知父组件关闭白板右键菜单
+      this.$emit('contextmenu-opened', this.id, true);
     },
     // 模型菜单项鼠标进入
     onModelMenuItemEnter() {
@@ -649,18 +666,7 @@ export default {
         this.showModelSelector = false;
       }, 100);
     },
-    closeContextMenuOnOutsideClick(event) {
-      const noteEl = this.$el;
-      if (this.showContextMenu && !noteEl.contains(event.target)) {
-        this.showContextMenu = false;
-        // 清除模型选择器定时器
-        if (this.modelSelectorTimer) {
-          clearTimeout(this.modelSelectorTimer);
-          this.modelSelectorTimer = null;
-        }
-        this.showModelSelector = false;
-      }
-    },
+    // 注意：右键菜单的关闭逻辑已移至父组件 NoteWall 统一管理
     // 点击外部关闭模型下拉菜单
     closeModelDropdownOnOutsideClick(event) {
       // 只在模态框打开时处理
@@ -1317,11 +1323,9 @@ export default {
 
   },
   mounted() {
-    document.addEventListener('click', this.closeContextMenuOnOutsideClick);
     document.addEventListener('click', this.closeModelDropdownOnOutsideClick);
   },
   beforeUnmount() {
-    document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
     document.removeEventListener('click', this.closeModelDropdownOnOutsideClick);
     // 清除模型选择器定时器
     if (this.modelSelectorTimer) {

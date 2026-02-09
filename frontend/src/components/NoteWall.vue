@@ -91,6 +91,7 @@
         :position_y="note.position_y"
         :wallId="boardId"
         :isHighlighting="highlightedNoteIds.has(note.id)"
+        :activeContextMenuNoteId="activeContextMenuNoteId"
         :isSelected="selectedNoteIds.has(note.id)"
         :contextLevel="contextLevel"
         :currentModelName="currentModelName"
@@ -107,6 +108,8 @@
         @quick-create="onQuickCreate"
         @mouse-enter="onNoteMouseEnter"
         @mouse-leave="onNoteMouseLeave"
+        @contextmenu-opened="onNoteContextMenuOpened"
+        @contextmenu-closed="onNoteContextMenuClosed"
       />
     </div>
 
@@ -436,7 +439,9 @@ export default {
         step: 0.1
       },
       // 模型选择相关
-      selectedModel: ''       // 当前选中的模型（格式：provider|model）
+      selectedModel: '',       // 当前选中的模型（格式：provider|model）
+      // 便签右键菜单互斥
+      activeContextMenuNoteId: null  // 当前打开右键菜单的便签ID
     };
   },
   computed: {
@@ -1324,18 +1329,44 @@ export default {
       this.wallContextMenuY = y;
       this.showWallContextMenu = true;
       this.wallContextMenuOpenedAt = Date.now();
-    },
-    // 点击外部关闭白板右键菜单
-    closeWallContextMenuOnOutsideClick(event) {
-      if (!this.showWallContextMenu) return;
 
-      // 如果菜单刚刚打开（100ms内），不关闭（避免右键点击立即触发click事件关闭菜单）
-      const timeSinceOpened = Date.now() - this.wallContextMenuOpenedAt;
-      if (timeSinceOpened < 100) {
-        return;
+      // 关闭任何打开的便签右键菜单（实现互斥）
+      this.activeContextMenuNoteId = null;
+    },
+    // 点击外部关闭白板右键菜单和便签右键菜单
+    closeWallContextMenuOnOutsideClick(event) {
+      let shouldCloseWallMenu = false;
+      let shouldCloseNoteMenu = false;
+
+      // 处理白板右键菜单
+      if (this.showWallContextMenu) {
+        // 如果菜单刚刚打开（100ms内），不关闭（避免右键点击立即触发click事件关闭菜单）
+        const timeSinceOpened = Date.now() - this.wallContextMenuOpenedAt;
+        if (timeSinceOpened >= 100) {
+          shouldCloseWallMenu = true;
+        }
       }
 
-      this.showWallContextMenu = false;
+      // 处理便签右键菜单
+      if (this.activeContextMenuNoteId !== null) {
+        // 检查点击是否在便签菜单或便签上
+        const target = event.target;
+        const inNoteMenu = target.closest('.context-menu');
+        const inNote = target.closest('.note');
+
+        // 如果点击不在便签菜单或便签上，关闭便签菜单
+        if (!inNoteMenu && !inNote) {
+          shouldCloseNoteMenu = true;
+        }
+      }
+
+      // 执行关闭
+      if (shouldCloseWallMenu) {
+        this.showWallContextMenu = false;
+      }
+      if (shouldCloseNoteMenu) {
+        this.activeContextMenuNoteId = null;
+      }
     },
     // 粘贴便签
     async pasteNote() {
@@ -2026,6 +2057,19 @@ export default {
     // 便签鼠标离开事件
     onNoteMouseLeave(noteId) {
       this.hoveredNoteIds.delete(noteId);
+    },
+    // 便签右键菜单打开事件（实现菜单互斥）
+    // closeWallMenu: 是否关闭白板菜单
+    onNoteContextMenuOpened(noteId, closeWallMenu = false) {
+      this.activeContextMenuNoteId = noteId;
+      // 关闭白板右键菜单（实现互斥）
+      if (closeWallMenu) {
+        this.showWallContextMenu = false;
+      }
+    },
+    // 便签右键菜单关闭事件
+    onNoteContextMenuClosed() {
+      this.activeContextMenuNoteId = null;
     },
     // 计算连接起点（引出点：便签底部下8px，水平居中）
     getConnectionStartPoint(connection) {

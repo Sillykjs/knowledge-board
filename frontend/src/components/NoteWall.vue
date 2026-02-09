@@ -1615,8 +1615,9 @@ export default {
         this.notes[noteIndex].content = noteData.content;
       }
 
-      // 重新加载便签列表以保持同步
+      // 重新加载便签列表和连接列表以保持同步
       this.loadNotes();
+      this.loadConnections();
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

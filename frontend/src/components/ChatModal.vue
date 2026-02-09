@@ -115,7 +115,8 @@ export default {
       abortController: null,
       rootNoteId: null,
       lastNoteId: null,
-      lastNotePosition: null
+      lastNotePosition: null,
+      newNotesCache: {}  // 缓存新创建的便签（用于保存内容时查找）
     };
   },
   computed: {
@@ -161,6 +162,7 @@ export default {
       this.rootNoteId = null;
       this.lastNoteId = null;
       this.lastNotePosition = null;
+      this.newNotesCache = {};
     },
 
     // 加载消息
@@ -169,7 +171,7 @@ export default {
 
       const messages = [];
 
-      // 添加上游便签
+      // 添加上游便签（按上游Notes数组的顺序，已经是按创建时间排序的）
       this.upstreamNotes.forEach(note => {
         messages.push({
           id: note.id,
@@ -191,7 +193,7 @@ export default {
         }
       });
 
-      // 添加根便签（用户消息）
+      // 添加根便签（用户消息）- 放在最后，确保它是最新的对话点
       const rootNote = this.findNoteById(this.rootNoteId);
       if (rootNote) {
         messages.push({
@@ -214,20 +216,20 @@ export default {
         }
       }
 
-      // 按创建时间排序
-      messages.sort((a, b) => {
-        const dateA = new Date(a.timestamp || 0);
-        const dateB = new Date(b.timestamp || 0);
-        return dateA - dateB;
-      });
-
+      // 不再按创建时间排序，保持对话流的逻辑顺序（上游->根便签）
       this.messages = messages;
     },
 
     // 查找便签
     findNoteById(noteId) {
+      // 先从缓存中查找新创建的便签
+      if (this.newNotesCache[noteId]) {
+        return this.newNotesCache[noteId];
+      }
+      // 再从上游便签中查找
       const note = this.upstreamNotes.find(n => n.id === noteId);
       if (note) return note;
+      // 最后检查根便签
       return this.initialNote && this.initialNote.id === noteId ? this.initialNote : null;
     },
 
@@ -262,6 +264,12 @@ export default {
         } else {
           // 默认位置
           newPosition = { x: 100, y: 100 };
+        // 如果是第一条消息，从根便签的位置开始
+          const rootNote = this.findNoteById(this.rootNoteId);
+          if (rootNote) {
+            newPosition.x = rootNote.position_x || 100;
+            newPosition.y = (rootNote.position_y || 100) + 230;
+          }
         }
 
         const createResponse = await axios.post('/api/notes', {
@@ -273,15 +281,31 @@ export default {
         });
 
         newNoteId = createResponse.data.note.id;
-        this.lastNoteId = newNoteId;
         this.lastNotePosition = newPosition;
 
-        // 2. 创建连接
-        await axios.post('/api/notes/connections', {
-          source_note_id: this.lastNoteId || this.rootNoteId,
-          target_note_id: newNoteId,
-          wall_id: this.initialNote?.wall_id || 1
-        });
+        // 缓存新便签信息，用于后续保存内容时查找
+        this.newNotesCache[newNoteId] = {
+          id: newNoteId,
+          title: title,
+          position_x: newPosition.x,
+          position_y: newPosition.y
+        };
+
+        // 2. 创建连接（从最后一个便签到新便签，如果没有lastNoteId则从根便签开始）
+        // 注意：此时 lastNoteId 还是上一次的，所以要先用它创建连接，然后再更新
+        const sourceNoteId = this.lastNoteId || this.rootNoteId;
+
+        // 确保不连接到自己（虽然理论上不会发生，但为了安全）
+        if (sourceNoteId !== newNoteId) {
+          await axios.post('/api/notes/connections', {
+            source_note_id: sourceNoteId,
+            target_note_id: newNoteId,
+            wall_id: this.initialNote?.wall_id || 1
+          });
+        }
+
+        // 更新最后一个便签ID
+        this.lastNoteId = newNoteId;
 
         // 3. 添加用户消息到界面
         this.messages.push({
@@ -292,8 +316,8 @@ export default {
           timestamp: new Date().toISOString()
         });
 
-        // 4. 开始生成AI内容
-        await this.generateAIContent(newNoteId, provider, model);
+        // 4. 开始生成AI内容（传递标题）
+        await this.generateAIContent(newNoteId, title, provider, model);
 
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -307,7 +331,7 @@ export default {
     },
 
     // 生成AI内容
-    async generateAIContent(noteId, provider, model) {
+    async generateAIContent(noteId, prompt, provider, model) {
       this.isGenerating = true;
       this.streamingContent = '';
       this.abortController = new AbortController();
@@ -327,8 +351,10 @@ export default {
           this.scrollToBottom();
         });
 
-        const note = this.findNoteById(noteId);
-        const prompt = note ? note.title : '';
+        // prompt 由调用方传入，避免查找新创建的便签
+        if (!prompt) {
+          throw new Error('Prompt is required');
+        }
 
         const response = await fetch('/api/notes/ai-generate', {
           method: 'POST',

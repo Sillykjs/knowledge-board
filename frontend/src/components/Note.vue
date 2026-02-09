@@ -55,6 +55,10 @@
           <span>切换模型回答</span>
           <span class="submenu-arrow">▶</span>
         </div>
+        <div class="context-menu-item" @click="openChatMode">
+          <span class="menu-icon">💬</span>
+          <span>对话模式</span>
+        </div>
         <div class="context-menu-item" @click="duplicateNote">
           <span class="menu-icon">📄</span>
           <span>拷贝</span>
@@ -70,10 +74,6 @@
         <div class="context-menu-item" @click="traceParentNotes">
           <span class="menu-icon">🔗</span>
           <span>上文追溯</span>
-        </div>
-        <div class="context-menu-item" @click="openChatMode">
-          <span class="menu-icon">💬</span>
-          <span>对话模式</span>
         </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>

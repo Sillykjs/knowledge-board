@@ -101,6 +101,10 @@ export default {
     upstreamNotes: {
       type: Array,
       default: () => []
+    },
+    contextLevel: {
+      type: Number,
+      default: 5
     }
   },
   data() {

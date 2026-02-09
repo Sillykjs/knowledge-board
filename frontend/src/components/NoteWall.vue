@@ -1562,40 +1562,59 @@ export default {
       // 打开对话模态窗口
       this.$nextTick(() => {
         if (this.$refs.chatModal) {
-          this.$refs.chatModal.open(noteData.id, { x: noteData.position_x, y: noteData.position_y });
+          this.$refs.chatModal.open(noteData.id, { x: noteData.position_x, y: noteData.position_y }, this.contextLevel);
         }
       });
     },
-    // 获取上游便签（按创建时间排序）
+    // 获取上游便签（按创建时间排序，支持层数限制和去重）
     getUpstreamNotes(noteId) {
       const upstreamNotes = [];
-      const visited = new Set();
+      // 记录每个节点到目标节点的最短距离
+      const nodeDistance = new Map();
       const queue = [noteId];
+
+      // 初始化距离：目标节点距离为0
+      nodeDistance.set(noteId, 0);
 
       while (queue.length > 0) {
         const currentNoteId = queue.shift();
-
-        if (visited.has(currentNoteId)) {
-          continue;
-        }
-        visited.add(currentNoteId);
 
         // 找到所有以当前节点为目标节点的连接（即父节点）
         const parentConnections = this.connections.filter(
           conn => conn.target_note_id === currentNoteId
         );
 
-        // 遍历所有父节点
-        parentConnections.forEach(conn => {
-          const parentId = conn.source_note_id;
-          const parentNote = this.notes.find(n => n.id === parentId);
+        // 当前节点到目标节点的距离
+        const currentDistance = nodeDistance.get(currentNoteId) || 0;
 
-          if (parentNote && !visited.has(parentId)) {
-            upstreamNotes.push(parentNote);
-            queue.push(parentId);
-          }
-        });
+        // 只在未超过层数限制时继续查找
+        if (currentDistance < this.contextLevel) {
+          // 遍历所有父节点
+          parentConnections.forEach(conn => {
+            const parentId = conn.source_note_id;
+            const parentNote = this.notes.find(n => n.id === parentId);
+
+            if (parentNote) {
+              const newDistance = currentDistance + 1;
+
+              // 只保留最短路径：如果这个父节点已经有更短的路径，则不更新
+              const existingDistance = nodeDistance.get(parentId);
+              if (existingDistance === undefined || newDistance < existingDistance) {
+                nodeDistance.set(parentId, newDistance);
+                queue.push(parentId);
+              }
+            }
+          });
+        }
       }
+
+      // 收集所有非目标节点且距离小于等于层数限制的上游便签
+      this.notes.forEach(note => {
+        const distance = nodeDistance.get(note.id);
+        if (distance !== undefined && distance > 0 && distance <= this.contextLevel) {
+          upstreamNotes.push(note);
+        }
+      });
 
       // 按创建时间排序（从早到晚）
       upstreamNotes.sort((a, b) => {

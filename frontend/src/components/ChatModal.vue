@@ -86,8 +86,21 @@
 
 <script>
 import axios from 'axios';
-import katex from 'katex';
+import MarkdownIt from 'markdown-it';
+import markdownItKatex from '@vscode/markdown-it-katex';
+import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
+
+// Initialize markdown-it with KaTeX plugin
+const md = new MarkdownIt({
+  html: false,          // Disable HTML tags in source
+  linkify: true,        // Autoconvert URL-like texts to links
+  typographer: true,     // Enable some language-neutral replacement + quotes beautification
+  breaks: true,         // Convert '\n' to <br>
+}).use(markdownItKatex, {
+  throwOnError: false,
+  errorColor: '#cc0000'
+});
 
 export default {
   name: 'ChatModal',
@@ -503,7 +516,7 @@ export default {
       }
     },
 
-    // 渲染Markdown（使用 KaTeX 渲染数学公式）
+    // 渲染Markdown（使用 markdown-it + KaTeX 插件）
     renderMarkdown(content) {
       if (!content) return '';
 
@@ -513,81 +526,16 @@ export default {
         return this.renderedCache[cacheKey];
       }
 
-      // 先处理数学公式（用占位符替换）
-      const mathPlaceholders = [];
-      let processedContent = content;
+      // 使用 markdown-it 渲染（KaTeX 插件会自动处理数学公式）
+      const html = md.render(content);
 
-      // 处理块级公式 $$...$$
-      processedContent = processedContent.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
-        const placeholder = `__MATH_BLOCK_${mathPlaceholders.length}__`;
-        mathPlaceholders.push({ type: 'block', formula: formula.trim() });
-        return placeholder;
-      });
-
-      // 处理行内公式 $...$
-      processedContent = processedContent.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (match, formula) => {
-        const placeholder = `__MATH_INLINE_${mathPlaceholders.length}__`;
-        mathPlaceholders.push({ type: 'inline', formula: formula.trim() });
-        return placeholder;
-      });
-
-      // 简单的 Markdown 转 HTML（同步）
-      let html = processedContent
-        // 转义 HTML 字符（除了数学占位符）
-        .replace(/&(?!(?:amp|lt|gt);)/g, '&amp;')
-        .replace(/<(?!\/?[a-z]|__MATH)/gi, '&lt;')
-        .replace(/>(?!__MATH)/g, '&gt;')
-        // 代码块
-        .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-          return `<pre><code class="language-${lang || ''}">${code.trim()}</code></pre>`;
-        })
-        // 行内代码
-        .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-        // 标题
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        // 粗体
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        // 斜体
-        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        // 链接
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-        // 无序列表
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-        // 有序列表
-        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        // 引用
-        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-        // 换行
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br>');
-
-      // 包装在段落中
-      html = `<p>${html}</p>`;
-
-      // 渲染数学公式
-      mathPlaceholders.forEach((math, index) => {
-        try {
-          const rendered = katex.renderToString(math.formula, {
-            displayMode: math.type === 'block',
-            throwOnError: false,
-            output: 'html'
-          });
-          const placeholder = math.type === 'block'
-            ? `__MATH_BLOCK_${index}__`
-            : `__MATH_INLINE_${index}__`;
-          html = html.replace(placeholder, rendered);
-        } catch (error) {
-          console.error('Math rendering error:', error);
-        }
-      });
+      // 清理 HTML（防止 XSS 攻击）
+      const cleanHtml = DOMPurify.sanitize(html);
 
       // 缓存结果
-      this.renderedCache[cacheKey] = html;
+      this.renderedCache[cacheKey] = cleanHtml;
 
-      return html;
+      return cleanHtml;
     }
   }
 };
@@ -611,8 +559,7 @@ export default {
   background: white;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  width: 90%;
-  max-width: 900px;
+  width: 75%;
   height: 85vh;
   display: flex;
   flex-direction: column;

@@ -1685,7 +1685,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2001;
+  z-index: 4000;
 }
 
 .view-modal-content {

@@ -20,10 +20,10 @@
               {{ message.role === 'user' ? '👤' : '🤖' }}
             </div>
             <div class="message-content">
-              <div v-if="message.role === 'user'" class="user-message">
+              <div v-if="message.role === 'user'" class="user-message" @dblclick="openNoteView(message.id)">
                 {{ message.title }}
               </div>
-              <div v-else class="assistant-message" v-html="renderMarkdown(message.content)"></div>
+              <div v-else class="assistant-message" v-html="renderMarkdown(message.content)" @dblclick="openNoteView(message.id)"></div>
             </div>
           </div>
 
@@ -516,6 +516,13 @@ export default {
       }
     },
 
+    // 打开便签查看状态
+    openNoteView(messageId) {
+      // 消息ID格式：纯数字为用户便签，数字+'_assistant'为AI响应
+      const noteId = String(messageId).replace('_assistant', '');
+      this.$emit('open-note-view', parseInt(noteId));
+    },
+
     // 渲染Markdown（使用 markdown-it + KaTeX 插件）
     renderMarkdown(content) {
       if (!content) return '';
@@ -678,6 +685,13 @@ export default {
   word: break-word;
   overflow-wrap: break-word;
   line-height: 1.5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-message:hover {
+  background: #1976d2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .assistant-message {
@@ -691,6 +705,13 @@ export default {
   overflow-wrap: break-word;
   line-height: 1.6;
   border: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.assistant-message:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #2196f3;
 }
 
 /* 输入区域 */

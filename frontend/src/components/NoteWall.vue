@@ -344,6 +344,7 @@
       :initial-note="chatInitialNote"
       :upstream-notes="chatUpstreamNotes"
       @note-updated="onChatNoteUpdated"
+      @open-note-view="onOpenNoteView"
     />
   </div>
 </template>
@@ -1644,6 +1645,16 @@ export default {
       // 重新加载便签列表和连接列表以保持同步
       this.loadNotes();
       this.loadConnections();
+    },
+    // 打开便签查看状态（从对话模式触发）
+    onOpenNoteView(noteId) {
+      // 通过 noteRefs 获取便签组件实例
+      const noteComponent = this.noteRefs[noteId];
+      if (noteComponent) {
+        noteComponent.openViewModal();
+      } else {
+        console.error('[NoteWall] 找不到便签:', noteId);
+      }
     },
     // 便签拖拽开始
     onNoteDragStart(payload) {

@@ -362,17 +362,9 @@ export default {
       this.isGenerating = true;
       this.streamingContent = '';
       this.abortController = new AbortController();
+      let messageSaved = false;  // 标记消息是否已保存
 
       try {
-        // 添加AI消息占位符
-        this.messages.push({
-          id: noteId + '_assistant',
-          title: '',
-          content: '',
-          role: 'assistant',
-          timestamp: new Date().toISOString()
-        });
-
         // 滚动到底部
         this.$nextTick(() => {
           this.scrollToBottom();
@@ -411,9 +403,18 @@ export default {
           const { done, value } = await reader.read();
 
           if (done) {
-            // 流式结束，保存最终内容
-            if (this.streamingContent) {
+            // 流式结束，保存最终内容并添加到消息列表（如果尚未保存）
+            if (!messageSaved && this.streamingContent) {
+              messageSaved = true;
               await this.saveGeneratedContent(noteId, this.streamingContent);
+              // 添加完整的AI消息到消息列表
+              this.messages.push({
+                id: noteId + '_assistant',
+                title: '',
+                content: this.streamingContent,
+                role: 'assistant',
+                timestamp: new Date().toISOString()
+              });
             }
             break;
           }
@@ -426,9 +427,18 @@ export default {
               const data = line.slice(6);
 
               if (data === '[DONE]') {
-                // 检测到结束标记
-                if (this.streamingContent) {
+                // 检测到结束标记，保存最终内容并添加到消息列表（如果尚未保存）
+                if (!messageSaved && this.streamingContent) {
+                  messageSaved = true;
                   await this.saveGeneratedContent(noteId, this.streamingContent);
+                  // 添加完整的AI消息到消息列表
+                  this.messages.push({
+                    id: noteId + '_assistant',
+                    title: '',
+                    content: this.streamingContent,
+                    role: 'assistant',
+                    timestamp: new Date().toISOString()
+                  });
                 }
                 break;
               }
@@ -443,13 +453,6 @@ export default {
 
                 if (parsed.content) {
                   this.streamingContent += parsed.content;
-
-                  // 更新最后一条AI消息
-                  const lastAssistantMsg = this.messages.find(m => m.id === noteId + '_assistant');
-                  if (lastAssistantMsg) {
-                    lastAssistantMsg.content = this.streamingContent;
-                  }
-
                   // 滚动到底部
                   this.scrollToBottom();
                 }
@@ -464,9 +467,18 @@ export default {
         if (error.name === 'AbortError') {
           console.log('[ChatModal] AI 生成已停止');
 
-          // 保存已生成的内容
-          if (this.streamingContent) {
+          // 保存已生成的内容并添加到消息列表（如果尚未保存）
+          if (!messageSaved && this.streamingContent) {
+            messageSaved = true;
             await this.saveGeneratedContent(noteId, this.streamingContent);
+            // 添加AI消息到消息列表
+            this.messages.push({
+              id: noteId + '_assistant',
+              title: '',
+              content: this.streamingContent,
+              role: 'assistant',
+              timestamp: new Date().toISOString()
+            });
           }
         } else {
           console.error('Failed to generate AI content:', error);

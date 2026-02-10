@@ -359,17 +359,21 @@ export default {
       }
 
       // 更新消息列表中的 AI 响应
-      const aiMessageIndex = this.messages.findIndex(
-        m => m.id === `${noteId}_assistant`
-      );
+      const targetId = `${noteId}_assistant`;
+      const aiMessageIndex = this.messages.findIndex(m => m.id === targetId);
 
       if (aiMessageIndex !== -1) {
-        // 更新现有消息
-        this.messages[aiMessageIndex].content = content;
+        // 更新现有消息 - 使用重新赋值确保响应式
+        this.messages[aiMessageIndex] = {
+          ...this.messages[aiMessageIndex],
+          content: content
+        };
+        // 强制触发响应式更新
+        this.messages = [...this.messages];
       } else {
         // 添加新的 AI 消息
         this.messages.push({
-          id: `${noteId}_assistant`,
+          id: targetId,
           title: '',
           content: content,
           role: 'assistant',

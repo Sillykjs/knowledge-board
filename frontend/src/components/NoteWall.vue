@@ -994,10 +994,8 @@ export default {
         this.$emit('notes-loaded', this.notes);
       }
 
-      // 如果 ChatModal 是打开的，刷新消息列表以显示更新的便签内容
-      if (this.$refs.chatModal && this.$refs.chatModal.visible) {
-        this.$refs.chatModal.loadMessages();
-      }
+      // 注意：不在这里调用 loadMessages()，因为 ChatModal 通过 streaming-update 事件自己管理消息
+      // 否则会覆盖用户刚发送的消息
     },
     // 触发便签 AI 生成（由 ChatModal 调用）
     async onTriggerNoteGenerate({ noteId, provider, model }) {
@@ -1010,7 +1008,7 @@ export default {
         if (noteComponent && noteComponent.generateAIContentWithModel) {
           noteComponent.generateAIContentWithModel(provider, model);
         } else {
-          console.error('[NoteWall] 无法找到便签组件:', noteId, 'noteRefs:', this.noteRefs);
+          console.error('[NoteWall] 无法找到便签组件:', noteId);
         }
       });
     },

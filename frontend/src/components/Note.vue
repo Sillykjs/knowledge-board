@@ -827,7 +827,7 @@ export default {
 
                     // 触发流式更新事件，让 ChatModal 实时显示
                     this.$emit('streaming-update', {
-                      id: this.id,
+                      noteId: this.id,
                       content: this.streamingContent
                     });
                   }
@@ -1027,6 +1027,13 @@ export default {
                       content: this.streamingContent,
                       position_x: this.position_x,
                       position_y: this.position_y
+                    });
+
+                    // 触发流式更新事件，让 ChatModal 实时显示
+                    console.log('[Note] 发送 streaming-update 事件:', { noteId: this.id, contentLength: this.streamingContent.length });
+                    this.$emit('streaming-update', {
+                      noteId: this.id,
+                      content: this.streamingContent
                     });
                   }
 
@@ -1278,7 +1285,7 @@ export default {
 
                     // 触发流式更新事件，让 ChatModal 实时显示
                     this.$emit('streaming-update', {
-                      id: this.id,
+                      noteId: this.id,
                       content: this.streamingContent
                     });
                   }

@@ -526,8 +526,12 @@ export default {
     // 打开便签查看状态
     openNoteView(messageId) {
       // 消息ID格式：纯数字为用户便签，数字+'_assistant'为AI响应
+      const isAssistant = String(messageId).includes('_assistant');
       const noteId = String(messageId).replace('_assistant', '');
-      this.$emit('open-note-view', parseInt(noteId));
+      this.$emit('open-note-view', {
+        noteId: parseInt(noteId),
+        editTitle: !isAssistant  // 用户消息需要编辑标题，AI响应不需要
+      });
     },
 
     // 渲染Markdown（使用 markdown-it + KaTeX 插件）

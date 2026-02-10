@@ -1653,11 +1653,17 @@ export default {
       this.loadConnections();
     },
     // 打开便签查看状态（从对话模式触发）
-    onOpenNoteView(noteId) {
+    onOpenNoteView({ noteId, editTitle }) {
       // 通过 noteRefs 获取便签组件实例
       const noteComponent = this.noteRefs[noteId];
       if (noteComponent) {
         noteComponent.openViewModal();
+        // 如果需要编辑标题，在下一个 tick 触发
+        if (editTitle) {
+          this.$nextTick(() => {
+            noteComponent.startEditViewTitle();
+          });
+        }
       } else {
         console.error('[NoteWall] 找不到便签:', noteId);
       }

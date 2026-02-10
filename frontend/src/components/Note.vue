@@ -622,7 +622,7 @@ export default {
 
       // 计算菜单位置，防止超出屏幕
       const menuWidth = 150;
-      const menuHeight = 250;  // 5个菜单项，每个约50px
+      const menuHeight = 320;  // 7个菜单项，每个约45px + padding
 
       let x = event.clientX;
       let y = event.clientY;
@@ -635,6 +635,11 @@ export default {
       // 防止底部溢出
       if (y + menuHeight > window.innerHeight) {
         y = window.innerHeight - menuHeight - 10;
+      }
+
+      // 防止顶部溢出
+      if (y < 10) {
+        y = 10;
       }
 
       this.contextMenuX = x;

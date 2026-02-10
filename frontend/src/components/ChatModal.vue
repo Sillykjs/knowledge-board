@@ -117,6 +117,10 @@ export default {
       type: Array,
       default: () => []
     },
+    allNotes: {
+      type: Array,
+      default: () => []
+    },
     contextLevel: {
       type: Number,
       default: 5
@@ -249,6 +253,9 @@ export default {
       // 再从上游便签中查找
       const note = this.upstreamNotes.find(n => n.id === noteId);
       if (note) return note;
+      // 从所有便签中查找（获取最新数据）
+      const allNote = this.allNotes.find(n => n.id === noteId);
+      if (allNote) return allNote;
       // 最后检查根便签
       return this.initialNote && this.initialNote.id === noteId ? this.initialNote : null;
     },

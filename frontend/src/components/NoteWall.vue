@@ -343,6 +343,7 @@
       :available-models="availableModels"
       :initial-note="chatInitialNote"
       :upstream-notes="chatUpstreamNotes"
+      :all-notes="notes"
       @note-updated="onChatNoteUpdated"
       @open-note-view="onOpenNoteView"
     />
@@ -988,6 +989,11 @@ export default {
 
         // 通知父组件便签列表已更新（用于同步搜索缓存）
         this.$emit('notes-loaded', this.notes);
+      }
+
+      // 如果 ChatModal 是打开的，刷新消息列表以显示更新的便签内容
+      if (this.$refs.chatModal && this.$refs.chatModal.visible) {
+        this.$refs.chatModal.loadMessages();
       }
     },
     async onNoteDelete(noteToDelete) {

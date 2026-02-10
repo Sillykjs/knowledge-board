@@ -385,7 +385,7 @@ export default {
             prompt,
             wall_id: this.initialNote?.wall_id || 1,
             note_id: noteId,
-            context_level: 5,
+            context_level: this.contextLevel,
             include_reasoning: true,
             provider,
             model

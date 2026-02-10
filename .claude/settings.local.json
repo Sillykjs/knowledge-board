@@ -23,7 +23,10 @@
       "Bash(npm uninstall:*)",
       "mcp__zread__search_doc",
       "Bash(npm view:*)",
-      "mcp__zai-mcp-server__extract_text_from_screenshot"
+      "mcp__zai-mcp-server__extract_text_from_screenshot",
+      "Skill(superpowers:brainstorming)",
+      "Bash(npm run build)",
+      "Bash(cat:*)"
     ],
     "deny": [
       "Bash(git add:*)"

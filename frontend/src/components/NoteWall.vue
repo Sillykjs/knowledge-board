@@ -91,22 +91,27 @@
         :position_y="note.position_y"
         :wallId="boardId"
         :isHighlighting="highlightedNoteIds.has(note.id)"
+        :activeContextMenuNoteId="activeContextMenuNoteId"
         :isSelected="selectedNoteIds.has(note.id)"
         :contextLevel="contextLevel"
         :currentModelName="currentModelName"
         :availableModels="availableModels"
         @update="onNoteUpdate"
+        @streaming-update="onNoteStreamingUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
         @cut="onNoteCut"
         @duplicate="onNoteDuplicate"
         @duplicate-with-model="onNoteDuplicateWithModel"
         @trace-parent="onTraceParent"
+        @open-chat-mode="onOpenChatMode"
         @connection-start="onConnectionStart"
         @drag-start="onNoteDragStart"
         @quick-create="onQuickCreate"
         @mouse-enter="onNoteMouseEnter"
         @mouse-leave="onNoteMouseLeave"
+        @contextmenu-opened="onNoteContextMenuOpened"
+        @contextmenu-closed="onNoteContextMenuClosed"
       />
     </div>
 
@@ -160,6 +165,9 @@
 
     <!-- 缩放控制按钮组 -->
     <div class="zoom-controls">
+      <button class="zoom-btn help" @click="openHelpModal" title="帮助">
+        <span>?</span>
+      </button>
       <button class="zoom-btn" @click="zoomIn" title="放大">
         <span>+</span>
       </button>
@@ -210,6 +218,63 @@
             清空回收站
           </button>
           <button @click="closeRecycleBin" class="btn-close">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div v-if="showHelpModal" class="help-modal" @click="closeHelpModalOutside">
+      <div class="help-modal-content" @click.stop @wheel.stop>
+        <div class="help-header">
+          <h3>使用帮助</h3>
+          <button class="close-btn" @click="closeHelpModal">×</button>
+        </div>
+
+        <div class="help-body">
+          <div class="help-section">
+            <h4>🎯 快速开始</h4>
+            <p>• 双击白板或者右下角按钮创建新便签</p>
+            <p>• <strong>鼠标拖拽</strong>移动便签，<strong>滚轮</strong>缩放画布</p>
+            <p>• <strong>中键+拖拽</strong>平移画布</p>
+          </div>
+
+          <div class="help-section">
+            <h4>📝 便签操作</h4>
+            <p>• 双击点击便签进入编辑模式，支持 Markdown</p>
+            <p>• <strong>右键</strong>打开菜单：上文追溯、删除等</p>
+            <p>• 便签<strong>正下方圆点</strong>可拖拽建立连接或者快速新建便签</p>
+          </div>
+
+          <div class="help-section">
+            <h4>🔗 连接与追溯</h4>
+            <p>• 拖拽便签正下方圆点到另一个便签建立连接</p>
+            <p>• 右键选择<strong>"上文追溯"</strong>高亮显示相关便签</p>
+            <p>• 连接线可删除</p>
+          </div>
+
+          <div class="help-section">
+            <h4>🤖 AI 生成</h4>
+            <p>• 编辑便签时点击<strong>"AI 生成内容"</strong></p>
+            <p>• 自动加载关联便签作为上文</p>
+            <p>• 需在左侧边栏配置 AI 模型</p>
+          </div>
+
+          <div class="help-section">
+            <h4>🗑️ 回收站</h4>
+            <p>• 删除的便签进入回收站</p>
+            <p>• 可<strong>恢复</strong>或<strong>永久删除</strong></p>
+          </div>
+
+          <!-- <div class="help-section">
+            <h4>⌨️ 快捷键</h4>
+            <p>• <strong>Ctrl+A</strong> 全选便签</p>
+            <p>• <strong>Delete</strong> 删除选中的便签</p>
+            <p>• <strong>ESC</strong> 关闭弹窗/取消选择</p>
+          </div> -->
+        </div>
+
+        <div class="help-footer">
+          <button @click="closeHelpModal" class="btn-close">关闭</button>
         </div>
       </div>
     </div>
@@ -272,17 +337,32 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 对话模式模态窗口 -->
+    <ChatModal
+      ref="chatModal"
+      :available-models="availableModels"
+      :initial-note="chatInitialNote"
+      :upstream-notes="chatUpstreamNotes"
+      :all-notes="notes"
+      @note-updated="onChatNoteUpdated"
+      @open-note-view="onOpenNoteView"
+      @trigger-note-generate="onTriggerNoteGenerate"
+      @note-streaming-update="onNoteStreamingUpdate"
+    />
   </div>
 </template>
 
 <script>
 import axios from 'axios';
 import Note from './Note.vue';
+import ChatModal from './ChatModal.vue';
 
 export default {
   name: 'NoteWall',
   components: {
-    Note
+    Note,
+    ChatModal
   },
   props: {
     boardId: {
@@ -318,6 +398,7 @@ export default {
       showTooltip: false,
       isEditingTitle: false,
       showRecycleBin: false,
+      showHelpModal: false,
       recycleNotes: [],
       recycleCount: 0,
       showDeleteConfirm: false,
@@ -339,6 +420,9 @@ export default {
       highlightedNoteIds: new Set(), // 高亮的便签ID集合
       highlightedConnectionIds: new Set(), // 高亮的连接线ID集合
       hoveredNoteIds: new Set(), // 鼠标悬停的便签ID集合（用于显示引入线）
+      // 对话模式
+      chatInitialNote: null,    // 当前选中的便签（用于对话模式）
+      chatUpstreamNotes: [],    // 上游便签列表（用于对话模式）
       // 剪切板
       clipboardData: null,  // 存储复制的便签数据（支持多便签）
       // 数据结构: { notes: [], connections: [], sourceWallId, isCutMode, baseNoteId, basePosition }
@@ -375,7 +459,9 @@ export default {
         step: 0.1
       },
       // 模型选择相关
-      selectedModel: ''       // 当前选中的模型（格式：provider|model）
+      selectedModel: '',       // 当前选中的模型（格式：provider|model）
+      // 便签右键菜单互斥
+      activeContextMenuNoteId: null  // 当前打开右键菜单的便签ID
     };
   },
   computed: {
@@ -508,7 +594,7 @@ export default {
     // 白板鼠标按下事件
     onWallMouseDown(event) {
       // 如果有任何模态框打开，不处理白板拖拽
-      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+      if (this.isEditingTitle || this.showRecycleBin || this.showHelpModal || this.showDeleteConfirm || this.showClearConfirm) {
         return;
       }
 
@@ -907,18 +993,76 @@ export default {
         // 通知父组件便签列表已更新（用于同步搜索缓存）
         this.$emit('notes-loaded', this.notes);
       }
-    },
-    async onNoteDelete(noteId) {
-      // 先加载连接（后端会自动删除相关连接），避免渲染时找不到便签导致连接线闪烁到原点
-      await this.loadConnections();
-      // 再从 notes 数组中移除便签
-      this.notes = this.notes.filter(n => n.id !== noteId);
-      this.loadRecycleNotes();
 
-      // 通知父组件便签列表已更新
+      // 注意：不在这里调用 loadMessages()，因为 ChatModal 通过 streaming-update 事件自己管理消息
+      // 否则会覆盖用户刚发送的消息
+    },
+    // 触发便签 AI 生成（由 ChatModal 调用）
+    async onTriggerNoteGenerate({ noteId, provider, model }) {
+      // 先加载便签列表和连接线，确保新便签和连接在数组中
+      await this.loadNotes();
+      await this.loadConnections();
+
+      // 等待下一帧，确保便签组件已渲染
+      this.$nextTick(() => {
+        const noteComponent = this.noteRefs[noteId];
+        if (noteComponent && noteComponent.generateAIContentWithModel) {
+          noteComponent.generateAIContentWithModel(provider, model);
+        } else {
+          console.error('[NoteWall] 无法找到便签组件:', noteId);
+        }
+      });
+    },
+    // 转发便签的流式更新事件给 ChatModal
+    onNoteStreamingUpdate({ noteId, content }) {
+      if (this.$refs.chatModal && this.$refs.chatModal.visible) {
+        this.$refs.chatModal.onStreamingUpdate({ noteId, content });
+      }
+    },
+    async onNoteDelete(noteToDelete) {
+      // 检查是否有多个选中的便签（批量删除模式）
+      if (this.selectedNoteIds.size > 1) {
+        await this.deleteMultipleNotes(noteToDelete);
+      } else {
+        // 单便签删除模式
+        try {
+          await axios.delete(`/api/notes/${noteToDelete.id}`);
+        } catch (error) {
+          console.error('Failed to delete note:', error);
+          return;
+        }
+
+        await this.loadConnections();
+        this.notes = this.notes.filter(n => n.id !== noteToDelete.id);
+        this.loadRecycleNotes();
+        this.$emit('notes-loaded', this.notes);
+        this.$emit('note-count-changed');
+      }
+    },
+    // 批量删除选中的便签
+    async deleteMultipleNotes(baseNote) {
+      // 1. 批量删除选中的便签
+      for (const noteId of this.selectedNoteIds) {
+        try {
+          await axios.delete(`/api/notes/${noteId}`);
+        } catch (error) {
+          console.error(`Failed to delete note ${noteId}:`, error);
+        }
+      }
+
+      // 2. 更新本地状态
+      this.notes = this.notes.filter(n => !this.selectedNoteIds.has(n.id));
+
+      // 3. 重新加载连接线和回收站计数
+      await this.loadConnections();
+      await this.loadRecycleNotes();
+
+      // 4. 通知父组件
       this.$emit('notes-loaded', this.notes);
-      // 通知父组件更新白板列表（便签数量变化）
       this.$emit('note-count-changed');
+
+      // 5. 清空选择
+      this.selectedNoteIds.clear();
     },
     // 直接拷贝便签（立即复制到附近）
     async onNoteDuplicate(sourceNote) {
@@ -1190,7 +1334,7 @@ export default {
     // 白板右键菜单
     onWallContextMenu(event) {
       // 如果有任何模态框打开，不显示右键菜单
-      if (this.isEditingTitle || this.showRecycleBin || this.showDeleteConfirm || this.showClearConfirm) {
+      if (this.isEditingTitle || this.showRecycleBin || this.showHelpModal || this.showDeleteConfirm || this.showClearConfirm) {
         return;
       }
 
@@ -1237,18 +1381,44 @@ export default {
       this.wallContextMenuY = y;
       this.showWallContextMenu = true;
       this.wallContextMenuOpenedAt = Date.now();
-    },
-    // 点击外部关闭白板右键菜单
-    closeWallContextMenuOnOutsideClick(event) {
-      if (!this.showWallContextMenu) return;
 
-      // 如果菜单刚刚打开（100ms内），不关闭（避免右键点击立即触发click事件关闭菜单）
-      const timeSinceOpened = Date.now() - this.wallContextMenuOpenedAt;
-      if (timeSinceOpened < 100) {
-        return;
+      // 关闭任何打开的便签右键菜单（实现互斥）
+      this.activeContextMenuNoteId = null;
+    },
+    // 点击外部关闭白板右键菜单和便签右键菜单
+    closeWallContextMenuOnOutsideClick(event) {
+      let shouldCloseWallMenu = false;
+      let shouldCloseNoteMenu = false;
+
+      // 处理白板右键菜单
+      if (this.showWallContextMenu) {
+        // 如果菜单刚刚打开（100ms内），不关闭（避免右键点击立即触发click事件关闭菜单）
+        const timeSinceOpened = Date.now() - this.wallContextMenuOpenedAt;
+        if (timeSinceOpened >= 100) {
+          shouldCloseWallMenu = true;
+        }
       }
 
-      this.showWallContextMenu = false;
+      // 处理便签右键菜单
+      if (this.activeContextMenuNoteId !== null) {
+        // 检查点击是否在便签菜单或便签上
+        const target = event.target;
+        const inNoteMenu = target.closest('.context-menu');
+        const inNote = target.closest('.note');
+
+        // 如果点击不在便签菜单或便签上，关闭便签菜单
+        if (!inNoteMenu && !inNote) {
+          shouldCloseNoteMenu = true;
+        }
+      }
+
+      // 执行关闭
+      if (shouldCloseWallMenu) {
+        this.showWallContextMenu = false;
+      }
+      if (shouldCloseNoteMenu) {
+        this.activeContextMenuNoteId = null;
+      }
     },
     // 粘贴便签
     async pasteNote() {
@@ -1411,6 +1581,116 @@ export default {
         this.highlightTimer = null;
       }, 2000);
     },
+    // 打开对话模式
+    onOpenChatMode(noteData) {
+      // 设置当前便签
+      this.chatInitialNote = {
+        id: noteData.id,
+        title: noteData.title,
+        content: noteData.content,
+        position_x: noteData.position_x,
+        position_y: noteData.position_y,
+        wall_id: this.boardId
+      };
+
+      // 获取上游便签
+      this.chatUpstreamNotes = this.getUpstreamNotes(noteData.id);
+
+      // 打开对话模态窗口
+      this.$nextTick(() => {
+        if (this.$refs.chatModal) {
+          this.$refs.chatModal.open(noteData.id, { x: noteData.position_x, y: noteData.position_y }, this.contextLevel);
+        }
+      });
+    },
+    // 获取上游便签（按创建时间排序，支持层数限制和去重）
+    getUpstreamNotes(noteId) {
+      const upstreamNotes = [];
+      // 记录每个节点到目标节点的最短距离
+      const nodeDistance = new Map();
+      const queue = [noteId];
+
+      // 初始化距离：目标节点距离为0
+      nodeDistance.set(noteId, 0);
+
+      while (queue.length > 0) {
+        const currentNoteId = queue.shift();
+
+        // 找到所有以当前节点为目标节点的连接（即父节点）
+        const parentConnections = this.connections.filter(
+          conn => conn.target_note_id === currentNoteId
+        );
+
+        // 当前节点到目标节点的距离
+        const currentDistance = nodeDistance.get(currentNoteId) || 0;
+
+        // 只在未超过层数限制时继续查找
+        if (currentDistance < this.contextLevel) {
+          // 遍历所有父节点
+          parentConnections.forEach(conn => {
+            const parentId = conn.source_note_id;
+            const parentNote = this.notes.find(n => n.id === parentId);
+
+            if (parentNote) {
+              const newDistance = currentDistance + 1;
+
+              // 只保留最短路径：如果这个父节点已经有更短的路径，则不更新
+              const existingDistance = nodeDistance.get(parentId);
+              if (existingDistance === undefined || newDistance < existingDistance) {
+                nodeDistance.set(parentId, newDistance);
+                queue.push(parentId);
+              }
+            }
+          });
+        }
+      }
+
+      // 收集所有非目标节点且距离小于等于层数限制的上游便签
+      this.notes.forEach(note => {
+        const distance = nodeDistance.get(note.id);
+        if (distance !== undefined && distance > 0 && distance <= this.contextLevel) {
+          upstreamNotes.push(note);
+        }
+      });
+
+      // 按创建时间排序（从早到晚）
+      upstreamNotes.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateA - dateB;
+      });
+
+      return upstreamNotes;
+    },
+    // 对话模式中便签更新
+    onChatNoteUpdated(noteData) {
+      // 更新本地便签数据
+      const noteIndex = this.notes.findIndex(n => n.id === noteData.id);
+      if (noteIndex !== -1) {
+        this.notes = [...this.notes];
+        this.notes[noteIndex].content = noteData.content;
+      }
+
+      // 重新加载便签列表和连接列表以保持同步
+      this.loadNotes();
+      this.loadConnections();
+    },
+    // 打开便签查看状态（从对话模式触发）
+    onOpenNoteView({ noteId, editTitle }) {
+      // 通过 noteRefs 获取便签组件实例
+      const noteComponent = this.noteRefs[noteId];
+      if (noteComponent) {
+        noteComponent.openViewModal();
+        // 如果需要编辑标题，在下一个 tick 触发
+        if (editTitle) {
+          this.$nextTick(() => {
+            noteComponent.startEditViewTitle();
+          });
+        }
+      } else {
+        console.error('[NoteWall] 找不到便签:', noteId);
+      }
+    },
     // 便签拖拽开始
     onNoteDragStart(payload) {
       this.draggingNote.isDragging = true;
@@ -1477,6 +1757,17 @@ export default {
     },
     closeRecycleBin() {
       this.showRecycleBin = false;
+    },
+    openHelpModal() {
+      this.showHelpModal = true;
+    },
+    closeHelpModal() {
+      this.showHelpModal = false;
+    },
+    closeHelpModalOutside(event) {
+      if (event.target.classList.contains('help-modal')) {
+        this.closeHelpModal();
+      }
     },
     async loadRecycleNotes() {
       try {
@@ -1928,6 +2219,19 @@ export default {
     // 便签鼠标离开事件
     onNoteMouseLeave(noteId) {
       this.hoveredNoteIds.delete(noteId);
+    },
+    // 便签右键菜单打开事件（实现菜单互斥）
+    // closeWallMenu: 是否关闭白板菜单
+    onNoteContextMenuOpened(noteId, closeWallMenu = false) {
+      this.activeContextMenuNoteId = noteId;
+      // 关闭白板右键菜单（实现互斥）
+      if (closeWallMenu) {
+        this.showWallContextMenu = false;
+      }
+    },
+    // 便签右键菜单关闭事件
+    onNoteContextMenuClosed() {
+      this.activeContextMenuNoteId = null;
     },
     // 计算连接起点（引出点：便签底部下8px，水平居中）
     getConnectionStartPoint(connection) {
@@ -2674,6 +2978,14 @@ export default {
   background: #1976d2;
 }
 
+.zoom-btn.help {
+  background: #ff9800;
+}
+
+.zoom-btn.help:hover {
+  background: #f57c00;
+}
+
 .zoom-level {
   font-size: 12px;
   font-weight: bold;
@@ -3085,6 +3397,80 @@ export default {
 
 .btn-close:hover {
   background: #e0e0e0;
+}
+
+/* 帮助模态框样式 */
+.help-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.help-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalAppear 0.2s ease-out;
+}
+
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.help-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.help-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.help-section {
+  margin-bottom: 24px;
+}
+
+.help-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #2196f3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-section p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.help-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* 白板右键菜单样式 */

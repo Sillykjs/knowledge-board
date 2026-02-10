@@ -314,6 +314,8 @@ router.post('/ai-generate', async (req, res) => {
       const queue = [{ noteId: note_id, level: 0 }];
       const notesByLevel = []; // 按层级存储便签 [[level0_notes], [level1_notes], ...]
 
+      const levelVisited = new Set(); // 按层级去重，防止同一层重复添加相同节点
+
       while (queue.length > 0) {
         const { noteId: currentNoteId, level } = queue.shift();
 
@@ -345,11 +347,19 @@ router.post('/ai-generate', async (req, res) => {
           });
         });
 
-        // 按层级存储父节点
+        // 按层级存储父节点（去重）
         if (!notesByLevel[level]) {
-          notesByLevel[level] = [];
+            notesByLevel[level] = [];
         }
-        notesByLevel[level].push(...parentNotes);
+
+        // 在当前层级去重后添加
+        parentNotes.forEach(note => {
+          const levelKey = `${level}-${note.id}`;
+          if (!levelVisited.has(levelKey)) {
+            levelVisited.add(levelKey);
+            notesByLevel[level].push(note);
+          }
+        });
 
         // 将父节点加入队列，继续查找其父节点（层数+1）
         parentNotes.forEach(note => {

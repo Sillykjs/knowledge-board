@@ -999,8 +999,9 @@ export default {
     },
     // 触发便签 AI 生成（由 ChatModal 调用）
     async onTriggerNoteGenerate({ noteId, provider, model }) {
-      // 先加载便签列表，确保新便签在数组中
+      // 先加载便签列表和连接线，确保新便签和连接在数组中
       await this.loadNotes();
+      await this.loadConnections();
 
       // 等待下一帧，确保便签组件已渲染
       this.$nextTick(() => {

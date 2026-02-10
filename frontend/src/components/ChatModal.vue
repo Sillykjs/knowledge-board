@@ -698,6 +698,7 @@ export default {
   line-height: 1.5;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 18px;
 }
 
 .user-message:hover {
@@ -718,6 +719,7 @@ export default {
   border: 1px solid #e0e0e0;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 18px;
 }
 
 .assistant-message:hover {

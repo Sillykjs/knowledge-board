@@ -825,7 +825,11 @@ export default {
                     // 节流后渲染到编辑器
                     this.$refs.vditorEditor?.setValue(this.streamingContent);
 
-                    // 已移除自动滚动到底部
+                    // 触发流式更新事件，让 ChatModal 实时显示
+                    this.$emit('streaming-update', {
+                      id: this.id,
+                      content: this.streamingContent
+                    });
                   }
                 }
               } catch (e) {
@@ -1272,7 +1276,11 @@ export default {
                     // 节流后渲染到编辑器
                     this.$refs.vditorEditor?.setValue(this.streamingContent);
 
-                    // 已移除自动滚动到底部
+                    // 触发流式更新事件，让 ChatModal 实时显示
+                    this.$emit('streaming-update', {
+                      id: this.id,
+                      content: this.streamingContent
+                    });
                   }
                 }
               } catch (e) {

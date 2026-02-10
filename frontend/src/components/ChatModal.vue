@@ -26,19 +26,6 @@
               <div v-else class="assistant-message" v-html="renderMarkdown(message.content)" @dblclick="openNoteView(message.id)"></div>
             </div>
           </div>
-
-          <!-- 生成中的消息 -->
-          <div v-if="isGenerating" class="chat-message assistant generating">
-            <div class="message-avatar">🤖</div>
-            <div class="message-content">
-              <div class="assistant-message" v-html="renderMarkdown(streamingContent)"></div>
-              <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- 输入区域 -->
@@ -65,15 +52,13 @@
               class="chat-input"
               placeholder="输入问题继续对话..."
               @keyup.enter="sendMessage"
-              :disabled="isGenerating"
             />
             <button
               class="chat-send-btn"
               @click="sendMessage"
-              :disabled="!inputMessage.trim() || isGenerating"
+              :disabled="!inputMessage.trim()"
             >
-              <span v-if="isGenerating">停止</span>
-              <span v-else>发送</span>
+              发送
             </button>
           </div>
 
@@ -132,10 +117,7 @@ export default {
       messages: [],
       inputMessage: '',
       selectedModel: '',
-      isGenerating: false,
       error: null,
-      streamingContent: '',
-      abortController: null,
       rootNoteId: null,
       lastNoteId: null,
       lastNotePosition: null,
@@ -181,8 +163,6 @@ export default {
       this.messages = [];
       this.inputMessage = '';
       this.error = null;
-      this.streamingContent = '';
-      this.isGenerating = false;
       this.rootNoteId = null;
       this.lastNoteId = null;
       this.lastNotePosition = null;
@@ -262,7 +242,7 @@ export default {
 
     // 发送消息
     async sendMessage() {
-      if (!this.inputMessage.trim() || this.isGenerating) return;
+      if (!this.inputMessage.trim()) return;
 
       const [provider, model] = this.selectedModel.split('|');
       if (!provider || !model) {
@@ -315,7 +295,8 @@ export default {
           id: newNoteId,
           title: title,
           position_x: newPosition.x,
-          position_y: newPosition.y
+          position_y: newPosition.y,
+          content: ''
         };
 
         // 2. 创建连接（从最后一个便签到新便签，如果没有lastNoteId则从根便签开始）
@@ -343,8 +324,21 @@ export default {
           timestamp: new Date().toISOString()
         });
 
-        // 4. 开始生成AI内容（传递标题）
-        await this.generateAIContent(newNoteId, title, provider, model);
+        // 添加空的 AI 消息占位
+        this.messages.push({
+          id: `${newNoteId}_assistant`,
+          title: '',
+          content: '',
+          role: 'assistant',
+          timestamp: new Date().toISOString()
+        });
+
+        // 4. 触发便签生成事件
+        this.$emit('trigger-note-generate', {
+          noteId: newNoteId,
+          provider,
+          model
+        });
 
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -352,169 +346,41 @@ export default {
 
         // 移除刚添加的用户消息
         if (newNoteId) {
-          this.messages = this.messages.filter(m => m.id !== newNoteId);
+          this.messages = this.messages.filter(m => m.id !== newNoteId && m.id !== `${newNoteId}_assistant`);
         }
       }
     },
 
-    // 生成AI内容
-    async generateAIContent(noteId, prompt, provider, model) {
-      this.isGenerating = true;
-      this.streamingContent = '';
-      this.abortController = new AbortController();
-      let messageSaved = false;  // 标记消息是否已保存
-
-      try {
-        // 滚动到底部
-        this.$nextTick(() => {
-          this.scrollToBottom();
-        });
-
-        // prompt 由调用方传入，避免查找新创建的便签
-        if (!prompt) {
-          throw new Error('Prompt is required');
-        }
-
-        const response = await fetch('/api/notes/ai-generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            prompt,
-            wall_id: this.initialNote?.wall_id || 1,
-            note_id: noteId,
-            context_level: this.contextLevel,
-            include_reasoning: true,
-            provider,
-            model
-          }),
-          signal: this.abortController.signal
-        });
-
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            // 流式结束，保存最终内容并添加到消息列表（如果尚未保存）
-            if (!messageSaved && this.streamingContent) {
-              messageSaved = true;
-              await this.saveGeneratedContent(noteId, this.streamingContent);
-              // 添加完整的AI消息到消息列表
-              this.messages.push({
-                id: noteId + '_assistant',
-                title: '',
-                content: this.streamingContent,
-                role: 'assistant',
-                timestamp: new Date().toISOString()
-              });
-            }
-            break;
-          }
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-
-              if (data === '[DONE]') {
-                // 检测到结束标记，保存最终内容并添加到消息列表（如果尚未保存）
-                if (!messageSaved && this.streamingContent) {
-                  messageSaved = true;
-                  await this.saveGeneratedContent(noteId, this.streamingContent);
-                  // 添加完整的AI消息到消息列表
-                  this.messages.push({
-                    id: noteId + '_assistant',
-                    title: '',
-                    content: this.streamingContent,
-                    role: 'assistant',
-                    timestamp: new Date().toISOString()
-                  });
-                }
-                break;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-
-                if (parsed.error) {
-                  this.error = parsed.error;
-                  break;
-                }
-
-                if (parsed.content) {
-                  this.streamingContent += parsed.content;
-                  // 滚动到底部
-                  this.scrollToBottom();
-                }
-              } catch (e) {
-                // 忽略JSON解析错误
-              }
-            }
-          }
-        }
-
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          console.log('[ChatModal] AI 生成已停止');
-
-          // 保存已生成的内容并添加到消息列表（如果尚未保存）
-          if (!messageSaved && this.streamingContent) {
-            messageSaved = true;
-            await this.saveGeneratedContent(noteId, this.streamingContent);
-            // 添加AI消息到消息列表
-            this.messages.push({
-              id: noteId + '_assistant',
-              title: '',
-              content: this.streamingContent,
-              role: 'assistant',
-              timestamp: new Date().toISOString()
-            });
-          }
-        } else {
-          console.error('Failed to generate AI content:', error);
-          this.error = error.message || 'AI生成失败';
-        }
-      } finally {
-        this.isGenerating = false;
-        this.abortController = null;
+    // 处理便签的流式内容更新
+    onStreamingUpdate({ noteId, content }) {
+      // 更新缓存
+      if (this.newNotesCache[noteId]) {
+        this.newNotesCache[noteId].content = content;
       }
-    },
 
-    // 保存生成的内容
-    async saveGeneratedContent(noteId, content) {
-      try {
-        const note = this.findNoteById(noteId);
-        const title = note ? note.title : '';
+      // 更新消息列表中的 AI 响应
+      const aiMessageIndex = this.messages.findIndex(
+        m => m.id === `${noteId}_assistant`
+      );
 
-        await axios.put(`/api/notes/${noteId}`, {
-          title,
-          content,
-          position_x: this.lastNotePosition?.x || 0,
-          position_y: this.lastNotePosition?.y || 0
+      if (aiMessageIndex !== -1) {
+        // 更新现有消息
+        this.messages[aiMessageIndex].content = content;
+      } else {
+        // 添加新的 AI 消息
+        this.messages.push({
+          id: `${noteId}_assistant`,
+          title: '',
+          content: content,
+          role: 'assistant',
+          timestamp: new Date().toISOString()
         });
-
-        // 通知父组件便签已更新
-        this.$emit('note-updated', { id: noteId, content });
-      } catch (error) {
-        console.error('Failed to save generated content:', error);
       }
-    },
 
-    // 停止生成
-    stopGeneration() {
-      if (this.abortController) {
-        this.abortController.abort();
-      }
+      // 滚动到底部
+      this.$nextTick(() => {
+        this.scrollToBottom();
+      });
     },
 
     // 模型变化
@@ -818,42 +684,6 @@ export default {
   color: #f44336;
   border-radius: 4px;
   font-size: 14px;
-}
-
-/* 打字动画 */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background: #ccc;
-  border-radius: 50%;
-  animation: typingBounce 1.4s ease-in-out infinite;
-}
-
-.typing-indicator span:nth-child(1) {
-  animation-delay: 0s;
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typingBounce {
-  0%, 60%, 100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-8px);
-  }
 }
 
 /* Vditor 渲染样式覆盖 */

@@ -97,6 +97,7 @@
         :currentModelName="currentModelName"
         :availableModels="availableModels"
         @update="onNoteUpdate"
+        @streaming-update="onNoteStreamingUpdate"
         @delete="onNoteDelete"
         @copy="onNoteCopy"
         @cut="onNoteCut"
@@ -346,6 +347,8 @@
       :all-notes="notes"
       @note-updated="onChatNoteUpdated"
       @open-note-view="onOpenNoteView"
+      @trigger-note-generate="onTriggerNoteGenerate"
+      @note-streaming-update="onNoteStreamingUpdate"
     />
   </div>
 </template>
@@ -994,6 +997,27 @@ export default {
       // 如果 ChatModal 是打开的，刷新消息列表以显示更新的便签内容
       if (this.$refs.chatModal && this.$refs.chatModal.visible) {
         this.$refs.chatModal.loadMessages();
+      }
+    },
+    // 触发便签 AI 生成（由 ChatModal 调用）
+    async onTriggerNoteGenerate({ noteId, provider, model }) {
+      // 先加载便签列表，确保新便签在数组中
+      await this.loadNotes();
+
+      // 等待下一帧，确保便签组件已渲染
+      this.$nextTick(() => {
+        const noteComponent = this.noteRefs[noteId];
+        if (noteComponent && noteComponent.generateAIContentWithModel) {
+          noteComponent.generateAIContentWithModel(provider, model);
+        } else {
+          console.error('[NoteWall] 无法找到便签组件:', noteId, 'noteRefs:', this.noteRefs);
+        }
+      });
+    },
+    // 转发便签的流式更新事件给 ChatModal
+    onNoteStreamingUpdate({ noteId, content }) {
+      if (this.$refs.chatModal && this.$refs.chatModal.visible) {
+        this.$refs.chatModal.onStreamingUpdate({ noteId, content });
       }
     },
     async onNoteDelete(noteToDelete) {

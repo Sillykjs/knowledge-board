@@ -577,8 +577,8 @@ export default {
   background: white;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  width: 75%;
-  height: 85vh;
+  width: 90%;
+  height: 95vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

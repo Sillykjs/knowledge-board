@@ -1692,8 +1692,8 @@ export default {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  width: 75%;
-  height: 85%;
+  width: 85%;
+  height: 88%;
   display: flex;
   flex-direction: column;
   animation: modalAppear 0.2s ease-out;

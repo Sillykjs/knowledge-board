@@ -16,12 +16,24 @@
             class="chat-message"
             :class="message.role"
           >
-            <div class="message-avatar">
+            <div class="message-avatar" @dblclick="onAvatarDblClick(message)" :title="message.role === 'user' ? '双击重新生成回复' : ''">
               {{ message.role === 'user' ? '👤' : '🤖' }}
             </div>
             <div class="message-content">
-              <div v-if="message.role === 'user'" class="user-message" @dblclick="openNoteView(message.id)">
-                {{ message.title }}
+              <div v-if="message.role === 'user'" class="user-message" @dblclick="startEditUserMessage(message)">
+                <!-- 编辑状态 -->
+                <input
+                  v-if="editingMessageId === message.id"
+                  ref="editInput"
+                  v-model="editingMessageText"
+                  class="user-message-edit-input"
+                  @blur="saveUserMessageEdit(message.id)"
+                  @keyup.enter="saveUserMessageEdit(message.id)"
+                  @keyup.esc="cancelEdit"
+                  @click.stop
+                />
+                <!-- 正常显示状态 -->
+                <span v-else>{{ message.title }}</span>
               </div>
               <div v-else class="assistant-message" v-html="renderMarkdown(message.content)" @dblclick="openNoteView(message.id)"></div>
             </div>
@@ -122,7 +134,9 @@ export default {
       lastNoteId: null,
       lastNotePosition: null,
       newNotesCache: {},  // 缓存新创建的便签（用于保存内容时查找）
-      renderedCache: {}    // 缓存已渲染的 HTML
+      renderedCache: {},   // 缓存已渲染的 HTML
+      editingMessageId: null,  // 正在编辑的消息ID
+      editingMessageText: ''    // 编辑中的消息文本
     };
   },
   computed: {
@@ -171,6 +185,8 @@ export default {
       this.lastNoteId = null;
       this.lastNotePosition = null;
       this.newNotesCache = {};
+      this.editingMessageId = null;
+      this.editingMessageText = '';
     },
 
     // 加载消息
@@ -450,6 +466,125 @@ export default {
       });
     },
 
+    // 开始编辑用户消息
+    startEditUserMessage(message) {
+      this.editingMessageId = message.id;
+      this.editingMessageText = message.title;
+      // 聚焦输入框
+      this.$nextTick(() => {
+        if (this.$refs.editInput && this.$refs.editInput.length > 0) {
+          this.$refs.editInput[0].focus();
+          // 选中所有文本
+          this.$refs.editInput[0].select();
+        }
+      });
+    },
+
+    // 保存用户消息编辑
+    async saveUserMessageEdit(messageId) {
+      if (!this.editingMessageText.trim()) {
+        // 如果为空，取消编辑
+        this.cancelEdit();
+        return;
+      }
+
+      const newTitle = this.editingMessageText.trim();
+      const oldMessage = this.messages.find(m => m.id === messageId);
+
+      // 获取便签的完整信息（包括位置）
+      const note = this.findNoteById(messageId);
+
+      try {
+        // 更新数据库中的便签标题
+        await axios.put(`/api/notes/${messageId}`, {
+          title: newTitle,
+          content: oldMessage?.content || '',
+          position_x: note?.position_x || 0,
+          position_y: note?.position_y || 0
+        });
+
+        // 更新本地消息
+        const messageIndex = this.messages.findIndex(m => m.id === messageId);
+        if (messageIndex !== -1) {
+          this.messages[messageIndex] = {
+            ...this.messages[messageIndex],
+            title: newTitle
+          };
+          this.messages = [...this.messages];
+        }
+
+        // 更新缓存中的便签
+        if (this.newNotesCache[messageId]) {
+          this.newNotesCache[messageId].title = newTitle;
+        }
+
+        // 触发便签更新事件，通知父组件
+        this.$emit('note-updated', {
+          id: messageId,
+          title: newTitle,
+          content: oldMessage?.content || ''
+        });
+
+      } catch (error) {
+        console.error('保存消息编辑失败:', error);
+        this.error = '保存失败，请重试';
+      } finally {
+        this.editingMessageId = null;
+        this.editingMessageText = '';
+      }
+    },
+
+    // 取消编辑
+    cancelEdit() {
+      this.editingMessageId = null;
+      this.editingMessageText = '';
+    },
+
+    // 双击头像处理
+    onAvatarDblClick(message) {
+      if (message.role === 'user') {
+        // 双击用户头像：重新生成AI内容
+        this.regenerateContent(message);
+      }
+      // AI回复的头像双击暂无操作
+    },
+
+    // 重新生成AI内容
+    regenerateContent(userMessage) {
+      const [provider, model] = this.selectedModel.split('|');
+      if (!provider || !model) {
+        this.error = '请选择模型';
+        return;
+      }
+
+      // 保存选中的模型到 localStorage
+      localStorage.setItem('lastUsedModel', this.selectedModel);
+
+      const noteId = userMessage.id;
+
+      // 清空现有AI响应内容
+      const aiMessageId = `${noteId}_assistant`;
+      const aiMessageIndex = this.messages.findIndex(m => m.id === aiMessageId);
+
+      if (aiMessageIndex !== -1) {
+        this.messages[aiMessageIndex] = {
+          ...this.messages[aiMessageIndex],
+          content: ''  // 清空内容，准备接收新的流式响应
+        };
+        this.messages = [...this.messages];
+      }
+
+      // 触发便签生成事件
+      this.$emit('trigger-note-generate', {
+        noteId: noteId,
+        provider,
+        model
+      });
+
+      // 清除错误提示
+      this.error = null;
+    },
+
     // 渲染Markdown（使用 markdown-it + KaTeX 插件）
     renderMarkdown(content) {
       if (!content) return '';
@@ -589,6 +724,13 @@ export default {
   justify-content: center;
   font-size: 20px;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.message-avatar:hover {
+  background: #d0d0d0;
+  transform: scale(1.1);
 }
 
 .message-content {
@@ -620,6 +762,24 @@ export default {
 .user-message:hover {
   background: #1976d2;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.user-message-edit-input {
+  background: white;
+  color: #333;
+  padding: 12px 16px;
+  border-radius: 8px 8px 2px 8px;
+  border: 2px solid #2196f3;
+  outline: none;
+  font-size: 18px;
+  width: 100%;
+  min-width: 200px;
+  box-sizing: border-box;
+  cursor: text;
+}
+
+.user-message-edit-input:focus {
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
 
 .assistant-message {

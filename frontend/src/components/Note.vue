@@ -46,6 +46,10 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
+        <div class="context-menu-item" @click="openChatMode">
+          <span class="menu-icon">💬</span>
+          <span>对话模式</span>
+        </div>
         <div
           class="context-menu-item has-submenu"
           @mouseenter="onModelMenuItemEnter"
@@ -54,10 +58,6 @@
           <span class="menu-icon">🤖</span>
           <span>切换模型回答</span>
           <span class="submenu-arrow">▶</span>
-        </div>
-        <div class="context-menu-item" @click="openChatMode">
-          <span class="menu-icon">💬</span>
-          <span>对话模式</span>
         </div>
         <div class="context-menu-item" @click="duplicateNote">
           <span class="menu-icon">📄</span>
@@ -192,6 +192,17 @@
                 </div>
               </transition>
             </div>
+
+            <!-- 对话模式按钮 -->
+            <button
+              class="btn-chat-mode"
+              @click="openChatModeFromModal"
+              title="进入对话模式"
+            >
+              <span class="chat-mode-icon">💬</span>
+              <span>对话模式</span>
+            </button>
+
             <div v-if="aiError" class="ai-error">{{ aiError }}</div>
           </div>
         </div>
@@ -580,6 +591,20 @@ export default {
     openChatMode() {
       this.showContextMenu = false;
       this.$emit('contextmenu-closed');
+
+      // 触发对话模式事件，传递当前便签信息
+      this.$emit('open-chat-mode', {
+        id: this.id,
+        title: this.title,
+        content: this.content,
+        position_x: this.position_x,
+        position_y: this.position_y
+      });
+    },
+    // 从查看模态框进入对话模式
+    openChatModeFromModal() {
+      // 先关闭模态框
+      this.closeViewModal();
 
       // 触发对话模式事件，传递当前便签信息
       this.$emit('open-chat-mode', {
@@ -1925,6 +1950,42 @@ export default {
   border-radius: 4px;
   background: #ffebee;
   margin-top: 8px;
+}
+
+/* 对话模式按钮 */
+.btn-chat-mode {
+  --btn-start-color: #667eea;
+  --btn-end-color: #764ba2;
+  --btn-hover-start: #5a6fd6;
+  --btn-hover-end: #6a4190;
+
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--btn-start-color) 0%, var(--btn-end-color) 100%);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-position 0.2s ease;
+  height: 38px;
+  line-height: 1;
+}
+
+.btn-chat-mode:hover {
+  background-position: 100% 50%;
+}
+
+.btn-chat-mode:active {
+  background-position: 100% 50%;
+}
+
+.chat-mode-icon {
+  font-size: 16px;
 }
 
 /* AI 生成容器 - 包含按钮和下拉菜单 */

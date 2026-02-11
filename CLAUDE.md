@@ -4,257 +4,186 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Knowledge Board (知识白板) is a full-stack application that combines an infinite canvas whiteboard with AI chat capabilities. Users can create AI-generated notes as sticky notes on an infinite whiteboard, connect them with lines, and build knowledge networks.
+Knowledge Board (知识白板) is a structured AI chat system that uses an infinite canvas to organize knowledge through notes and connections. Each note represents an AI interaction (title as question, content as AI response), and connections define context relationships between notes.
 
-**Tech Stack:**
-
-- **Frontend**: Vue 3 + Vite + Vditor (Markdown editor)
-- **Backend**: Express.js + SQLite3
-- **Database**: SQLite (file: `backend/notes.db`)
+**Key Concept**: Unlike traditional linear chat, this system allows non-linear knowledge organization where notes can have multiple upstream dependencies and multiple downstream references, with BFS-based context tracing along connections.
 
 ## Development Commands
 
-### Running the Application
-
-**Recommended: Use VS Code Debug Configuration**
-
-1. Open VS Code
-2. Select "启动全部 (Full Stack)" from the debug dropdown
-3. Press F5 to start both frontend and backend
-
-**Or use command line:**
-
+### Backend (Express.js + SQLite)
 ```bash
-# Terminal 1: Start backend (port 3001)
 cd backend
-npm run dev          # Uses nodemon for auto-reload
-
-# Terminal 2: Start frontend (port 5173)
-cd frontend
-npm run dev
+npm install                    # Install dependencies
+npm run dev                    # Start with nodemon (port 3001)
+npm start                      # Start production server
 ```
 
-**Other commands:**
-
+### Frontend (Vue 3 + Vite)
 ```bash
-# Backend
-cd backend
-npm start            # Production mode (no auto-reload)
-
-# Frontend
 cd frontend
-npm run build        # Build for production
-npm run preview      # Preview production build
+npm install                    # Install dependencies
+npm run dev                    # Start dev server (port 5173)
+npm run build                  # Build for production
+npm run preview                # Preview production build
 ```
 
-### Installing Dependencies
-
-```bash
-cd backend && npm install
-cd frontend && npm install
-```
+### VS Code Debug Configuration
+Use "启动全部 (Full Stack)" to start both frontend and backend simultaneously.
 
 ## Architecture
 
-### Project Structure
+### Tech Stack
+- **Frontend**: Vue 3 (Options API), Vite, Vditor (Markdown editor), DOMPurify, KaTeX
+- **Backend**: Express.js, SQLite3, axios
+- **Database**: SQLite file at `backend/notes.db`
 
+### Directory Structure
 ```
-ChatBranch2/
-├── backend/                 # Express.js backend
-│   ├── server.js           # Main entry point
-│   ├── database.js         # SQLite database initialization & migrations
-│   ├── routes/             # API route handlers
-│   │   ├── notes.js        # Notes & connections CRUD
-│   │   ├── boards.js       # Boards (whiteboards) management
-│   │   └── model-config.js # AI model configuration
-│   └── notes.db            # SQLite database (auto-created)
-│
-├── frontend/               # Vue 3 frontend
-│   ├── src/
-│   │   ├── App.vue        # Main app (board sidebar, modals, layout)
-│   │   ├── components/
-│   │   │   ├── NoteWall.vue   # Infinite canvas (zoom, pan, connections)
-│   │   │   ├── Note.vue       # Individual note component
-│   │   │   └── VditorEditor.vue # Markdown editor wrapper
-│   │   └── utils/
-│   │       └── vditorConfig.js # Vditor configuration
-│   └── index.html
-│
-└── .vscode/launch.json     # VS Code debug configurations
+knowledge-board/
+├── backend/
+│   ├── server.js           # Express entry point
+│   ├── database.js         # SQLite setup and migrations
+│   └── routes/
+│       ├── notes.js        # Notes & connections API
+│       ├── boards.js       # Multi-board management
+│       └── model-config.js # AI model configuration
+└── frontend/
+    └── src/
+        ├── App.vue         # Main layout, board switching, model config
+        ├── components/
+        │   ├── NoteWall.vue    # Infinite canvas, notes rendering
+        │   ├── Note.vue        # Individual note component
+        │   ├── ChatModal.vue   # Chat interface for AI generation
+        │   └── VditorEditor.vue # Markdown editor wrapper
+        └── utils/
+            └── coordinate.js    # World/screen coordinate conversion
 ```
 
 ### Database Schema
 
-**Core tables:**
+**boards**: `id, title, system_prompt, created_at, updated_at, sort_order`
+- Each board has independent system_prompt for AI context
+- sort_order controls sidebar display order
 
-- `boards`: Whiteboard configurations (id, title, system_prompt, sort_order)
-- `notes`: Sticky notes (id, title, content, position_x, position_y, wall_id, deleted_at)
-- `note_connections`: Connections between notes (source_note_id, target_note_id, wall_id)
-- `model_configs`: AI model configurations (provider, api_base, api_key, models, sort_order)
+**notes**: `id, title, content, position_x, position_y, wall_id, created_at, updated_at, deleted_at`
+- wall_id links to boards (default=1)
+- Soft delete via deleted_at timestamp
 
-**Key relationships:**
+**note_connections**: `id, source_note_id, target_note_id, wall_id, created_at`
+- Directed edges: source -> target
+- BFS traces upstream for context
 
-- Each note belongs to one board (`wall_id`)
-- Notes can be soft-deleted (`deleted_at` timestamp)
-- Connections link notes directionally (source → target)
-- Cascade delete: when a note is deleted, its connections are removed
+**model_configs**: `id, provider, api_base, api_key, models, sort_order`
+- Supports multiple AI providers (OpenAI, DeepSeek, etc.)
+- API keys masked in UI (***), preserved in DB
 
 ### Coordinate System
-
-The whiteboard uses an infinite canvas with:
-
-- **World coordinates**: Absolute positions on the canvas (stored in database)
-- **Screen coordinates**: Transformed positions based on viewport (scale + translation)
-- **Viewport state**: `{ scale, translateX, translateY }` stored in `NoteWall.vue`
+- **World coordinates**: Absolute positions stored in database (position_x, position_y)
+- **Screen coordinates**: Transformed positions based on viewport (scale, translateX, translateY)
 - Conversion utilities in `NoteWall.vue`: `screenToWorld()` and `worldToScreen()`
 
-### Key Data Flow
+### Key Features
 
-1. **Note creation**: User clicks "+" → `NoteWall.addNote()` → POST `/api/notes` → creates note with current viewport center position
-2. **Note positioning**: User drags note → `Note.vue` emits drag events → `NoteWall` updates world coordinates → PUT `/api/notes/:id`
-3. **Connection creation**: User drags from connection handle → `NoteWall` tracks drag state → on release → POST `/api/notes/connections`
-4. **Context tracing**: Right-click note → "上文追溯" → BFS traversal of connection graph → highlight upstream notes
-5. **AI generation**: User opens note → clicks "AI 生成内容" → loads context from connected notes → calls configured AI model → streams response → saves to note
+**Multi-Board Support**: Each board has independent notes, connections, and system_prompt. Viewport state (scale, position) is preserved per board.
 
-### State Management
+**Context Tracing**: Uses BFS to traverse connections upstream, building multi-turn conversation history. Each note becomes a user/assistant pair (title=question, content=answer).
 
-- **App.vue**: Manages board list, model config, right sidebar (note index), search query
-- **NoteWall.vue**: Manages viewport state, notes list, connections, selection state, drag operations
-- **Note.vue**: Manages individual note editing, Markdown rendering, connection handle interactions
-- **Board viewport persistence**: Each board's viewport state is saved when switching boards
+**AI Generation**: Streaming SSE responses, supports reasoning models (o1, glm-4.7) with separate reasoning content display.
 
-### Multi-Board Architecture
+**Recycle Bin**: Soft-delete pattern with restore/permanent delete options.
 
-- Each board is isolated (notes have `wall_id`)
-- Sidebar shows draggable board list with note counts
-- Board metadata includes `system_prompt` used for AI generation
-- Boards can be reordered (drag & drop) → saves `sort_order` to database
+## Code Conventions
 
-### AI Model Configuration
+### Vue Components
+- **Use Options API** (not Composition API) - existing codebase convention
+- File naming: PascalCase (e.g., `NoteWall.vue`)
+- Data properties: camelCase, return objects from `data()` function
+- Methods: camelCase
 
-- Models configured via "模型管理 JSON" modal (stored in `model_configs` table)
-- Supports multiple providers (OpenAI, DeepSeek, etc.)
-- API keys are masked in UI (***hidden***) but preserved in database
-- Model selection stored in localStorage as `lastUsedModel` (format: "provider|model")
-- When AI generates content, it uses the board's `system_prompt` + context from connected notes
+### Vue Reactivity
+```javascript
+// For arrays: create new reference to trigger updates
+this.notes = [...newNotes];
+
+// For objects: spread for new reference
+this.object = { ...this.object, newProp: value };
+```
+
+### Backend API
+- RESTful endpoints under `/api/`
+- Always use prepared statements to prevent SQL injection
+- Soft delete pattern: set `deleted_at` instead of DELETE
+- Error handling: Send appropriate HTTP status codes with JSON responses
+
+```javascript
+app.get('/api/notes', async (req, res) => {
+  try {
+    const notes = await db.all('SELECT * FROM notes WHERE wall_id = ?', [wallId]);
+    res.json(notes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+### Naming Conventions
+- **Variables/Functions**: camelCase
+- **Components/Classes**: PascalCase
+- **Database tables/columns**: snake_case
+- **API endpoints**: kebab-case with plural nouns
+
+### Markdown & HTML Security
+- Store raw Markdown in database
+- Render with Vditor, sanitize with DOMPurify
+- Safe HTML tags allowed in chat messages
+
+### AI Integration Notes
+- Model configs stored in `model_configs` table
+- API keys masked in UI (show only last 4 chars)
+- Context tracing uses BFS on connection graph (max 24 levels)
+- Reasoning models: detect by model name prefix (o1, glm-4.7)
 
 ## Important Patterns
 
-### Vue Reactivity
+### Board Switching
+When switching boards:
+1. Save current viewport state to `boardViewports[currentBoardId]`
+2. Update `currentBoardId`
+3. Restore viewport from saved state
+4. Reload notes for new board
 
-- Vue 3 Composition API is NOT used; components use Options API
-- State updates require direct mutation or reassignment
-- When updating arrays, use `this.array = [...newArray]` to trigger reactivity
+### Connection Creation
+Connections are always created from source_note_id to target_note_id. The wall_id is inherited from the source note unless explicitly provided.
 
-### Coordinate Transformations
+### AI Context Building
+For context tracing (BFS):
+1. Start from note_id
+2. Find all parent notes (connections where this note is target)
+3. Continue up to context_level (1-24)
+4. Build messages array: [system_prompt, ...context_pairs, current_prompt]
+5. Each context note = user(title) + assistant(content)
 
-All canvas interactions must convert between screen and world coordinates:
-
+### Route Definition Order
+Important: More specific routes must be defined before parameterized routes:
 ```javascript
-// Screen → World (for creating/moving items)
-worldX = (screenX - translateX) / scale
-worldY = (screenY - translateY) / scale
+// /connections before /:id
+router.get('/connections', ...);
+router.delete('/connections/:connectionId', ...);
 
-// World → Screen (for rendering items)
-screenX = worldX * scale + translateX
-screenY = worldY * scale + translateY
+// /recycle-bin before /:id
+router.get('/recycle-bin', ...);
+
+// /ai-generate before /:id
+router.post('/ai-generate', ...);
+
+// General routes
+router.get('/', ...);
+router.post('/', ...);
+router.put('/:id', ...);
+router.delete('/:id', ...);
 ```
 
-### Connection Graph Traversal
-
-Context tracing uses BFS (Breadth-First Search) to find upstream notes:
-
-- Start from target note, follow connections backwards
-- Track visited notes to avoid cycles
-- Limit depth by `contextLevel` (1-24 layers)
-- Highlight matching notes and connections
-
-### Markdown Rendering
-
-- Vditor used for both editing and rendering
-- Content stored as raw Markdown in database
-- Sanitized with DOMPurify to prevent XSS
-- Stream rendering support for AI responses
-
-### Soft Deletion
-
-- Notes are soft-deleted (set `deleted_at` timestamp)
-- API queries filter out `deleted_at IS NULL`
-- Recycle bin feature allows restoration
-- Connections are cascade-deleted when source/target note is deleted
-
-## API Endpoints
-
-### Boards (`/api/notes/boards`)
-
-- `GET /api/notes/boards` - List all boards with note counts
-- `POST /api/notes/boards` - Create new board
-- `PUT /api/notes/boards/:id` - Update board (title, system_prompt)
-- `DELETE /api/notes/boards/:id` - Delete board and all its notes/connections
-- `PUT /api/notes/boards/reorder` - Reorder boards (drag & drop)
-
-### Notes (`/api/notes`)
-
-- `GET /api/notes?wall_id=N` - Get notes for a board
-- `POST /api/notes` - Create note
-- `PUT /api/notes/:id` - Update note
-- `DELETE /api/notes/:id` - Soft-delete note
-- `POST /api/notes/:id/restore` - Restore deleted note
-- `POST /api/notes/:id/generate` - Generate AI content (streams response)
-
-### Connections (`/api/notes/connections`)
-
-- `GET /api/notes/connections?wall_id=N` - Get connections for a board
-- `POST /api/notes/connections` - Create connection
-- `DELETE /api/notes/connections/:connectionId` - Delete connection
-- `GET /api/notes/connections/:noteId/upstream?depth=N` - Get upstream context
-
-### Model Config (`/api/model-config`)
-
-- `GET /api/model-config` - Get all model configs (with masked API keys)
-- `POST /api/model-config` - Save model configs (handles masked keys)
-- `DELETE /api/model-config` - Delete model configs (body: `{ ids: [...] }`)
-
-## Common Tasks
-
-### Adding a New API Endpoint
-
-1. Create route handler in `backend/routes/` (e.g., `notes.js` or new file)
-2. Import and mount router in `backend/server.js`: `app.use('/api/feature', featureRouter)`
-3. Access from frontend using axios: `axios.get('/api/feature/...')`
-
-### Modifying Database Schema
-
-1. Add migration function in `backend/database.js` (see existing `migrate*()` functions)
-2. Call migration from `initDb()` function
-3. Migration pattern: Check column existence with `PRAGMA table_info()`, then `ALTER TABLE` if needed
-
-### Adding UI Components
-
-- Place in `frontend/src/components/`
-- Import and use in parent component (App.vue, NoteWall.vue, or Note.vue)
-- Use ` Teleport to="body"` for modals
-- Follow existing styling patterns (CSS classes in `<style>` block)
-
-### Debugging Canvas Coordinates
-
-- Origin crosshair marks (0, 0) in world coordinates
-- Use browser DevTools to inspect note positions
-- Viewport state visible in NoteWall component data
-- Check that drag events use correct coordinate system
-
-## Testing AI Features
-
-To test AI generation without a real API key:
-
-1. Use the "模型管理 JSON" button in the sidebar
-2. Configure a mock provider (e.g., OpenAI with a test endpoint)
-3. Or use environment variables for API keys (not currently implemented)
-
-## Known Constraints
-
-- No authentication/user system (single-user application)
-- No real-time collaboration
-- Database is SQLite (not suitable for high-concurrency scenarios)
-- No automated tests (manual testing required)
-- Chinese language UI (hardcoded Chinese strings)
+### Model Configuration Pattern
+- When editing: if apiKey contains `***`, keep original in DB
+- When saving: match by provider to update existing or insert new
+- Missing providers in user's JSON are deleted from DB

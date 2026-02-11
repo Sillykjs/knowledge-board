@@ -18,12 +18,12 @@
       class="connection-point input-point"
       @mousedown.stop="onInputPointMouseDown"
       @dblclick.stop="onInputPointDoubleClick"
-      title="引入连接（双击打开对话模式）"
+      title="引入连接（双击打开查看模态框）"
     >
       <div class="point-inner"></div>
     </div>
 
-    <div class="note-content" @dblclick="openViewModal">
+    <div class="note-content" @dblclick="openChatMode">
       <h3 class="note-title">{{ title }}</h3>
       <p class="note-text">{{ truncatedContent }}</p>
     </div>
@@ -46,9 +46,13 @@
         :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
         @wheel.stop
       >
-        <div class="context-menu-item" @click="openChatMode">
-          <span class="menu-icon">💬</span>
-          <span>对话模式</span>
+        <div class="context-menu-item" @click="openViewModal">
+          <span class="menu-icon">📝</span>
+          <span>进入便签</span>
+        </div>
+        <div class="context-menu-item" @click="traceParentNotes">
+          <span class="menu-icon">🔗</span>
+          <span>上文追溯</span>
         </div>
         <div
           class="context-menu-item has-submenu"
@@ -70,10 +74,6 @@
         <div class="context-menu-item" @click="cutNote">
           <span class="menu-icon">✂️</span>
           <span>剪切</span>
-        </div>
-        <div class="context-menu-item" @click="traceParentNotes">
-          <span class="menu-icon">🔗</span>
-          <span>上文追溯</span>
         </div>
         <div class="context-menu-item danger" @click="deleteNote">
           <span class="menu-icon">🗑️</span>
@@ -333,9 +333,9 @@ export default {
       });
     },
 
-    // 引入点双击事件 - 打开对话模式
+    // 引入点双击事件 - 打开查看模态框
     onInputPointDoubleClick(event) {
-      this.openChatMode();
+      this.openViewModal();
     },
 
     // 重置连接状态

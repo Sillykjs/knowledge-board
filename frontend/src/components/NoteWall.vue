@@ -994,8 +994,10 @@ export default {
         this.$emit('notes-loaded', this.notes);
       }
 
-      // 注意：不在这里调用 loadMessages()，因为 ChatModal 通过 streaming-update 事件自己管理消息
-      // 否则会覆盖用户刚发送的消息
+      // 通知 ChatModal 更新消息列表中的标题和内容
+      if (this.$refs.chatModal && this.$refs.chatModal.onNoteUpdate) {
+        this.$refs.chatModal.onNoteUpdate(updatedNote);
+      }
     },
     // 触发便签 AI 生成（由 ChatModal 调用）
     async onTriggerNoteGenerate({ noteId, provider, model }) {

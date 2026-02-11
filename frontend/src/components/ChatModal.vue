@@ -387,6 +387,41 @@ export default {
       });
     },
 
+    // 处理便签的标题和内容更新（从 Note.vue 的编辑框同步）
+    onNoteUpdate(updatedNote) {
+      // 更新缓存
+      if (this.newNotesCache[updatedNote.id]) {
+        this.newNotesCache[updatedNote.id] = {
+          ...this.newNotesCache[updatedNote.id],
+          title: updatedNote.title,
+          content: updatedNote.content
+        };
+      }
+
+      // 更新用户消息的标题和内容
+      const userMessageIndex = this.messages.findIndex(m => m.id === updatedNote.id);
+      if (userMessageIndex !== -1) {
+        this.messages[userMessageIndex] = {
+          ...this.messages[userMessageIndex],
+          title: updatedNote.title,
+          content: updatedNote.content
+        };
+        this.messages = [...this.messages];
+      }
+
+      // 更新 AI 响应的内容
+      const aiMessageId = `${updatedNote.id}_assistant`;
+      const aiMessageIndex = this.messages.findIndex(m => m.id === aiMessageId);
+      if (aiMessageIndex !== -1) {
+        this.messages[aiMessageIndex] = {
+          ...this.messages[aiMessageIndex],
+          title: updatedNote.title,
+          content: updatedNote.content
+        };
+        this.messages = [...this.messages];
+      }
+    },
+
     // 模型变化
     onModelChange() {
       localStorage.setItem('lastUsedModel', this.selectedModel);

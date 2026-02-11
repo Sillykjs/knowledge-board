@@ -35,7 +35,7 @@
                 <!-- 正常显示状态 -->
                 <span v-else>{{ message.title }}</span>
               </div>
-              <div v-else class="assistant-message" v-html="renderMarkdown(message.content)" @dblclick="openNoteView(message.id)"></div>
+              <div v-else class="assistant-message" v-html="renderMarkdown(message.content)" @dblclick="openNoteView(message.id)" :ref="`mermaid-${message.id}`"></div>
             </div>
           </div>
         </div>
@@ -86,7 +86,15 @@ import axios from 'axios';
 import MarkdownIt from 'markdown-it';
 import markdownItKatex from '@vscode/markdown-it-katex';
 import DOMPurify from 'dompurify';
+import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
+
+// 初始化 mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+});
 
 // Initialize markdown-it with KaTeX plugin
 const md = new MarkdownIt({
@@ -242,6 +250,11 @@ export default {
 
       // 不再按创建时间排序，保持对话流的逻辑顺序（上游->根便签）
       this.messages = messages;
+
+      // 在下一个 tick 渲染 mermaid 图表
+      this.$nextTick(() => {
+        this.renderMermaidDiagrams();
+      });
     },
 
     // 查找便签
@@ -400,6 +413,11 @@ export default {
           timestamp: new Date().toISOString()
         });
       }
+
+      // 在下一个 tick 渲染 mermaid 图表
+      this.$nextTick(() => {
+        this.renderMermaidDiagrams();
+      });
     },
 
     // 处理便签的标题和内容更新（从 Note.vue 的编辑框同步）
@@ -604,8 +622,45 @@ export default {
       // 缓存结果
       this.renderedCache[cacheKey] = cleanHtml;
 
+      // 在下一个 tick 渲染 mermaid 图表
+      this.$nextTick(() => {
+        this.renderMermaidDiagrams();
+      });
+
       return cleanHtml;
-    }
+    },
+
+    // 渲染所有 mermaid 图表
+    async renderMermaidDiagrams() {
+      // 查找所有 mermaid 代码块
+      const mermaidBlocks = document.querySelectorAll('.assistant-message pre code.language-mermaid');
+
+      for (const block of mermaidBlocks) {
+        const code = block.textContent;
+        const pre = block.parentElement;
+
+        // 跳过已渲染的
+        if (pre.getAttribute('data-mermaid-rendered') === 'true') {
+          continue;
+        }
+
+        try {
+          // 生成唯一 ID
+          const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          // 渲染 mermaid 图表
+          const { svg } = await mermaid.render(id, code);
+
+          // 替换 pre 元素为 SVG
+          pre.outerHTML = `<div class="mermaid-diagram">${svg}</div>`;
+
+        } catch (error) {
+          console.error('Mermaid render error:', error);
+          // 保持原始代码块显示错误
+          pre.outerHTML = `<div class="mermaid-error"><pre><code>${block.textContent}</code></pre><p class="error-text">图表渲染失败</p></div>`;
+        }
+      }
+    },
   }
 };
 </script>
@@ -1021,5 +1076,36 @@ export default {
   border: none;
   border-top: 1px solid #e0e0e0;
   margin: 16px 0;
+}
+
+/* Mermaid 图表样式 */
+.assistant-message :deep(.mermaid-diagram) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.assistant-message :deep(.mermaid-diagram svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+.assistant-message :deep(.mermaid-error) {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.assistant-message :deep(.mermaid-error .error-text) {
+  color: #856404;
+  margin: 8px 0 0 0;
+  font-size: 14px;
 }
 </style>

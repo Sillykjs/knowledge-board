@@ -13,6 +13,7 @@
     "dompurify": "^3.3.1",
     "katex": "^0.16.28",
     "markdown-it": "^14.1.0",
+    "mermaid": "^11.12.2",
     "vditor": "^3.11.2",
     "vue": "^3.3.4",
     "vuedraggable": "^4.1.0"

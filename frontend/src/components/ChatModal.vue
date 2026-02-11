@@ -493,12 +493,13 @@ export default {
     startEditUserMessage(message) {
       this.editingMessageId = message.id;
       this.editingMessageText = message.title;
-      // 聚焦输入框
+      // 聚焦输入框，光标放在末尾
       this.$nextTick(() => {
         if (this.$refs.editInput && this.$refs.editInput.length > 0) {
           this.$refs.editInput[0].focus();
-          // 选中所有文本
-          this.$refs.editInput[0].select();
+          // 光标移到末尾
+          const length = this.editingMessageText.length;
+          this.$refs.editInput[0].setSelectionRange(length, length);
         }
       });
     },
@@ -805,6 +806,13 @@ export default {
   cursor: pointer;
   transition: all 0.2s;
   font-size: 18px;
+}
+
+/* 编辑状态下使用最大宽度 */
+.user-message:has(.user-message-edit-input) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .user-message:hover {

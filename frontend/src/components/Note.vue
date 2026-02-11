@@ -121,8 +121,8 @@
 
     <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
   <Teleport to="body">
-      <div v-if="showViewModal" ref="viewModal" class="view-modal" @keyup.esc="closeViewModal" tabindex="-1">
-        <div class="view-modal-content" @click.stop="onViewModalContentClick" @wheel.stop>
+      <div v-if="showViewModal" ref="viewModal" class="view-modal" @keyup.esc="closeViewModal" @dblclick="closeViewModal" tabindex="-1">
+        <div class="view-modal-content" @click.stop="onViewModalContentClick" @wheel.stop @dblclick.stop>
           <div class="view-header">
             <div v-if="!editingViewTitle" class="view-title" @dblclick="startEditViewTitle">{{ title }}</div>
             <input

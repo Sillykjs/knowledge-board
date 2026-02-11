@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" ref="chatModal" class="chat-modal" @keyup.esc="close" tabindex="-1">
-      <div class="chat-modal-content" @click.stop @wheel.stop>
+    <div v-if="visible" ref="chatModal" class="chat-modal" @keyup.esc="close" @dblclick="close" tabindex="-1">
+      <div class="chat-modal-content" @click.stop @wheel.stop @dblclick.stop>
         <!-- 头部 -->
         <div class="chat-header">
           <div class="chat-title">{{ chatTitle }}</div>

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" ref="chatModal" class="chat-modal" @click="onOverlayClick" @keyup.esc="close" tabindex="-1">
+    <div v-if="visible" ref="chatModal" class="chat-modal" @keyup.esc="close" tabindex="-1">
       <div class="chat-modal-content" @click.stop @wheel.stop>
         <!-- 头部 -->
         <div class="chat-header">
@@ -975,17 +975,41 @@ export default {
 }
 
 .assistant-message :deep(h1) {
-  font-size: 20px;
+  font-size: 34px;
   border-bottom: 1px solid #e0e0e0;
   padding-bottom: 4px;
+  margin-top: 24px;
+  line-height: 1.3;
 }
 
 .assistant-message :deep(h2) {
-  font-size: 18px;
+  font-size: 30px;
+  margin-top: 20px;
+  line-height: 1.3;
 }
 
 .assistant-message :deep(h3) {
-  font-size: 16px;
+  font-size: 26px;
+  margin-top: 16px;
+  line-height: 1.4;
+}
+
+.assistant-message :deep(h4) {
+  font-size: 22px;
+  margin-top: 14px;
+  line-height: 1.4;
+}
+
+.assistant-message :deep(h5) {
+  font-size: 19px;
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+.assistant-message :deep(h6) {
+  font-size: 17px;
+  margin-top: 12px;
+  line-height: 1.4;
 }
 
 .assistant-message :deep(p) {

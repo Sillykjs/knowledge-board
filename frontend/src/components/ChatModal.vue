@@ -366,6 +366,11 @@ export default {
           timestamp: new Date().toISOString()
         });
 
+        // 滚动到底部
+        this.$nextTick(() => {
+          this.scrollToBottom();
+        });
+
         // 4. 触发便签生成事件
         this.$emit('trigger-note-generate', {
           noteId: newNoteId,

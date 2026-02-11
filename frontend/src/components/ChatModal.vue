@@ -40,6 +40,30 @@
           </div>
         </div>
 
+        <!-- 导航按钮 -->
+        <div class="chat-navigation">
+          <button
+            class="nav-btn nav-prev"
+            @click="navigateToPrev"
+            :disabled="isPrevDisabled"
+            title="上一条问题"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+          <button
+            class="nav-btn nav-next"
+            @click="navigateToNext"
+            :disabled="isNextDisabled"
+            title="下一条问题"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+
         <!-- 输入区域 -->
         <div class="chat-input-area">
           <!-- 模型选择 -->
@@ -144,7 +168,8 @@ export default {
       newNotesCache: {},  // 缓存新创建的便签（用于保存内容时查找）
       renderedCache: {},   // 缓存已渲染的 HTML
       editingMessageId: null,  // 正在编辑的消息ID
-      editingMessageText: ''    // 编辑中的消息文本
+      editingMessageText: '',    // 编辑中的消息文本
+      currentMessageIndex: -1   // 当前所在用户消息索引
     };
   },
   computed: {
@@ -154,6 +179,18 @@ export default {
         return rootNote ? `对话 - ${rootNote.title}` : '对话模式';
       }
       return '对话模式';
+    },
+    // 用户消息列表（只包含 role 为 'user' 的消息）
+    userMessages() {
+      return this.messages.filter(m => m.role === 'user');
+    },
+    // 上一条按钮是否禁用
+    isPrevDisabled() {
+      return this.currentMessageIndex <= 0;
+    },
+    // 下一条按钮是否禁用
+    isNextDisabled() {
+      return this.currentMessageIndex >= this.userMessages.length - 1;
     }
   },
   methods: {
@@ -176,6 +213,8 @@ export default {
       // 滚动到最后一条消息的顶部并聚焦模态框
       this.$nextTick(() => {
         this.scrollToLastMessageTop();
+        // 初始化当前消息索引到最后一条用户消息
+        this.currentMessageIndex = this.userMessages.length - 1;
         // 聚焦模态框，使 ESC 键可以工作
         if (this.$refs.chatModal) {
           this.$refs.chatModal.focus();
@@ -499,6 +538,38 @@ export default {
       });
     },
 
+    // 滚动到指定用户消息的顶部
+    scrollToMessageTop(userMessageIndex) {
+      this.$nextTick(() => {
+        const container = this.$refs.messagesContainer;
+        if (container && this.messages.length > 0) {
+          const messageElements = container.querySelectorAll('.chat-message');
+          // 每个用户消息对应的DOM索引 = 用户消息索引 * 2
+          const targetDomIndex = userMessageIndex * 2;
+          if (targetDomIndex < messageElements.length) {
+            const targetMessage = messageElements[targetDomIndex];
+            targetMessage.scrollIntoView({ behavior: 'auto', block: 'start' });
+            container.scrollTop -= 20; // 补偿容器 padding
+            this.currentMessageIndex = userMessageIndex;
+          }
+        }
+      });
+    },
+
+    // 跳转到上一条用户消息
+    navigateToPrev() {
+      if (this.currentMessageIndex > 0) {
+        this.scrollToMessageTop(this.currentMessageIndex - 1);
+      }
+    },
+
+    // 跳转到下一条用户消息
+    navigateToNext() {
+      if (this.currentMessageIndex < this.userMessages.length - 1) {
+        this.scrollToMessageTop(this.currentMessageIndex + 1);
+      }
+    },
+
     // 打开便签查看状态
     openNoteView(messageId) {
       // 消息ID格式：纯数字为用户便签，数字+'_assistant'为AI响应
@@ -771,6 +842,7 @@ export default {
   overflow-y: auto;
   padding: 20px;
   background: #fafafa;
+  position: relative; /* 为导航按钮定位 */
 }
 
 .chat-message {
@@ -1152,5 +1224,66 @@ export default {
   color: #856404;
   margin: 8px 0 0 0;
   font-size: 14px;
+}
+
+/* 消息导航按钮 */
+.chat-navigation {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none; /* 让容器不阻挡鼠标事件 */
+}
+
+.nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(33, 150, 243, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #2196f3;
+  pointer-events: auto; /* 恢复按钮的鼠标事件 */
+  user-select: none;
+  padding: 0;
+}
+
+.nav-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #2196f3;
+  color: white;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(33, 150, 243, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  border-color: transparent;
+}
+
+.nav-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  transition: transform 0.1s;
+}
+
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: rgba(245, 245, 245, 0.9);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #aaa;
+  box-shadow: none;
 }
 </style>

@@ -349,6 +349,7 @@
       @open-note-view="onOpenNoteView"
       @trigger-note-generate="onTriggerNoteGenerate"
       @note-streaming-update="onNoteStreamingUpdate"
+      @blank-note-created="onBlankNoteCreated"
     />
   </div>
 </template>
@@ -1677,6 +1678,14 @@ export default {
       this.loadNotes();
       this.loadConnections();
     },
+    // 空白对话模式创建便签后的回调
+    onBlankNoteCreated({ note, position }) {
+      // 将新便签添加到本地数组
+      this.notes.push(note);
+      // 通知父组件更新
+      this.$emit('notes-loaded', this.notes);
+      this.$emit('note-count-changed');
+    },
     // 打开便签查看状态（从对话模式触发）
     onOpenNoteView({ noteId, editTitle }) {
       // 通过 noteRefs 获取便签组件实例
@@ -2142,8 +2151,17 @@ export default {
         y: worldPos.y - noteHeight / 2
       };
 
-      // 在计算出的位置创建便签
-      this.addNote(customPosition);
+      // 打开空白对话模态框（而不是直接创建便签）
+      this.openBlankChatMode(customPosition);
+    },
+
+    // 打开空白对话模式
+    openBlankChatMode(position) {
+      this.$nextTick(() => {
+        if (this.$refs.chatModal) {
+          this.$refs.chatModal.openBlankMode(position, this.boardId);
+        }
+      });
     },
 
     // 删除选中的连接

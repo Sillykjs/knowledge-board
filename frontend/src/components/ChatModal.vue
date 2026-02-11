@@ -86,6 +86,7 @@
 
           <div class="input-row">
             <input
+              ref="chatInput"
               v-model="inputMessage"
               type="text"
               class="chat-input"
@@ -173,11 +174,17 @@ export default {
       editingMessageId: null,  // 正在编辑的消息ID
       editingMessageText: '',    // 编辑中的消息文本
       currentMessageIndex: -1,   // 当前所在用户消息索引
-      intersectionObserver: null   // Intersection Observer 实例
+      intersectionObserver: null, // Intersection Observer 实例
+      isBlankMode: false,        // 是否为空白对话模式
+      blankPosition: null,       // 空白模式的双击位置
+      blankWallId: null          // 空白模式所属白板ID
     };
   },
   computed: {
     chatTitle() {
+      if (this.isBlankMode) {
+        return '新建对话';
+      }
       if (this.rootNoteId) {
         const rootNote = this.findNoteById(this.rootNoteId);
         return rootNote ? `对话 - ${rootNote.title}` : '对话模式';
@@ -248,6 +255,40 @@ export default {
       this.newNotesCache = {};
       this.editingMessageId = null;
       this.editingMessageText = '';
+      // 重置空白模式状态
+      this.isBlankMode = false;
+      this.blankPosition = null;
+      this.blankWallId = null;
+    },
+
+    // 打开空白对话模式（不依赖便签）
+    openBlankMode(position, wallId) {
+      this.isBlankMode = true;
+      this.blankPosition = position;
+      this.blankWallId = wallId;
+      this.rootNoteId = null;
+      this.lastNoteId = null;
+      this.lastNotePosition = null;
+      this.visible = true;
+      this.messages = [];
+
+      // 加载最后使用的模型
+      const lastUsedModel = localStorage.getItem('lastUsedModel');
+      if (lastUsedModel) {
+        this.selectedModel = lastUsedModel;
+      } else if (this.availableModels.length > 0 && this.availableModels[0].models.length > 0) {
+        this.selectedModel = `${this.availableModels[0].provider}|${this.availableModels[0].models[0]}`;
+      }
+
+      // 聚焦模态框和输入框
+      this.$nextTick(() => {
+        if (this.$refs.chatModal) {
+          this.$refs.chatModal.focus();
+        }
+        if (this.$refs.chatInput) {
+          this.$refs.chatInput.focus();
+        }
+      });
     },
 
     // 加载消息
@@ -345,6 +386,69 @@ export default {
       this.inputMessage = '';
       this.error = null;
 
+      // 空白模式：第一条消息需要创建便签
+      if (this.isBlankMode) {
+        try {
+          // 1. 在双击位置创建便签
+          const createResponse = await axios.post('/api/notes', {
+            title: title,
+            content: '',
+            position_x: this.blankPosition.x,
+            position_y: this.blankPosition.y,
+            wall_id: this.blankWallId
+          });
+          const newNoteId = createResponse.data.note.id;
+
+          // 2. 退出空白模式，切换到正常对话模式
+          this.isBlankMode = false;
+          this.rootNoteId = newNoteId;
+          this.lastNoteId = newNoteId;
+          this.lastNotePosition = this.blankPosition;
+          const savedPosition = this.blankPosition;
+          this.blankPosition = null;
+
+          // 3. 缓存新便签
+          this.newNotesCache[newNoteId] = {
+            id: newNoteId,
+            title: title,
+            content: '',
+            wall_id: this.blankWallId
+          };
+          this.blankWallId = null;
+
+          // 4. 添加消息到界面
+          this.messages.push({
+            id: newNoteId,
+            title: title,
+            content: '',
+            role: 'user',
+            timestamp: new Date().toISOString()
+          });
+          this.messages.push({
+            id: `${newNoteId}_assistant`,
+            content: '',
+            role: 'assistant',
+            timestamp: new Date().toISOString()
+          });
+
+          // 5. 触发 AI 生成
+          this.$emit('trigger-note-generate', { noteId: newNoteId, provider, model });
+
+          // 6. 通知父组件便签已创建
+          this.$emit('blank-note-created', {
+            note: createResponse.data.note,
+            position: savedPosition
+          });
+
+          return;
+        } catch (error) {
+          console.error('Failed to create note in blank mode:', error);
+          this.error = '创建便签失败';
+          return;
+        }
+      }
+
+      // 正常模式：保持现有逻辑
       // 1. 创建新便签
       let newNoteId = null;
       let newPosition = null;

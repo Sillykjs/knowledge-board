@@ -429,6 +429,9 @@ export default {
     await this.loadBoards();
     this.loadModelsJson();
     this.loadCurrentModelName();
+
+    // 自动聚焦到全局最新便签
+    await this.focusOnLatestNote();
   },
   watch: {
     showCreateBoardModal(newVal) {
@@ -842,6 +845,28 @@ export default {
     // 清除搜索
     clearSearch() {
       this.searchQuery = '';
+    },
+
+    // 聚焦到全局最新便签（跨所有白板）
+    async focusOnLatestNote() {
+      let latestNote = null;
+      let latestDate = null;
+
+      // 从 allBoardsNotes 中遍历找出全局最新便签
+      Object.values(this.allBoardsNotes).forEach(notes => {
+        notes.forEach(note => {
+          const noteDate = new Date(note.created_at);
+          if (!latestDate || noteDate > latestDate) {
+            latestDate = noteDate;
+            latestNote = note;
+          }
+        });
+      });
+
+      // 如果找到最新便签，执行跨白板跳转
+      if (latestNote) {
+        await this.jumpToNote(latestNote);
+      }
     },
 
     // 跳转到指定便签（支持跨白板跳转）

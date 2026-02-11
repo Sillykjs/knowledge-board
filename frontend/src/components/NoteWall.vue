@@ -548,7 +548,7 @@ export default {
       // 延迟执行，确保 DOM 完全渲染完成（使用多个 nextTick）
       this.$nextTick(() => {
         this.$nextTick(() => {
-          this.jumpToNote(targetNote);
+          this.jumpToNote(targetNote, false);  // 禁用动画，瞬移
         });
       });
     }
@@ -2547,9 +2547,9 @@ export default {
     // ========== 供 App.vue 调用的方法 ==========
 
     // 跳转到指定便签
-    jumpToNote(note) {
-      // 添加动画 class
-      if (this.$refs.wallContent) {
+    jumpToNote(note, enableAnimation = true) {
+      // 添加动画 class（仅在启用动画时）
+      if (this.$refs.wallContent && enableAnimation) {
         this.$refs.wallContent.classList.add('animating');
       }
 
@@ -2578,12 +2578,14 @@ export default {
       this.viewport.translateX = screenCenterX - noteCenterX * this.viewport.scale;
       this.viewport.translateY = screenCenterY - noteCenterY * this.viewport.scale;
 
-      // 动画结束后移除 class（1000ms 与 CSS transition 时间一致）
-      setTimeout(() => {
-        if (this.$refs.wallContent) {
-          this.$refs.wallContent.classList.remove('animating');
-        }
-      }, 1000);
+      // 动画结束后移除 class（1000ms 与 CSS transition 时间一致，仅在启用动画时）
+      if (enableAnimation) {
+        setTimeout(() => {
+          if (this.$refs.wallContent) {
+            this.$refs.wallContent.classList.remove('animating');
+          }
+        }, 1000);
+      }
 
       // 高亮该便签2秒
       this.highlightedNoteIds.clear();

@@ -872,18 +872,40 @@ export default {
       this.error = null;
     },
 
+    /**
+     * 转换 LaTeX 风格的数学公式分隔符为美元符号格式
+     * @param {string} content - Markdown 内容
+     * @returns {string} 转换后的内容
+     */
+    convertLatexDelimiters(content) {
+      // 转换块级公式：\[...\] -> $$...$$
+      content = content.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (match, formula) => {
+        return `$$\n${formula.trim()}\n$$`;
+      });
+
+      // 转换行内公式：\(...\) -> $...$
+      content = content.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (match, formula) => {
+        return `$${formula.trim()}$`;
+      });
+
+      return content;
+    },
+
     // 渲染Markdown（使用 markdown-it + KaTeX 插件）
     renderMarkdown(content) {
       if (!content) return '';
 
+      // 先转换 LaTeX 分隔符为美元符号格式
+      const convertedContent = this.convertLatexDelimiters(content);
+
       // 使用缓存的渲染结果（如果存在）
-      const cacheKey = content;
+      const cacheKey = convertedContent;
       if (this.renderedCache[cacheKey]) {
         return this.renderedCache[cacheKey];
       }
 
       // 使用 markdown-it 渲染（KaTeX 插件会自动处理数学公式）
-      const html = md.render(content);
+      const html = md.render(convertedContent);
 
       // 清理 HTML（防止 XSS 攻击）
       const cleanHtml = DOMPurify.sanitize(html);

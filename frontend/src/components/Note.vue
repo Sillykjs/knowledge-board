@@ -887,6 +887,11 @@ export default {
         // 更新编辑状态的临时内容
         this.viewEditContent = generatedContent;
 
+        // 显式调用 setValue 触发 LaTeX 分隔符转换
+        if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
+          this.$refs.vditorEditor.setValue(generatedContent);
+        }
+
       } catch (error) {
         // 如果是用户主动取消，不显示错误信息
         if (error.name === 'AbortError') {
@@ -1344,6 +1349,11 @@ export default {
 
         // 更新编辑状态的临时内容
         this.viewEditContent = generatedContent;
+
+        // 显式调用 setValue 触发 LaTeX 分隔符转换
+        if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
+          this.$refs.vditorEditor.setValue(generatedContent);
+        }
 
       } catch (error) {
         // 如果是用户主动取消，不显示错误信息

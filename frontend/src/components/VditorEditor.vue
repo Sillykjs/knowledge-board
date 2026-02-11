@@ -234,7 +234,15 @@ export default {
      */
     setValue(value) {
       if (this.vditorInstance) {
-        this.vditorInstance.setValue(value);
+        // AI 生成完内容后，自动转换 LaTeX 分隔符为美元符号格式
+        const convertedValue = this.convertLatexDelimiters(value);
+
+        // 先清空再设置，确保 Vditor 触发重新渲染
+        this.vditorInstance.setValue('');
+        // 使用 nextTick 确保 Vditor 处理完清空操作
+        this.$nextTick(() => {
+          this.vditorInstance.setValue(convertedValue);
+        });
       }
     },
 

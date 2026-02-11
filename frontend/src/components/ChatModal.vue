@@ -98,7 +98,7 @@ mermaid.initialize({
 
 // Initialize markdown-it with KaTeX plugin
 const md = new MarkdownIt({
-  html: false,          // Disable HTML tags in source
+  html: true,           // Enable HTML tags in source (safe due to DOMPurify)
   linkify: true,        // Autoconvert URL-like texts to links
   typographer: true,     // Enable some language-neutral replacement + quotes beautification
   breaks: true,         // Convert '\n' to <br>

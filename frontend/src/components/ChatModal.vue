@@ -380,11 +380,6 @@ export default {
           timestamp: new Date().toISOString()
         });
       }
-
-      // 滚动到底部
-      this.$nextTick(() => {
-        this.scrollToBottom();
-      });
     },
 
     // 处理便签的标题和内容更新（从 Note.vue 的编辑框同步）

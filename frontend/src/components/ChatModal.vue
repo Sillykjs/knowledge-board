@@ -173,9 +173,9 @@ export default {
         this.selectedModel = `${this.availableModels[0].provider}|${this.availableModels[0].models[0]}`;
       }
 
-      // 滚动到底部并聚焦模态框
+      // 滚动到最后一条消息的顶部并聚焦模态框
       this.$nextTick(() => {
-        this.scrollToBottom();
+        this.scrollToLastMessageTop();
         // 聚焦模态框，使 ESC 键可以工作
         if (this.$refs.chatModal) {
           this.$refs.chatModal.focus();
@@ -476,6 +476,27 @@ export default {
       if (container) {
         container.scrollTop = container.scrollHeight;
       }
+    },
+
+    // 滚动到最后一条消息的顶部
+    scrollToLastMessageTop() {
+      this.$nextTick(() => {
+        const container = this.$refs.messagesContainer;
+        if (container && this.messages.length > 0) {
+          // 获取消息元素
+          const messageElements = container.querySelectorAll('.chat-message');
+          if (messageElements.length > 0) {
+            // 消息是成对的（用户消息 + AI回复），找到最后一条用户消息（倒数第二条）
+            // 如果只有一条消息，就用最后一条
+            const targetIndex = messageElements.length > 1 ? messageElements.length - 2 : 0;
+            const targetMessage = messageElements[targetIndex];
+            // 使用 scrollIntoView 精确滚动到元素顶部
+            targetMessage.scrollIntoView({ behavior: 'auto', block: 'start' });
+            // 微调：稍微向上滚动一点，露出边框（容器 padding 为 20px，向上调整 5px）
+            container.scrollTop -= 20;
+          }
+        }
+      });
     },
 
     // 打开便签查看状态

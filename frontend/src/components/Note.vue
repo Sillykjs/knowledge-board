@@ -121,7 +121,7 @@
 
     <!-- 查看模态框 (只读模式) - 使用 Teleport 传送到 body，避免受 wall-content 缩放影响 -->
   <Teleport to="body">
-      <div v-if="showViewModal" class="view-modal" @click="onViewModalClick">
+      <div v-if="showViewModal" ref="viewModal" class="view-modal" @click="onViewModalClick" @keyup.esc="closeViewModal" tabindex="-1">
         <div class="view-modal-content" @click.stop="onViewModalContentClick" @wheel.stop>
           <div class="view-header">
             <div v-if="!editingViewTitle" class="view-title" @dblclick="startEditViewTitle">{{ title }}</div>
@@ -358,6 +358,10 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
           this.$refs.vditorEditor.setValue(this.content);
+        }
+        // 聚焦模态框，使 ESC 键可以工作
+        if (this.$refs.viewModal) {
+          this.$refs.viewModal.focus();
         }
       });
 

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="chat-modal" @click="onOverlayClick">
+    <div v-if="visible" ref="chatModal" class="chat-modal" @click="onOverlayClick" @keyup.esc="close" tabindex="-1">
       <div class="chat-modal-content" @click.stop @wheel.stop>
         <!-- 头部 -->
         <div class="chat-header">
@@ -151,9 +151,13 @@ export default {
         this.selectedModel = `${this.availableModels[0].provider}|${this.availableModels[0].models[0]}`;
       }
 
-      // 滚动到底部
+      // 滚动到底部并聚焦模态框
       this.$nextTick(() => {
         this.scrollToBottom();
+        // 聚焦模态框，使 ESC 键可以工作
+        if (this.$refs.chatModal) {
+          this.$refs.chatModal.focus();
+        }
       });
     },
 

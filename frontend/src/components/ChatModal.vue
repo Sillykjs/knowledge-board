@@ -758,11 +758,6 @@ export default {
   animation: messageAppear 0.3s ease-out;
 }
 
-/* 用户消息右对齐 */
-.chat-message.user {
-  flex-direction: row-reverse;
-}
-
 @keyframes messageAppear {
   from {
     opacity: 0;
@@ -798,21 +793,14 @@ export default {
   min-width: 0;
 }
 
-/* 用户消息内容右对齐 */
-.chat-message.user .message-content {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .user-message {
   background: #2196f3;
   color: white;
   padding: 12px 16px;
-  border-radius: 8px 8px 2px 8px;
+  border-radius: 8px 8px 8px 2px;
   display: inline-block;
   max-width: 100%;
-  word: break-word;
-  overflow-wrap: break-word;
+  word-wrap: break-word;
   line-height: 1.5;
   cursor: pointer;
   transition: all 0.2s;
@@ -849,8 +837,7 @@ export default {
   border-radius: 2px 8px 8px 8px;
   display: inline-block;
   max-width: 100%;
-  word: break-word;
-  overflow-wrap: break-word;
+  word-wrap: break-word;
   line-height: 1.6;
   border: 1px solid #e0e0e0;
   cursor: pointer;

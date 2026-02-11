@@ -18,7 +18,7 @@
       class="connection-point input-point"
       @mousedown.stop="onInputPointMouseDown"
       @dblclick.stop="onInputPointDoubleClick"
-      title="引入连接（双击编辑标题）"
+      title="引入连接（双击打开对话模式）"
     >
       <div class="point-inner"></div>
     </div>
@@ -333,12 +333,9 @@ export default {
       });
     },
 
-    // 引入点双击事件 - 打开查看模态框并编辑标题
+    // 引入点双击事件 - 打开对话模式
     onInputPointDoubleClick(event) {
-      this.openViewModal();
-      this.$nextTick(() => {
-        this.startEditViewTitle();
-      });
+      this.openChatMode();
     },
 
     // 重置连接状态

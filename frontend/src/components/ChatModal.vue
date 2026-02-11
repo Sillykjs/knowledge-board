@@ -42,6 +42,9 @@
 
         <!-- 导航按钮 -->
         <div class="chat-navigation">
+          <div class="nav-counter">
+            {{ currentMessageIndex + 1 }}/{{ userMessages.length }}
+          </div>
           <button
             class="nav-btn nav-prev"
             @click="navigateToPrev"
@@ -169,7 +172,8 @@ export default {
       renderedCache: {},   // 缓存已渲染的 HTML
       editingMessageId: null,  // 正在编辑的消息ID
       editingMessageText: '',    // 编辑中的消息文本
-      currentMessageIndex: -1   // 当前所在用户消息索引
+      currentMessageIndex: -1,   // 当前所在用户消息索引
+      intersectionObserver: null   // Intersection Observer 实例
     };
   },
   computed: {
@@ -192,6 +196,16 @@ export default {
     isNextDisabled() {
       return this.currentMessageIndex >= this.userMessages.length - 1;
     }
+  },
+  mounted() {
+    // 组件挂载后初始化滚动监听
+    this.$nextTick(() => {
+      this.initScrollObserver();
+    });
+  },
+  beforeUnmount() {
+    // 组件卸载前清理 observer
+    this.cleanupScrollObserver();
   },
   methods: {
     // 打开对话模式
@@ -293,6 +307,8 @@ export default {
       // 在下一个 tick 渲染 mermaid 图表
       this.$nextTick(() => {
         this.renderMermaidDiagrams();
+        // 重新初始化滚动监听（消息列表已更新）
+        this.initScrollObserver();
       });
     },
 
@@ -408,6 +424,8 @@ export default {
         // 滚动到底部
         this.$nextTick(() => {
           this.scrollToBottom();
+          // 重新初始化滚动监听
+          this.initScrollObserver();
         });
 
         // 4. 触发便签生成事件
@@ -567,6 +585,55 @@ export default {
     navigateToNext() {
       if (this.currentMessageIndex < this.userMessages.length - 1) {
         this.scrollToMessageTop(this.currentMessageIndex + 1);
+      }
+    },
+
+    // 初始化滚动监听
+    initScrollObserver() {
+      // 清理旧的 observer
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+      }
+
+      // 创建 Intersection Observer
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+        // 找出所有进入视口的用户消息
+        const visibleUserMessages = entries
+          .filter(entry => entry.isIntersecting)
+          .map(entry => {
+            // 从 DOM 元素找到对应的消息索引
+            const messageElements = this.$refs.messagesContainer.querySelectorAll('.chat-message');
+            return Array.from(messageElements).indexOf(entry.target);
+          })
+          .filter(index => index !== -1 && index % 2 === 0) // 只取用户消息（偶数索引）
+          .map(domIndex => domIndex / 2); // 转换为用户消息索引
+
+        if (visibleUserMessages.length > 0) {
+          // 取最接近顶部的可见消息（索引最小的）
+          const topmostVisibleIndex = Math.min(...visibleUserMessages);
+          if (topmostVisibleIndex !== this.currentMessageIndex) {
+            this.currentMessageIndex = topmostVisibleIndex;
+          }
+        }
+      }, {
+        // 触发阈值：元素进入视口 10% 时即触发
+        threshold: 0.1,
+        root: this.$refs.messagesContainer,
+        rootMargin: '-60px 0px 0px 0px' // 顶部偏移，忽略头部遮挡区域
+      });
+
+      // 观察所有用户消息元素
+      this.$nextTick(() => {
+        const messageElements = this.$refs.messagesContainer.querySelectorAll('.chat-message.user');
+        messageElements.forEach(el => this.intersectionObserver.observe(el));
+      });
+    },
+
+    // 清理 Observer
+    cleanupScrollObserver() {
+      if (this.intersectionObserver) {
+        this.intersectionObserver.disconnect();
+        this.intersectionObserver = null;
       }
     },
 
@@ -1229,7 +1296,7 @@ export default {
 /* 消息导航按钮 */
 .chat-navigation {
   position: absolute;
-  right: 40px;
+  right: 30px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -1240,8 +1307,8 @@ export default {
 }
 
 .nav-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
@@ -1263,6 +1330,23 @@ export default {
   height: 20px;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.nav-counter {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(33, 150, 243, 0.15);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2196f3;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  pointer-events: auto;
+  user-select: none;
+  min-width: 40px;
+  text-align: center;
 }
 
 .nav-btn:hover:not(:disabled) {

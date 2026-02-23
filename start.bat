@@ -19,5 +19,9 @@ echo 后端地址: http://localhost:3001
 echo 前端地址: http://localhost:5173
 echo =====================================
 echo.
+echo 正在打开浏览器...
+start "" http://localhost:5173
+
+echo.
 echo 按任意键关闭此窗口（服务将继续运行）...
 pause >nul

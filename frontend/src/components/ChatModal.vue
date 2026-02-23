@@ -244,7 +244,28 @@ export default {
     },
 
     // 关闭对话模式
-    close() {
+    async close() {
+      // 如果是空白模式且没有发送任何消息，创建空白便签
+      if (this.isBlankMode && this.messages.length === 0 && this.blankPosition && this.blankWallId) {
+        try {
+          const createResponse = await axios.post('/api/notes', {
+            title: '新便签',
+            content: '',
+            position_x: this.blankPosition.x,
+            position_y: this.blankPosition.y,
+            wall_id: this.blankWallId
+          });
+
+          // 通知父组件便签已创建
+          this.$emit('blank-note-created', {
+            note: createResponse.data.note,
+            position: this.blankPosition
+          });
+        } catch (error) {
+          console.error('Failed to create blank note:', error);
+        }
+      }
+
       this.visible = false;
       this.messages = [];
       this.inputMessage = '';

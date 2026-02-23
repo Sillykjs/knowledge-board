@@ -37,5 +37,8 @@ Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "提示: 关闭此窗口不会停止服务，如需停止请关闭各个服务窗口" -ForegroundColor Yellow
 Write-Host ""
+Write-Host "正在打开浏览器..." -ForegroundColor Green
+Start-Process "http://localhost:5173"
+Write-Host ""
 Write-Host "按任意键退出..." -ForegroundColor Gray
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

@@ -130,6 +130,8 @@ function initDb() {
   // 模型配置表
   migrateModelConfigs();
   migrateModelConfigsSortOrder();
+
+  migrateFiles();
 }
 
 // 创建模型配置表
@@ -477,6 +479,44 @@ function migrateBoardsSortOrder() {
         }
       }
     );
+  });
+}
+
+function migrateFiles() {
+  const createFilesTableSQL = `
+    CREATE TABLE IF NOT EXISTS files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      mime_type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      note_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL
+    )
+  `;
+
+  db.run(createFilesTableSQL, (err) => {
+    if (err) {
+      console.error('Error creating files table:', err.message);
+    } else {
+      console.log('Files table ready');
+
+      const createIndexSQL = `
+        CREATE INDEX IF NOT EXISTS idx_files_note_id ON files(note_id);
+        CREATE INDEX IF NOT EXISTS idx_files_category ON files(category);
+        CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at);
+      `;
+
+      db.run(createIndexSQL, (err) => {
+        if (err) {
+          console.error('Error creating files indexes:', err.message);
+        } else {
+          console.log('Files indexes ready');
+        }
+      });
+    }
   });
 }
 

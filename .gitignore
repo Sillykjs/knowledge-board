@@ -71,3 +71,6 @@ config.local
 
 # 数据库
 *.db
+
+# 上传的文件（图片、文档）
+backend/public/uploads/

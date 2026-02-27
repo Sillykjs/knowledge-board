@@ -54,6 +54,16 @@ export const vditorOptions = {
     lineNumber: true
   },
 
+  upload: {
+    url: 'http://localhost:3001/api/upload/images',
+    max: 5 * 1024 * 1024,
+    filename(name) {
+      return name.replace(/\s+/g, '_');
+    },
+    linkToImgUrl: false,
+    withCredentials: false
+  },
+
   // 启用 typographer 模式（自动转换标点）
   typographer: false,
 

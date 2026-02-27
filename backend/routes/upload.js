@@ -64,7 +64,7 @@ const uploadImage = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024
+    fileSize: 50 * 1024 * 1024
   }
 });
 
@@ -72,7 +72,7 @@ const uploadDocument = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 20 * 1024 * 1024
+    fileSize: 200 * 1024 * 1024
   }
 });
 
@@ -80,7 +80,7 @@ const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       const isImageRoute = req.path === '/images';
-      const maxSize = isImageRoute ? '5MB' : '20MB';
+      const maxSize = isImageRoute ? '50MB' : '200MB';
       return res.status(400).json({
         error: `File size exceeds the limit (max ${maxSize})`
       });

@@ -113,6 +113,9 @@ export default {
         // 使用构造函数方式初始化
         this.vditorInstance = new Vditor(this.$refs.vditorRef.id, options);
 
+        // 存储全局实例供 upload handler 使用
+        window.vditorInstance = this.vditorInstance;
+
         // 修复 tooltip 被遮挡的问题
         this.$nextTick(() => {
           this.fixTooltipPosition();
@@ -159,6 +162,7 @@ export default {
           console.error('Error destroying Vditor instance:', error);
         } finally {
           this.vditorInstance = null;
+          window.vditorInstance = null;
         }
       }
     },

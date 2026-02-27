@@ -56,34 +56,50 @@ export const vditorOptions = {
 
   upload: {
     handler(files) {
-      return new Promise((resolve) => {
-        const formData = new FormData();
-        const file = files[0];
+      return new Promise(async (resolve) => {
+        try {
+          const file = files[0];
+          const isImage = file.type.startsWith('image/');
+          const uploadUrl = isImage
+            ? 'http://localhost:3001/api/upload/images'
+            : 'http://localhost:3001/api/upload/documents';
 
-        const isImage = file.type.startsWith('image/');
-        const uploadUrl = isImage
-          ? 'http://localhost:3001/api/upload/images'
-          : 'http://localhost:3001/api/upload/documents';
+          const formData = new FormData();
+          formData.append('file[]', file);
 
-        // Vditor requires field name to be 'file[]' (with brackets)
-        formData.append('file[]', file);
-
-        fetch(uploadUrl, {
-          method: 'POST',
-          body: formData,
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.data && data.data.succMap) {
-              resolve(data.data.succMap);
-            } else {
-              resolve({});
-            }
-          })
-          .catch((error) => {
-            console.error('Upload error:', error);
-            resolve({});
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData,
           });
+
+          const data = await response.json();
+
+          if (!response.ok || data.error) {
+            resolve(data.error || 'Upload failed');
+            return;
+          }
+
+          if (data.data && data.data.succMap) {
+            // Insert markdown link into editor
+            const entries = Object.entries(data.data.succMap);
+            entries.forEach(([filename, url]) => {
+              const markdown = isImage
+                ? `![${filename}](${url})`
+                : `[${filename}](${url})`;
+              // Access global Vditor instance to insert content
+              if (window.vditorInstance) {
+                window.vditorInstance.insertValue(markdown);
+              }
+            });
+            // Return null on success
+            resolve(null);
+          } else {
+            resolve('Upload failed: invalid response');
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          resolve(error.message || 'Upload failed');
+        }
       });
     },
     filename(name) {

@@ -17,6 +17,30 @@ const ensureDir = (dir) => {
   }
 };
 
+const decodeUTF8FileName = (filename) => {
+  if (!filename) return filename;
+
+  try {
+    const hasPercentEncoding = filename.includes('%');
+    const replacementChar = '\ufffd';
+
+    if (hasPercentEncoding) {
+      const percentDecoded = decodeURIComponent(filename);
+      const isValidUTF8 = percentDecoded && !percentDecoded.includes(replacementChar);
+      if (isValidUTF8) return percentDecoded;
+    }
+
+    const latin1ToUTF8Decoded = Buffer.from(filename, 'latin1').toString('utf8');
+    const isLatin1DecodedValid = latin1ToUTF8Decoded && !latin1ToUTF8Decoded.includes(replacementChar);
+    if (isLatin1DecodedValid) return latin1ToUTF8Decoded;
+
+    return filename;
+  } catch (error) {
+    console.warn('Failed to decode filename:', filename, error);
+    return filename;
+  }
+};
+
 const generateFileName = (originalName) => {
   const ext = path.extname(originalName);
   const timestamp = Date.now();
@@ -32,7 +56,8 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const fileName = generateFileName(file.originalname);
+    const decodedOriginalName = decodeUTF8FileName(file.originalname);
+    const fileName = generateFileName(decodedOriginalName);
     cb(null, fileName);
   }
 });
@@ -236,6 +261,7 @@ router.post('/attachment', uploadFile.single('file'), async (req, res) => {
 
     const { position_x, position_y, wall_id } = req.body;
     const { originalname, filename, size, mimetype } = req.file;
+    const decodedOriginalName = decodeUTF8FileName(originalname);
     const category = mimetype.startsWith('image/') ? 'image' : 'document';
     const fileUrl = `/uploads/${category}s/${filename}`;
 
@@ -244,7 +270,7 @@ router.post('/attachment', uploadFile.single('file'), async (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `;
 
-    db.run(insertFileSql, [filename, originalname, size, mimetype, category], function(fileErr) {
+    db.run(insertFileSql, [filename, decodedOriginalName, size, mimetype, category], function(fileErr) {
       if (fileErr) {
         console.error('Database error:', fileErr);
         fs.unlinkSync(req.file.path);
@@ -260,7 +286,7 @@ router.post('/attachment', uploadFile.single('file'), async (req, res) => {
 
       db.run(
         insertNoteSql,
-        [originalname, JSON.stringify({ fileId, fileUrl, filename, category, mimetype }), position_x || 0, position_y || 0, wall_id || 1],
+        [decodedOriginalName, JSON.stringify({ fileId, fileUrl, filename, category, mimetype }), position_x || 0, position_y || 0, wall_id || 1],
         function(noteErr) {
           if (noteErr) {
             console.error('Database error:', noteErr);

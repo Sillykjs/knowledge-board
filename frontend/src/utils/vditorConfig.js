@@ -84,8 +84,8 @@ export const vditorOptions = {
             const entries = Object.entries(data.data.succMap);
             entries.forEach(([filename, url]) => {
               const markdown = isImage
-                ? `![${filename}](${url})`
-                : `[${filename}](${url})`;
+                ? `![${file.name}](${url})`
+                : `[${file.name}](${url})`;
               // Access global Vditor instance to insert content
               if (window.vditorInstance) {
                 window.vditorInstance.insertValue(markdown);

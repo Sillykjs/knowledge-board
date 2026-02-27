@@ -138,8 +138,44 @@
             <button class="close-btn" @click="closeViewModal">×</button>
           </div>
           <div class="view-body">
-            <!-- 使用 VditorEditor 替换旧的查看/编辑内容区域 -->
+            <!-- 附件便签：显示文件信息和描述编辑 -->
+            <div v-if="category === 'attachment' && parsedAttachment" class="attachment-view">
+              <div class="attachment-info">
+                <div class="attachment-file-icon">📎</div>
+                <div class="attachment-details">
+                  <div class="attachment-filename">{{ title }}</div>
+                  <div class="attachment-meta">
+                    <span class="attachment-type">{{ parsedAttachment.mimetype }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="attachment-description-section">
+                <div class="attachment-description-label">描述</div>
+                <div
+                  v-if="!editingAttachmentDescription"
+                  class="attachment-description"
+                  @dblclick="startEditAttachmentDescription"
+                >
+                  {{ parsedAttachment.description || '添加描述' }}
+                </div>
+                <textarea
+                  v-else
+                  ref="attachmentDescriptionInput"
+                  v-model="attachmentData.description"
+                  class="attachment-description-input"
+                  placeholder="添加描述..."
+                  @blur="saveAttachmentDescription"
+                  @keyup.esc="cancelEditAttachmentDescription"
+                />
+              </div>
+              <button class="btn-open-file" @click="openAttachmentFile">
+                <span class="open-file-icon">📂</span>
+                <span>打开文件</span>
+              </button>
+            </div>
+            <!-- 普通便签：使用 VditorEditor -->
             <VditorEditor
+              v-else
               ref="vditorEditor"
               v-model="viewEditContent"
               :note-id="id"
@@ -148,7 +184,7 @@
               @blur="saveViewContent"
             />
           </div>
-          <div class="view-footer">
+          <div class="view-footer" v-if="category !== 'attachment'">
             <div class="ai-generate-container">
               <button
                 class="btn-ai-generate"
@@ -280,12 +316,36 @@ export default {
       abortController: null,  // 用于中断 AI 生成请求
       showModelDropdown: false,  // 是否显示模型下拉选择器（在 view-footer 中）
       lastUpdateTime: 0,  // 上次更新时间（用于节流）
-      UPDATE_THROTTLE: 100  // 节流阈值：100ms 更新一次
+      UPDATE_THROTTLE: 100,  // 节流阈值：100ms 更新一次
+      attachmentData: null,  // 附件数据（解析后的 JSON）
+      editingAttachmentDescription: false  // 是否正在编辑附件描述
     };
   },
   computed: {
     truncatedContent() {
+      // 如果是附件便签，解析 JSON 并显示描述
+      if (this.category === 'attachment') {
+        try {
+          const fileData = JSON.parse(this.content);
+          return fileData.description || '添加描述';
+        } catch (error) {
+          console.error('Failed to parse attachment content:', error);
+          return this.content || '';
+        }
+      }
       return this.content || '';
+    },
+    // 解析附件数据
+    parsedAttachment() {
+      if (this.category === 'attachment') {
+        try {
+          return JSON.parse(this.content);
+        } catch (error) {
+          console.error('Failed to parse attachment data:', error);
+          return null;
+        }
+      }
+      return null;
     },
     // 右键菜单是否显示（由父组件控制，实现互斥）
     shouldShowContextMenu() {
@@ -295,6 +355,17 @@ export default {
   watch: {
     // 监听 content prop 的变化，实时同步到查看模态框
     content(newContent) {
+      // 如果是附件便签，解析附件数据
+      if (this.category === 'attachment') {
+        try {
+          this.attachmentData = JSON.parse(newContent);
+          console.log('[Note] 附件数据已更新:', this.attachmentData);
+        } catch (error) {
+          console.error('Failed to parse attachment data:', error);
+          this.attachmentData = null;
+        }
+      }
+
       // 如果模态框打开且正在生成内容，实时同步到 Vditor
       if (this.showViewModal && this.isAIGenerating) {
         this.viewEditContent = newContent;
@@ -356,6 +427,16 @@ export default {
       // 同步最新的内容到编辑器
       this.viewEditContent = this.content;
 
+      // 如果是附件便签，解析附件数据
+      if (this.category === 'attachment') {
+        try {
+          this.attachmentData = JSON.parse(this.content);
+        } catch (error) {
+          console.error('Failed to parse attachment data:', error);
+          this.attachmentData = null;
+        }
+      }
+
       // 确保 Vditor 实例准备好后再设置内容
       this.$nextTick(() => {
         if (this.$refs.vditorEditor && this.$refs.vditorEditor.vditorInstance) {
@@ -383,10 +464,20 @@ export default {
         return;
       }
 
-      // 立即保存内容（不等待 blur 事件）
-      this.saveViewContent();
+      // 如果是附件便签且正在编辑描述，先保存描述
+      if (this.category === 'attachment' && this.editingAttachmentDescription) {
+        this.saveAttachmentDescription();
+      }
+
+      // 附件便签已经通过 saveAttachmentDescription 保存了，不需要再调用 saveViewContent
+      if (this.category !== 'attachment') {
+        // 立即保存内容（不等待 blur 事件）
+        this.saveViewContent();
+      }
+
       this.showViewModal = false;
       this.editingViewTitle = false;
+      this.editingAttachmentDescription = false;
     },
     startEditViewTitle() {
       this.viewEditTitle = this.title;
@@ -450,6 +541,82 @@ export default {
       this.editingViewTitle = false;
       this.viewEditTitle = this.title;
     },
+    // 附件描述编辑相关方法
+    startEditAttachmentDescription() {
+      this.editingAttachmentDescription = true;
+      this.$nextTick(() => {
+        if (this.$refs.attachmentDescriptionInput) {
+          this.$refs.attachmentDescriptionInput.focus();
+          this.$refs.attachmentDescriptionInput.select();
+        }
+      });
+    },
+    async saveAttachmentDescription() {
+      if (!this.editingAttachmentDescription) return;
+
+      // 如果没有 attachmentData，先解析
+      if (!this.attachmentData) {
+        try {
+          this.attachmentData = JSON.parse(this.content);
+        } catch (error) {
+          console.error('Failed to parse attachment data:', error);
+          this.editingAttachmentDescription = false;
+          return;
+        }
+      }
+
+      try {
+        // 确保描述字段存在
+        if (!this.attachmentData.description) {
+          this.attachmentData.description = '';
+        }
+
+        // 序列化回 JSON
+        const newContent = JSON.stringify(this.attachmentData);
+
+        // 更新 viewEditContent，防止 closeViewModal 用旧数据覆盖
+        this.viewEditContent = newContent;
+
+        // 保存到数据库
+        await axios.put(`/api/notes/${this.id}`, {
+          title: this.title,
+          content: newContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 触发更新事件
+        this.$emit('update', {
+          id: this.id,
+          title: this.title,
+          content: newContent,
+          position_x: this.position_x,
+          position_y: this.position_y
+        });
+
+        // 保存成功后才关闭编辑状态
+        this.editingAttachmentDescription = false;
+
+        console.log('[Note] 附件描述保存成功:', this.attachmentData.description);
+      } catch (error) {
+        console.error('Failed to update attachment description:', error);
+        // 出错时也关闭编辑状态，否则用户无法退出
+        this.editingAttachmentDescription = false;
+      }
+    },
+    cancelEditAttachmentDescription() {
+      this.editingAttachmentDescription = false;
+      // 恢复原始描述
+      if (this.parsedAttachment) {
+        this.attachmentData = { ...this.parsedAttachment };
+      }
+    },
+    openAttachmentFile() {
+      if (this.parsedAttachment && this.parsedAttachment.fileUrl) {
+        window.open(`http://localhost:3001${this.parsedAttachment.fileUrl}`, '_blank');
+      }
+    },
+
 
     async saveViewContent() {
       // 尝试从 VditorEditor 获取最新内容
@@ -2159,6 +2326,129 @@ export default {
 .dropdown-fade-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+/* 附件查看界面样式 */
+.attachment-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.attachment-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.attachment-file-icon {
+  font-size: 48px;
+  flex-shrink: 0;
+}
+
+.attachment-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-filename {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.attachment-meta {
+  font-size: 13px;
+  color: #666;
+}
+
+.attachment-type {
+  background: #e0e0e0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.attachment-description-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-description-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+
+.attachment-description {
+  padding: 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  min-height: 80px;
+  cursor: text;
+  line-height: 1.6;
+  color: #333;
+}
+
+.attachment-description:hover {
+  background: #fafafa;
+}
+
+.attachment-description-input {
+  padding: 12px;
+  border: 2px solid #2196f3;
+  border-radius: 8px;
+  min-height: 80px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.attachment-description-input:focus {
+  outline: none;
+}
+
+.btn-open-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+
+.btn-open-file:hover {
+  background: #1976d2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.btn-open-file:active {
+  transform: translateY(0);
+}
+
+.open-file-icon {
+  font-size: 18px;
 }
 
 </style>

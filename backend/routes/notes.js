@@ -286,7 +286,7 @@ router.post('/attachment', uploadFile.single('file'), async (req, res) => {
 
       db.run(
         insertNoteSql,
-        [decodedOriginalName, JSON.stringify({ fileId, fileUrl, filename, category, mimetype }), position_x || 0, position_y || 0, wall_id || 1],
+        [decodedOriginalName, JSON.stringify({ fileId, fileUrl, filename, category, mimetype, description: '添加描述' }), position_x || 0, position_y || 0, wall_id || 1],
         function(noteErr) {
           if (noteErr) {
             console.error('Database error:', noteErr);

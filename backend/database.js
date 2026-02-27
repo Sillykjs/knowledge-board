@@ -24,7 +24,8 @@ function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       deleted_at DATETIME DEFAULT NULL,
-      wall_id INTEGER NOT NULL DEFAULT 1
+      wall_id INTEGER NOT NULL DEFAULT 1,
+      category TEXT NOT NULL DEFAULT 'text'
     )
   `;
 
@@ -132,6 +133,42 @@ function initDb() {
   migrateModelConfigsSortOrder();
 
   migrateFiles();
+
+  migrateNotesCategory();
+}
+
+function migrateNotesCategory() {
+  db.all("PRAGMA table_info(notes)", [], (err, columns) => {
+    if (err) {
+      console.error('Error checking notes table for category:', err.message);
+      return;
+    }
+
+    const hasCategory = columns.some(col => col.name === 'category');
+    if (hasCategory) {
+      console.log('notes table already has category column');
+      return;
+    }
+
+    db.run(
+      "ALTER TABLE notes ADD COLUMN category TEXT NOT NULL DEFAULT 'text'",
+      (err) => {
+        if (err) {
+          console.error('Error adding category to notes:', err.message);
+        } else {
+          console.log('Migration completed: added category column to notes');
+
+          db.run(
+            "UPDATE notes SET category = 'text' WHERE category IS NULL",
+            (err) => {
+              if (err) console.error('Error initializing category:', err.message);
+              else console.log('category initialized to "text" for existing notes');
+            }
+          );
+        }
+      }
+    );
+  });
 }
 
 // 创建模型配置表

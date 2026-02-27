@@ -4,7 +4,8 @@
     :class="{
       generating: isAIGenerating,
       'highlight-flash': isHighlighting,
-      selected: isSelected
+      selected: isSelected,
+      'attachment-note': category === 'attachment'
     }"
     :data-note-id="id"
     :style="{ left: position_x + 'px', top: position_y + 'px' }"
@@ -23,7 +24,7 @@
       <div class="point-inner"></div>
     </div>
 
-    <div class="note-content" @dblclick="openChatMode">
+    <div class="note-content" @dblclick="onNoteContentDblClick">
       <h3 class="note-title">{{ title }}</h3>
       <p class="note-text">{{ truncatedContent }}</p>
     </div>
@@ -229,6 +230,10 @@ export default {
     wallId: {
       type: Number,
       default: 1
+    },
+    category: {
+      type: String,
+      default: 'text'
     },
     isHighlighting: {
       type: Boolean,
@@ -588,6 +593,20 @@ export default {
 
       // 触发上文追溯事件，传递当前便签 ID
       this.$emit('trace-parent', this.id);
+    },
+    onNoteContentDblClick() {
+      if (this.category === 'attachment') {
+        try {
+          const fileData = JSON.parse(this.content);
+          if (fileData.fileUrl) {
+            window.open(`http://localhost:3001${fileData.fileUrl}`, '_blank');
+          }
+        } catch (error) {
+          console.error('Failed to parse file data:', error);
+        }
+      } else {
+        this.openChatMode();
+      }
     },
     openChatMode() {
       this.showContextMenu = false;
@@ -1476,6 +1495,15 @@ export default {
 .note.selected {
   border: 3px solid #2196f3;
   box-shadow: 0 4px 20px rgba(33, 150, 243, 0.5);
+}
+
+/* 附件便签样式 */
+.note.attachment-note {
+  background: #fff3e0; /* 浅橙色 */
+}
+
+.note.attachment-note .note-title::before {
+  content: '📎 ';
 }
 
 /* 连接点样式 */

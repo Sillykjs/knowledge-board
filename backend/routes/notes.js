@@ -2,10 +2,72 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const axios = require('axios');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 
 // 引入白板路由
 const boardsRouter = require('./boards');
 router.use('/boards', boardsRouter);
+
+const ensureDir = (dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};
+
+const generateFileName = (originalName) => {
+  const ext = path.extname(originalName);
+  const timestamp = Date.now();
+  const randomHash = crypto.randomBytes(8).toString('hex');
+  return `${timestamp}_${randomHash}${ext}`;
+};
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const category = file.mimetype.startsWith('image/') ? 'images' : 'documents';
+    const uploadPath = path.join(__dirname, `../public/uploads/${category}`);
+    ensureDir(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const fileName = generateFileName(file.originalname);
+    cb(null, fileName);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedImageTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml'
+  ];
+  const allowedDocTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'text/markdown',
+    'text/x-markdown'
+  ];
+
+  if (allowedImageTypes.includes(file.mimetype) || allowedDocTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`不支持的文件类型: ${file.mimetype}`), false);
+  }
+};
+
+const uploadFile = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024
+  }
+});
 
 // ============ 连接相关路由（必须在 /:id 之前定义）============
 
@@ -163,6 +225,71 @@ router.post('/', (req, res) => {
       }
     );
   });
+});
+
+// 创建附件便签（上传文件并创建便签）
+router.post('/attachment', uploadFile.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { position_x, position_y, wall_id } = req.body;
+    const { originalname, filename, size, mimetype } = req.file;
+    const category = mimetype.startsWith('image/') ? 'image' : 'document';
+    const fileUrl = `/uploads/${category}s/${filename}`;
+
+    const insertFileSql = `
+      INSERT INTO files (filename, original_name, file_size, mime_type, category)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.run(insertFileSql, [filename, originalname, size, mimetype, category], function(fileErr) {
+      if (fileErr) {
+        console.error('Database error:', fileErr);
+        fs.unlinkSync(req.file.path);
+        return res.status(500).json({ error: 'Failed to save file metadata' });
+      }
+
+      const fileId = this.lastID;
+
+      const insertNoteSql = `
+        INSERT INTO notes (title, content, position_x, position_y, wall_id, category)
+        VALUES (?, ?, ?, ?, ?, 'attachment')
+      `;
+
+      db.run(
+        insertNoteSql,
+        [originalname, JSON.stringify({ fileId, fileUrl, filename, category, mimetype }), position_x || 0, position_y || 0, wall_id || 1],
+        function(noteErr) {
+          if (noteErr) {
+            console.error('Database error:', noteErr);
+            return res.status(500).json({ error: 'Failed to create attachment note' });
+          }
+
+          db.get(
+            'SELECT * FROM notes WHERE id = ?',
+            [this.lastID],
+            (selectErr, note) => {
+              if (selectErr) {
+                return res.status(500).json({ error: selectErr.message });
+              }
+              res.json({
+                message: 'Attachment note created',
+                note: note
+              });
+            }
+          );
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ============ 回收站相关路由（必须在 /:id 之前定义）============

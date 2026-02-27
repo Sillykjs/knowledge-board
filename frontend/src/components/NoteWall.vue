@@ -8,6 +8,8 @@
     @wheel.prevent="onWheel"
     @dblclick="onWallDoubleClick"
     @contextmenu.prevent="onWallContextMenu"
+    @dragover.prevent="onDragOver"
+    @drop="onDrop"
   >
     <!-- 固定标题（在白板外部，不受缩放平移影响） -->
     <div class="title-container">
@@ -90,6 +92,7 @@
         :position_x="note.position_x"
         :position_y="note.position_y"
         :wallId="boardId"
+        :category="note.category || 'text'"
         :isHighlighting="highlightedNoteIds.has(note.id)"
         :activeContextMenuNoteId="activeContextMenuNoteId"
         :isSelected="selectedNoteIds.has(note.id)"
@@ -2510,6 +2513,58 @@ export default {
     // 清空选择
     clearSelection() {
       this.selectedNoteIds.clear();
+    },
+
+    // ========== 文件拖拽相关方法 ==========
+
+    // 文件拖拽经过白板
+    onDragOver(event) {
+      event.dataTransfer.dropEffect = 'copy';
+    },
+
+    // 文件拖放事件
+    async onDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // 检查是否拖拽的是文件
+      const files = event.dataTransfer.files;
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      // 计算拖放位置（世界坐标）
+      const wallRect = this.$el.getBoundingClientRect();
+      const screenX = event.clientX - wallRect.left;
+      const screenY = event.clientY - wallRect.top;
+      const worldPos = this.screenToWorld(screenX, screenY);
+
+      // 上传文件并创建附件便签
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('position_x', worldPos.x + (i * 30)); // 稍微错开位置
+        formData.append('position_y', worldPos.y + (i * 30));
+        formData.append('wall_id', this.boardId);
+
+        try {
+          const response = await axios.post('/api/notes/attachment', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+
+          this.notes.push(response.data.note);
+          this.$emit('notes-loaded', this.notes);
+          this.$emit('note-count-changed');
+        } catch (error) {
+          console.error('Failed to create attachment note:', error);
+          alert(`上传文件失败: ${file.name}`);
+        }
+      }
+
+      await this.loadConnections();
     },
 
     // ========== 模型选择相关方法 ==========

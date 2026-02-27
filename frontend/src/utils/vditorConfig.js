@@ -55,8 +55,37 @@ export const vditorOptions = {
   },
 
   upload: {
-    url: 'http://localhost:3001/api/upload/images',
-    max: 5 * 1024 * 1024,
+    handler(files) {
+      return new Promise((resolve) => {
+        const formData = new FormData();
+        const file = files[0];
+
+        const isImage = file.type.startsWith('image/');
+        const uploadUrl = isImage
+          ? 'http://localhost:3001/api/upload/images'
+          : 'http://localhost:3001/api/upload/documents';
+
+        // Vditor requires field name to be 'file[]' (with brackets)
+        formData.append('file[]', file);
+
+        fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.data && data.data.succMap) {
+              resolve(data.data.succMap);
+            } else {
+              resolve({});
+            }
+          })
+          .catch((error) => {
+            console.error('Upload error:', error);
+            resolve({});
+          });
+      });
+    },
     filename(name) {
       return name.replace(/\s+/g, '_');
     },

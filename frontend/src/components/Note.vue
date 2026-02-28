@@ -24,7 +24,7 @@
     </div>
 
     <div class="note-content" @dblclick="openChatMode">
-      <h3 class="note-title">{{ title }}</h3>
+      <h3 class="note-title" @dblclick.stop="openViewModal">{{ title }}</h3>
       <p class="note-text">{{ truncatedContent }}</p>
     </div>
 
@@ -1526,6 +1526,14 @@ export default {
   font-weight: bold;
   margin-bottom: 12px;
   color: #1565c0;
+  /* 限制最多显示三行，超出显示省略号 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  max-height: 75.6px; /* 18px * 1.4 * 3行 = 75.6px */
   /* 优化文字渲染 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
